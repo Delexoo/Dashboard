@@ -358,8 +358,11 @@
       showError(wrap, "Enter your PIN");
       return;
     }
-    if (loadFailed && !useServerPinAuth()) {
-      showError(wrap, "Sign-in is not configured.");
+    if (!useServerPinAuth() && loadFailed) {
+      showError(
+        wrap,
+        "Sign-in is not configured. Supabase URL/key missing in js/config.js."
+      );
       return;
     }
 

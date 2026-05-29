@@ -34,15 +34,16 @@ jobs:
           const url = (process.env.SUPABASE_URL || "").trim();
           const key = (process.env.SUPABASE_ANON_KEY || "").trim();
           if (!url || !key) {
-            console.error("Missing SUPABASE_URL or SUPABASE_ANON_KEY repository secrets.");
-            process.exit(1);
+            fs.writeFileSync("js/private-config.js", "window.SITE_PRIVATE = {};\n", "utf8");
+            console.log("No SUPABASE_* secrets — using js/config.js for Supabase URL/key");
+          } else {
+            const body =
+              "window.SITE_PRIVATE = " +
+              JSON.stringify({ supabaseUrl: url, supabaseAnonKey: key }, null, 2) +
+              ";\n";
+            fs.writeFileSync("js/private-config.js", body, "utf8");
+            console.log("Wrote js/private-config.js from GitHub secrets");
           }
-          const body =
-            "window.SITE_PRIVATE = " +
-            JSON.stringify({ supabaseUrl: url, supabaseAnonKey: key }, null, 2) +
-            ";\n";
-          fs.writeFileSync("js/private-config.js", body, "utf8");
-          console.log("Wrote js/private-config.js (Supabase URL + key only; PINs stay in database)");
           NODE
 
       - name: Setup Pages

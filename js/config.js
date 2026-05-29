@@ -1,7 +1,7 @@
 /**
  * Public site config — safe to commit to GitHub.
- * Secrets (Supabase keys, rep PINs) go in js/private-config.js (never committed).
- * See README.md and private-config.example.js.
+ * Supabase publishable URL/key are public client values (RLS + server PIN check protect data).
+ * PINs are never stored here — only in Supabase rep_pins.
  */
 window.SITE_CONFIG = {
   companyName: "Sales Team Dashboard",
@@ -17,8 +17,8 @@ window.SITE_CONFIG = {
   payoutTelegramUrl: "https://t.me/+U9wsP-sf8GFmNWFh",
   payoutTelegramName: "Website Agency",
   leadsListUrl: "leads.html",
-  supabaseUrl: "",
-  supabaseAnonKey: "",
+  supabaseUrl: "https://qisqgdffekqeprhjklyd.supabase.co",
+  supabaseAnonKey: "sb_publishable_2ULS4fB1YKnpmRzGgwuy2g_Z6Y2OCPw",
   useSupabaseLeads: true,
   useRepSettingsSync: true,
   useBugReports: true,
