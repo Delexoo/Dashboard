@@ -59,7 +59,7 @@ Your site URL will be like: `https://YOUR_USER.github.io/YOUR_REPO/`
 ```powershell
 cd github
 copy js\private-config.example.js js\private-config.js
-# Edit js\private-config.js with real Supabase URL, key, and test PINs
+# Edit js\private-config.js with Supabase URL + key only (PINs live in Supabase rep_pins)
 python -m http.server 8765
 ```
 
@@ -69,14 +69,46 @@ Open `http://localhost:8765` — hard refresh after edits.
 
 From the `SalesTeamWebsite` folder (parent of `github/`):
 
-```powershell
+```bash
 node scripts/sync-to-github.js
 ```
 
 This copies HTML, CSS, and JS into `github/`, injects `private-config.js` + `config-merge.js` on every page, and rebuilds `js/config.js` **without** Supabase keys or PINs. It never copies `users.txt`, `data/`, SQL files, or `js/private-config.js`.
 
+### Git Bash — sync and push to GitHub
+
+```bash
+cd "/c/Users/TeamB/OneDrive/Desktop/Website Bot/SalesTeamWebsite"
+
+# Copy latest public site into github/ (no secrets)
+node scripts/sync-to-github.js
+
+cd github
+
+git add .
+git status
+
+# If there are changes:
+git commit -m "Update site"
+git push origin main
+```
+
+Repo: [https://github.com/Delexoo/Sales-Dashboard](https://github.com/Delexoo/Sales-Dashboard)
+
+First-time push only:
+
+```bash
+cd "/c/Users/TeamB/OneDrive/Desktop/Website Bot/SalesTeamWebsite/github"
+git init
+git branch -M main
+git remote add origin https://github.com/Delexoo/Sales-Dashboard.git
+git add .
+git commit -m "Initial public site"
+git push -u origin main
+```
+
 ## Security notes
 
 - Supabase **anon/publishable** keys are still visible in the browser after deploy — protect data with Row Level Security in Supabase.
-- PINs in `private-config.js` are visible to anyone who can open that file on the live site. Use a **private** repo + trusted hosting, or move to server-side PIN checks for higher security.
-- Never commit `private-config.js` or paste real PINs into issues, PRs, or screenshots.
+- **PINs are verified server-side** (`verify_rep_pin` in Supabase). They are not in this repo or in `private-config.js`.
+- Never commit `private-config.js`, `users.txt`, or paste real PINs into issues or PRs.
