@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Step 2 — Set up accounts · Sales Team Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body data-page="accounts" data-onboarding-step="2">
+  <div id="shell"></div>
+  <div id="page-body">
+    <div id="step-header-slot"></div>
+    <h1>Set up accounts</h1>
+    <p class="lead">Do these <strong>2 setups in order</strong> (~10 min). Check each one off on the <a href="checklist.html">setup checklist</a> as you go.</p>
+
+    <div class="setup-steps">
+      <article class="setup-step">
+        <div class="setup-step-head">
+          <span class="setup-num" aria-hidden="true">1</span>
+          <div>
+            <h3>Team Telegram</h3>
+            <p class="setup-step-desc">Where you post interested leads after a call.</p>
+          </div>
+        </div>
+        <ul class="setup-list">
+          <li>Download Telegram and create a <strong>free account</strong></li>
+          <li><a class="link-bold-blue" data-config="telegramTeam" href="#" target="_blank" rel="noopener">Join team Telegram group</a></li>
+        </ul>
+      </article>
+
+      <article class="setup-step setup-step-payout">
+        <div class="setup-step-head">
+          <span class="setup-num" aria-hidden="true">2</span>
+          <div>
+            <h3>Payout method</h3>
+            <p class="setup-step-desc">So you can get paid when a deal closes. Pick how you get paid, then paste your link.</p>
+          </div>
+        </div>
+
+        <div id="payout-setup" class="payout-setup card">
+          <p class="payout-setup-label">Choose your app</p>
+          <div id="payout-methods" class="payout-methods" role="group" aria-label="Payout app"></div>
+
+          <div id="payout-input-panel" class="payout-input-panel" hidden>
+            <label class="payout-field-label" id="payout-field-label" for="payout-link-input">Paste your payout link</label>
+            <p id="payout-input-hint" class="payout-input-hint muted"></p>
+            <div class="payout-input-row">
+              <input type="text" id="payout-link-input" class="payout-link-input" autocomplete="off" spellcheck="false" />
+              <button type="button" class="btn" id="payout-save-btn">Save</button>
+              <button type="button" class="btn secondary" id="payout-reset-btn">Reset</button>
+            </div>
+            <p id="payout-status" class="payout-status" hidden></p>
+          </div>
+
+          <div id="payout-saved-preview" class="payout-saved-preview" hidden></div>
+        </div>
+
+      </article>
+    </div>
+
+    <p style="margin-top:20px"><button type="button" class="btn" id="mark-step-done">All done — go to Everyday Tasks</button></p>
+    <div id="step-footer-slot"></div>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/rep-session.js"></script>
+  <script src="js/rep-settings-sync.js"></script>
+  <script src="js/lock.js"></script>
+  <script src="js/layout-fix.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/payout-setup.js"></script>
+</body>
+</html>

@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Step 1 — Start here · Sales Team Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body data-page="setup" data-onboarding-step="1">
+  <div id="shell"></div>
+  <div id="page-body">
+    <div id="step-header-slot"></div>
+    <h1>Start here</h1>
+    <p class="lead">Watch the full course video first (~9–14 min). Then check it off on the <a href="checklist.html">setup checklist</a> and continue to Set up accounts.</p>
+
+    <section class="card lesson-video" id="video">
+      <h2 class="section-head" data-icon="play-circle" style="margin-top:0;justify-content:flex-start">Course video</h2>
+      <p style="font-size:14px;color:var(--muted);margin-bottom:14px">Full walkthrough — about 9–14 minutes.</p>
+      <div class="video-wrap" id="video-embed"></div>
+      <p style="margin-top:12px"><button type="button" class="btn secondary" id="mark-video-done" data-icon="check" data-icon-class="ico-btn">Mark video as watched</button></p>
+    </section>
+
+    <p style="margin-top:20px"><button type="button" class="btn" id="mark-step-done">I watched the video — next step</button></p>
+    <div id="step-footer-slot"></div>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/rep-session.js"></script>
+  <script src="js/rep-settings-sync.js"></script>
+  <script src="js/lock.js"></script>
+  <script src="js/layout-fix.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

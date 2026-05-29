@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Bug Bounty · Sales Team Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body data-page="bug-bounty">
+  <div id="shell"></div>
+  <div id="page-body">
+    <p class="page-label" data-icon="bug">Help</p>
+    <h1>Bug Bounty</h1>
+    <p class="lead">Found a bug on this site? Report it below. Approved reports can earn cash.</p>
+
+    <section class="card bug-bounty-report bug-report-simple" id="bug-report-panel">
+      <h2 class="section-head" style="margin-top:0">Report a bug</h2>
+      <p class="bug-report-as muted">Reporting as <strong id="bug-report-rep-name">—</strong></p>
+
+      <form id="bug-report-form" class="bug-report-form" autocomplete="off">
+        <label class="field">
+          <span class="field-label">Severity <span class="field-optional">optional</span></span>
+          <select id="bug-report-severity">
+            <option value="">Skip / not sure</option>
+            <option value="unsure">I’m not sure</option>
+            <option value="low">Low</option>
+            <option value="medium">Medium</option>
+            <option value="high">High</option>
+            <option value="critical">Critical</option>
+          </select>
+        </label>
+
+        <label class="field">
+          <span class="field-label">What went wrong? *</span>
+          <textarea id="bug-report-description" rows="4" required placeholder="What were you doing, and what happened?"></textarea>
+        </label>
+
+        <div class="bug-report-upload-inline">
+          <label class="bug-report-file-btn bug-report-file-btn-sm">
+            <input type="file" id="bug-report-files" accept="image/*,video/*" multiple hidden>
+            Add screenshot (optional)
+          </label>
+          <div id="bug-report-previews" class="bug-report-previews" aria-live="polite"></div>
+        </div>
+
+        <p id="bug-report-status" class="bug-report-status" hidden></p>
+
+        <div class="bug-report-actions">
+          <button type="submit" class="btn" id="bug-report-submit">Send report</button>
+        </div>
+      </form>
+    </section>
+
+    <section class="card bug-bounty-compact">
+      <p class="bug-bounty-oneline muted">Paid if approved and verified by the owner.</p>
+      <h2 class="section-head bug-bounty-payouts-head">Payouts</h2>
+      <div class="table-wrap">
+        <table class="bug-bounty-table bug-bounty-table-compact">
+          <thead>
+            <tr>
+              <th>Level</th>
+              <th>Example</th>
+              <th>Pay</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr>
+              <td><span class="bug-severity bug-severity-low">Low</span></td>
+              <td>Button or link doesn’t work</td>
+              <td class="bug-bounty-amount">$5</td>
+            </tr>
+            <tr>
+              <td><span class="bug-severity bug-severity-medium">Medium</span></td>
+              <td>Wrong rep’s data after sign-in</td>
+              <td class="bug-bounty-amount">$25–$75</td>
+            </tr>
+            <tr>
+              <td><span class="bug-severity bug-severity-high">High</span></td>
+              <td>Breaks Lead Finder or sync for everyone</td>
+              <td class="bug-bounty-amount">$75–$150</td>
+            </tr>
+            <tr>
+              <td><span class="bug-severity bug-severity-critical">Critical</span></td>
+              <td>Security — PIN bypass, exposed keys</td>
+              <td class="bug-bounty-amount">$200+</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/rep-session.js"></script>
+  <script src="js/rep-settings-sync.js"></script>
+  <script src="js/lock.js"></script>
+  <script src="js/layout-fix.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/bug-report.js"></script>
+</body>
+</html>

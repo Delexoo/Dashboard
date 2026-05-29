@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Call scripts · Sales Team Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body data-page="scripts">
+  <div id="shell"></div>
+  <div id="page-body">
+    <p class="page-label" data-icon="phone">Daily tools</p>
+    <h1>Call scripts</h1>
+    <p class="lead">Pick a script before you dial. Edit any script — your changes save to your account and come back next time you sign in. Add your own scripts below, or use <a class="link-bold-blue" href="template.html">Lead Builder</a> when they are interested.</p>
+
+    <div id="scripts-editor">
+      <div class="acc" data-script-id="a">
+        <button type="button" class="acc-q">Script A — Honest cold call (H.C.C.)<span class="chev">▼</span></button>
+        <div class="acc-a"><div class="acc-a-inner">
+          <div class="script-toolbar">
+            <button type="button" class="btn secondary script-reset-btn">Reset</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>
+          </div>
+          <div class="script-block">
+            <span class="script-label">Opener</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="a-opener">"Hey, is this the owner?" <em>(If NO → Script D)</em><br><br>"Good morning/afternoon — how is your day?"<br><br>"Listen — I'll be honest, this is a sales call. Do you want to hang up on me, or do you want to give me 30 seconds?"</div>
+          </div>
+          <div class="script-block">
+            <span class="script-label">Pitch</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="a-pitch">"So I actually went ahead and took a risk — I already built you a <strong>free website</strong>. It's free to look at. And if you like it, I'm only asking for <strong>$500</strong>. If you don't like it, you never have to hear from me ever again. How does that sound?"</div>
+          </div>
+          <div class="script-block">
+            <span class="script-label">If hesitant</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="a-hesitant">"Out of curiosity — how are people finding your business right now?"<br><br>"That's exactly the gap a website fills — people searching online at midnight who'd never find you otherwise."</div>
+          </div>
+          <div class="script-block">
+            <span class="script-label">If NO / hesitate</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="a-no">"Totally fair — most professional web agencies charge $3,000 to $10,000+ upfront, and you're still waiting weeks to see anything. I already built your demo for free — you only pay if you love it. If you want to look — would you rather a direct link or a quick call?"</div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="acc" data-script-id="b">
+        <button type="button" class="acc-q">Script B — Least favorite call<span class="chev">▼</span></button>
+        <div class="acc-a"><div class="acc-a-inner">
+          <div class="script-toolbar">
+            <button type="button" class="btn secondary script-reset-btn">Reset</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>
+          </div>
+          <div class="script-block">
+            <span class="script-label">Opener</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="b-opener">"Hello — is this the owner?" <em>(If NO → Script D)</em><br><br>"Hi — this might be your <strong>least favorite call of the day</strong>. It's a cold call — I'll keep it to <strong>20 seconds</strong>, or you could hang up right now." <em>(wait for yes)</em></div>
+          </div>
+          <div class="script-block">
+            <span class="script-label">Hook</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="b-hook">"Here's why I called — I noticed your business <strong>doesn't have a website yet</strong>, and I actually built you a <strong>free demo</strong> so you can see what you're missing before you spend anything."</div>
+          </div>
+          <div class="script-block">
+            <span class="script-label">Offer</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="b-offer">"So I already built you a <strong>free website</strong>. Free to look at. If you like it, I'm only asking for <strong>$500</strong>. If you don't like it, you never have to hear from me again. How does that sound?"</div>
+          </div>
+          <div class="script-block">
+            <span class="script-label">If NO / hesitate</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="b-no">"Totally fair — professional agencies usually charge $3,000 to $10,000+ and you wait forever. Yours is already built — you only pay if you love it. Direct link or a quick meeting to walk through it?"</div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="acc" data-script-id="c">
+        <button type="button" class="acc-q">Script C — Student, value-first<span class="chev">▼</span></button>
+        <div class="acc-a"><div class="acc-a-inner">
+          <div class="script-toolbar">
+            <button type="button" class="btn secondary script-reset-btn">Reset</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>
+          </div>
+          <div class="script-block">
+            <span class="script-label">Opener</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="c-opener">"Hey, is this the business owner?" <em>(If NO → Script D)</em><br><br>"Hey, my name is [Your Name] — I'm a student locally and I run a small website design business on the side. I built a free personalized landing page for your business."</div>
+          </div>
+          <div class="script-block">
+            <span class="script-label">Qualify + offer</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="c-offer">"Do you have anything online right now, or mostly word-of-mouth?" … "That's why I made this — so people can find you." … Same $500 free-demo offer as other scripts.</div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="acc" data-script-id="d">
+        <button type="button" class="acc-q">Script D — Not the owner<span class="chev">▼</span></button>
+        <div class="acc-a"><div class="acc-a-inner">
+          <div class="script-toolbar">
+            <button type="button" class="btn secondary script-reset-btn">Reset</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>
+          </div>
+          <div class="script-block">
+            <span class="script-label">Get transferred</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="d-transfer">"Hi — may I speak to the owner?" … "Hi, my name is [Your Name] — student locally studying web design. I noticed your business doesn't have a website. Is there a reason for that?"</div>
+          </div>
+          <div class="script-block">
+            <span class="script-label">Offer</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="d-offer">Same free website / $500 pitch. If interested → three questions (link vs meeting, phone OK, name).</div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="acc" data-script-id="e">
+        <button type="button" class="acc-q">Script E — Casual / good news bad news<span class="chev">▼</span></button>
+        <div class="acc-a"><div class="acc-a-inner">
+          <div class="script-toolbar">
+            <button type="button" class="btn secondary script-reset-btn">Reset</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>
+          </div>
+          <div class="script-block">
+            <span class="script-label">Opener</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="e-opener">"Hey, quick question — do you want the good news or the bad news first?" … "Good news — I built a free custom landing page for your business. Bad news — you're probably missing sales because people can't find you online."</div>
+          </div>
+          <div class="script-block">
+            <span class="script-label">Offer</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="e-offer">Qualify how customers find them → same free demo / $500 offer.</div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="acc" data-script-id="f">
+        <button type="button" class="acc-q">Script F — Your custom script<span class="chev">▼</span></button>
+        <div class="acc-a"><div class="acc-a-inner">
+          <div class="script-toolbar">
+            <button type="button" class="btn secondary script-reset-btn">Reset</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>
+          </div>
+          <div class="script-block">
+            <span class="script-label">Full script</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="f-main">Write your opener, pitch, and responses here. Use your own words — this saves automatically.</div>
+          </div>
+        </div></div>
+      </div>
+    </div>
+
+    <section class="scripts-custom-section card">
+      <div class="scripts-custom-head">
+        <div>
+          <h2 class="scripts-custom-title">Your scripts</h2>
+          <p class="scripts-custom-desc">Create, edit, and save scripts for later. Download as .txt or .md anytime.</p>
+        </div>
+        <button type="button" class="btn" id="add-custom-script" data-icon="plus-circle" data-icon-class="ico-btn">Add script</button>
+      </div>
+      <div id="custom-scripts-list" class="scripts-custom-list"></div>
+      <p class="scripts-custom-empty" id="custom-scripts-empty">No custom scripts yet — click <strong>Add script</strong> to create one.</p>
+    </section>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/rep-session.js"></script>
+  <script src="js/rep-settings-sync.js"></script>
+  <script src="js/lock.js"></script>
+  <script src="js/layout-fix.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

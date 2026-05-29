@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Feedback · Sales Team Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body data-page="feedback">
+  <div id="shell"></div>
+  <div id="page-body">
+    <p class="page-label" data-icon="message-square">Help</p>
+    <h1>Feedback</h1>
+    <p class="lead">Ideas or suggestions? Not for bugs — use <a href="bug-bounty.html">Bug Bounty</a>.</p>
+
+    <section class="card feedback-card" id="feedback-panel">
+      <p class="bug-report-as muted">Reporting as <strong id="feedback-rep-name">—</strong></p>
+
+      <form id="feedback-form" class="bug-report-form feedback-form bug-report-simple" autocomplete="off">
+        <label class="field">
+          <span class="field-label">About <span class="field-optional">optional</span></span>
+          <input type="text" id="feedback-topic" placeholder="e.g. Lead Finder, scripts">
+        </label>
+        <label class="field">
+          <span class="field-label">Your message *</span>
+          <textarea id="feedback-message" rows="4" required maxlength="4000" placeholder="Your idea or suggestion…"></textarea>
+        </label>
+
+        <p id="feedback-status" class="bug-report-status" hidden></p>
+
+        <div class="bug-report-actions">
+          <button type="submit" class="btn" id="feedback-submit">Send</button>
+        </div>
+      </form>
+    </section>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/rep-session.js"></script>
+  <script src="js/rep-settings-sync.js"></script>
+  <script src="js/lock.js"></script>
+  <script src="js/layout-fix.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/feedback.js"></script>
+</body>
+</html>

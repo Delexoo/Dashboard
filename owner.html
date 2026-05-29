@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Meet the Owner · Sales Team Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body data-page="owner">
+  <div id="shell"></div>
+  <div id="page-body">
+    <p class="page-label" data-icon="message-square">Help</p>
+    <h1>Meet the Owner</h1>
+    <p class="lead">Call or text for help or <strong>1:1 meetings</strong>.</p>
+
+    <article class="owner-card owner-card-v2">
+      <div class="owner-layout">
+        <section class="owner-photo-card" aria-label="Owner photo">
+          <img
+            class="owner-photo"
+            data-config="ownerPhotoUrl"
+            data-config-attr="src"
+            src="https://github.com/Delexoo/test/blob/main/IMG_7243%20(1).jpg?raw=true"
+            alt="Owner photo"
+            width="520"
+            height="640"
+            loading="lazy"
+          >
+        </section>
+
+        <section class="owner-info-card" aria-label="Owner info">
+          <p class="owner-hero-kicker">Owner</p>
+          <h2 class="owner-name" data-config="ownerHandle" data-config-text>@delexoo</h2>
+          <p class="owner-bio owner-bio-short" data-config="ownerBio" data-config-text>
+            19 • Google Cybersecurity certified • CS50 • focused on cybersecurity and keeping our team systems clean + secure.
+          </p>
+
+          <div class="owner-contact-row" aria-label="Contact">
+            <a class="owner-phone-btn" id="owner-phone-sms" href="#" data-icon="message-square">
+              <span class="owner-phone-btn-number" data-config="phone" data-config-text>(401) 300-0957</span>
+            </a>
+            <p class="owner-phone-sub muted">
+              Text or Call
+            </p>
+          </div>
+        </section>
+      </div>
+    </article>
+  </div>
+  <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/rep-session.js"></script>
+  <script src="js/rep-settings-sync.js"></script>
+  <script src="js/lock.js"></script>
+  <script src="js/layout-fix.js"></script>
+  <script src="js/app.js"></script>
+</body>
+</html>

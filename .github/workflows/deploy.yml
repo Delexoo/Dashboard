@@ -1,0 +1,71 @@
+name: Deploy to GitHub Pages
+
+on:
+  push:
+    branches: [main, master]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Write private-config.js from secrets
+        env:
+          SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
+          SITE_REPS_JSON: ${{ secrets.SITE_REPS_JSON }}
+        run: |
+          node <<'NODE'
+          const fs = require("fs");
+          const url = (process.env.SUPABASE_URL || "").trim();
+          const key = (process.env.SUPABASE_ANON_KEY || "").trim();
+          const raw = (process.env.SITE_REPS_JSON || "").trim();
+          if (!url || !key || !raw) {
+            console.error("Missing SUPABASE_URL, SUPABASE_ANON_KEY, or SITE_REPS_JSON repository secrets.");
+            process.exit(1);
+          }
+          let reps;
+          try {
+            reps = JSON.parse(raw);
+          } catch (e) {
+            console.error("SITE_REPS_JSON must be valid JSON array.");
+            process.exit(1);
+          }
+          if (!Array.isArray(reps) || !reps.length) {
+            console.error("SITE_REPS_JSON must be a non-empty array.");
+            process.exit(1);
+          }
+          const body =
+            "window.SITE_PRIVATE = " +
+            JSON.stringify({ supabaseUrl: url, supabaseAnonKey: key, reps }, null, 2) +
+            ";\n";
+          fs.writeFileSync("js/private-config.js", body, "utf8");
+          console.log("Wrote js/private-config.js (" + reps.length + " reps)");
+          NODE
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

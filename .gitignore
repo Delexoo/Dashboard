@@ -1,0 +1,14 @@
+# Never commit secrets
+js/private-config.js
+private-config.js
+users.txt
+data/reps.json
+data/leads.json
+.env
+.env.*
+*.local
+
+# OS / editor
+.DS_Store
+Thumbs.db
+*.log
