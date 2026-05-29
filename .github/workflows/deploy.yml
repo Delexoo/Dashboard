@@ -24,38 +24,25 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Write private-config.js from secrets
+      - name: Write private-config.js from secrets (Supabase only — no PINs)
         env:
           SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
           SUPABASE_ANON_KEY: ${{ secrets.SUPABASE_ANON_KEY }}
-          SITE_REPS_JSON: ${{ secrets.SITE_REPS_JSON }}
         run: |
           node <<'NODE'
           const fs = require("fs");
           const url = (process.env.SUPABASE_URL || "").trim();
           const key = (process.env.SUPABASE_ANON_KEY || "").trim();
-          const raw = (process.env.SITE_REPS_JSON || "").trim();
-          if (!url || !key || !raw) {
-            console.error("Missing SUPABASE_URL, SUPABASE_ANON_KEY, or SITE_REPS_JSON repository secrets.");
-            process.exit(1);
-          }
-          let reps;
-          try {
-            reps = JSON.parse(raw);
-          } catch (e) {
-            console.error("SITE_REPS_JSON must be valid JSON array.");
-            process.exit(1);
-          }
-          if (!Array.isArray(reps) || !reps.length) {
-            console.error("SITE_REPS_JSON must be a non-empty array.");
+          if (!url || !key) {
+            console.error("Missing SUPABASE_URL or SUPABASE_ANON_KEY repository secrets.");
             process.exit(1);
           }
           const body =
             "window.SITE_PRIVATE = " +
-            JSON.stringify({ supabaseUrl: url, supabaseAnonKey: key, reps }, null, 2) +
+            JSON.stringify({ supabaseUrl: url, supabaseAnonKey: key }, null, 2) +
             ";\n";
           fs.writeFileSync("js/private-config.js", body, "utf8");
-          console.log("Wrote js/private-config.js (" + reps.length + " reps)");
+          console.log("Wrote js/private-config.js (Supabase URL + key only; PINs stay in database)");
           NODE
 
       - name: Setup Pages

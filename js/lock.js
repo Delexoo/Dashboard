@@ -10,6 +10,7 @@
   let loadFailed = false;
   let lockoutTimer = null;
   let lockBuilt = false;
+  let supabaseClient = null;
 
   function isPublicPage() {
     return document.body?.dataset?.public === "1";
@@ -36,11 +37,28 @@
     document.body?.classList.add("site-unlocked");
   }
 
-  // Avoid a visible "flash" on refresh: only enter locked UI if truly locked.
-  // (RepSession is loaded before lock.js on all app pages.)
   if (!isPublicPage()) {
     if (isAuthenticated()) applyUnlockedUi();
     else applyLockedUi();
+  }
+
+  function useServerPinAuth() {
+    const c = window.SITE_CONFIG || {};
+    return !!(
+      String(c.supabaseUrl || "").trim() &&
+      String(c.supabaseAnonKey || "").trim() &&
+      window.supabase?.createClient
+    );
+  }
+
+  function getSupabaseClient() {
+    if (supabaseClient) return supabaseClient;
+    const c = window.SITE_CONFIG || {};
+    supabaseClient = window.supabase.createClient(
+      String(c.supabaseUrl).trim(),
+      String(c.supabaseAnonKey).trim()
+    );
+    return supabaseClient;
   }
 
   function loadRepsFromConfig() {
@@ -54,6 +72,16 @@
           }))
           .filter((r) => r.id && r.name && r.pin)
       : [];
+  }
+
+  async function verifyPinWithSupabase(entered) {
+    const client = getSupabaseClient();
+    const { data, error } = await client.rpc("verify_rep_pin", {
+      entered_pin: String(entered || "").trim(),
+    });
+    if (error) throw error;
+    if (!data || typeof data !== "object" || !data.id) return null;
+    return { id: String(data.id), name: String(data.name || "").trim() };
   }
 
   function loadLockout() {
@@ -185,6 +213,18 @@
     }, 1000);
   }
 
+  function initRepAuth() {
+    if (useServerPinAuth()) {
+      reps = [];
+      loadFailed = false;
+      return;
+    }
+    reps = loadRepsFromConfig();
+    if (!reps.length) {
+      loadFailed = true;
+    }
+  }
+
   function ensureLockOverlay() {
     let root = document.getElementById("site-lock");
     if (root) {
@@ -228,15 +268,14 @@
       startLockoutCountdown(inner, input, form);
     }
 
-    reps = loadRepsFromConfig();
-    if (!reps.length) {
-      loadFailed = true;
-      if (!isLockedOut()) {
-        showError(
-          inner,
-          "Sign-in is not configured yet. The site owner must add private-config.js when deploying."
-        );
-      }
+    initRepAuth();
+    if (loadFailed && !isLockedOut()) {
+      showError(
+        inner,
+        useServerPinAuth()
+          ? "Sign-in database is not ready. Ask your manager to run supabase-rep-pins.sql."
+          : "Sign-in is not configured. For local testing, copy private-config.example.js to private-config.js."
+      );
     }
 
     return root;
@@ -308,7 +347,7 @@
     window.dispatchEvent(new Event("site-unlocked"));
   }
 
-  function tryUnlock(input, wrap, form) {
+  async function tryUnlock(input, wrap, form) {
     if (isLockedOut()) {
       startLockoutCountdown(wrap, input, form);
       return;
@@ -319,15 +358,24 @@
       showError(wrap, "Enter your PIN");
       return;
     }
-    if (reps === null && !loadFailed) {
-      showError(wrap, "Loading…");
+    if (loadFailed && !useServerPinAuth()) {
+      showError(wrap, "Sign-in is not configured.");
       return;
     }
-    if (loadFailed && !reps?.length) {
-      showError(wrap, "Could not load reps. Use a local server.");
-      return;
+
+    let rep = null;
+    if (useServerPinAuth()) {
+      try {
+        rep = await verifyPinWithSupabase(entered);
+      } catch (e) {
+        console.error(e);
+        showError(wrap, "Could not verify PIN. Check Supabase setup and try again.");
+        return;
+      }
+    } else {
+      rep = findRepByPin(entered);
     }
-    const rep = findRepByPin(entered);
+
     if (rep) {
       const prev = window.RepSession?.get?.();
       if (prev && prev.id !== rep.id) {
@@ -362,6 +410,8 @@
 
   function onLockReady() {
     if (isPublicPage()) return;
+
+    initRepAuth();
 
     const rep = window.RepSession?.get?.();
     if (rep) {

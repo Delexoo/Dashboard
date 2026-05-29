@@ -12,7 +12,7 @@ This folder is the **public** copy of the site — safe to push to GitHub. It co
 
 | File | Why |
 |------|-----|
-| `js/private-config.js` | Supabase URL/key + rep PINs |
+| `js/private-config.js` | Supabase URL/key only (generated at deploy; optional locally) |
 | `users.txt` | Plain-text PINs |
 | `data/reps.json` | PINs |
 | `*.sql` | Database setup (run in Supabase dashboard only) |
@@ -43,9 +43,8 @@ In the repo: **Settings → Secrets and variables → Actions → New repository
 |--------|--------|
 | `SUPABASE_URL` | `https://xxxx.supabase.co` |
 | `SUPABASE_ANON_KEY` | Your Supabase **publishable** or anon key |
-| `SITE_REPS_JSON` | JSON array, e.g. `[{"id":"rep1","name":"Rep One","pin":"1234"}]` |
 
-`SITE_REPS_JSON` must be valid JSON on one line. PINs are injected at deploy time only — they are **not** stored in git history if you never commit `private-config.js`.
+**PINs are not stored in GitHub.** Add reps in Supabase with `supabase-rep-pins.sql` (see parent folder). The site calls `verify_rep_pin` to check PINs server-side.
 
 ### 3. Enable GitHub Pages
 
