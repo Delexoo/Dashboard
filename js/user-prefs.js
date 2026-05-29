@@ -5,7 +5,7 @@
   const PREFS_KEY = "lpc_user_prefs_v1";
 
   const DEFAULT_PREFS = {
-    theme: "system",
+    theme: "light",
     reduceMotion: false,
   };
 
@@ -28,11 +28,11 @@
       localStorage.setItem(key, json);
     }
     if (global.SiteTheme) {
-      global.SiteTheme.apply(prefs.theme || "system", {
+      global.SiteTheme.apply(prefs.theme || "light", {
         persistDevice: true,
         reduceMotion: !!prefs.reduceMotion,
       });
-      localStorage.setItem(global.SiteTheme.DEVICE_KEY, prefs.theme || "system");
+      localStorage.setItem(global.SiteTheme.DEVICE_KEY, prefs.theme || "light");
     }
     global.dispatchEvent(new Event("user-prefs-changed"));
   }

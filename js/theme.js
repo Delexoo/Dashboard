@@ -28,7 +28,7 @@
     const prefs = readPrefsRaw();
     const t = prefs?.theme;
     if (t === "light" || t === "dark" || t === "system") return t;
-    return "system";
+    return "light";
   }
 
   function readReduceMotion() {

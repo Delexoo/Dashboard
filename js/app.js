@@ -385,7 +385,7 @@
         navGroup(
           "overview",
           "Overview",
-          `<li><a class="${dashCls}" href="index.html"><span class="nav-link-text">${ico("layout-dashboard", "ico-nav")}Dashboard</span></a></li>`
+          `<li><a class="${dashCls}" href="dashboard.html"><span class="nav-link-text">${ico("layout-dashboard", "ico-nav")}Dashboard</span></a></li>`
         ) +
         navGroup("course", "Course", onboardingNav) +
         navGroup("tools", "Daily tools", toolsNav) +
@@ -416,10 +416,15 @@
     const close = () => {
       sidebar.classList.remove("open");
       overlay.classList.remove("open");
+      btn.setAttribute("aria-expanded", "false");
+      btn.setAttribute("aria-label", "Open menu");
     };
     btn.addEventListener("click", () => {
-      sidebar.classList.toggle("open");
-      overlay.classList.toggle("open");
+      const open = !sidebar.classList.contains("open");
+      sidebar.classList.toggle("open", open);
+      overlay.classList.toggle("open", open);
+      btn.setAttribute("aria-expanded", open ? "true" : "false");
+      btn.setAttribute("aria-label", open ? "Close menu" : "Open menu");
     });
     overlay.addEventListener("click", close);
     sidebar.querySelectorAll(".nav-link").forEach((a) => a.addEventListener("click", close));
@@ -814,9 +819,9 @@
 
     let html = '<div class="step-footer">';
     if (prev) html += `<a href="${prev.href}" class="no-underline">← ${prev.title}</a>`;
-    else html += `<a href="index.html" class="no-underline">← Dashboard</a>`;
+    else html += `<a href="dashboard.html" class="no-underline">← Dashboard</a>`;
     if (next) html += `<a href="${next.href}" class="next no-underline">Next: ${next.title} →</a>`;
-    else html += `<a href="index.html" class="next no-underline">Finish — back to Dashboard →</a>`;
+    else html += `<a href="dashboard.html" class="next no-underline">Finish — back to Dashboard →</a>`;
     html += "</div>";
 
     slot.innerHTML = html;
@@ -826,23 +831,17 @@
       header.innerHTML = `
         <div class="step-header">
           <span class="step-pill">Course · Step ${stepNum} of ${COURSE_STEP_COUNT}</span>
-          <a href="index.html" class="no-underline" style="font-size:13px;color:var(--muted);margin-left:auto">Dashboard</a>
+          <a href="dashboard.html" class="no-underline" style="font-size:13px;color:var(--muted);margin-left:auto">Dashboard</a>
         </div>
       `;
     }
 
-    const markBtn = document.getElementById("mark-step-done");
-    if (markBtn && cur?.keys?.length) {
-      markBtn.addEventListener("click", () => {
-        preserveScroll(() => {
-          const progress = loadProgress();
-          cur.keys.forEach((key) => (progress[key] = true));
-          saveProgress(progress);
-          markBtn.textContent = "Step marked complete ✓";
-          markBtn.disabled = true;
-        });
-        const dest = next ? next.href : "index.html";
-        setTimeout(() => (window.location.href = dest), 500);
+    const nextLink = slot.querySelector(".step-footer a.next");
+    if (nextLink && cur?.keys?.length) {
+      nextLink.addEventListener("click", () => {
+        const progress = loadProgress();
+        cur.keys.forEach((key) => (progress[key] = true));
+        saveProgress(progress);
       });
     }
   }
@@ -1610,12 +1609,26 @@
     document.querySelectorAll("[data-config]").forEach((el) => {
       const key = el.dataset.config;
       const val = cfg()[key];
-      if (!val) return;
-      if (el.hasAttribute("data-config-text")) el.textContent = val;
+      if (!val) {
+        const row =
+          el.closest("tr[data-config-row]") ||
+          (el.hasAttribute("data-config-hide-row") ? el.closest("tr") : null);
+        if (row) row.hidden = true;
+        return;
+      }
+      if (el.hasAttribute("data-config-text")) {
+        let text = val;
+        if (el.hasAttribute("data-config-short")) {
+          text = String(val).replace(/^https?:\/\//i, "").replace(/^www\./i, "");
+        }
+        el.textContent = text;
+      }
       if (el.dataset.configAttr) el.setAttribute(el.dataset.configAttr, val);
       if (el.tagName === "A") {
-        el.href = key === "email" ? "mailto:" + val : val;
-        if (!/^https?:\/\//i.test(val)) {
+        if (key === "email") el.href = "mailto:" + val;
+        else if (key === "phone") el.href = "tel:" + String(val).replace(/[^\d+]/g, "");
+        else el.href = val;
+        if (!/^https?:\/\//i.test(el.href) && !/^mailto:/i.test(el.href) && !/^tel:/i.test(el.href)) {
           el.removeAttribute("target");
           el.removeAttribute("rel");
         }
@@ -1921,7 +1934,7 @@
   window.addEventListener("rep-settings-ready", () => {
     if (window.UserPrefs && window.SiteTheme) {
       const prefs = window.UserPrefs.get();
-      window.SiteTheme.apply(prefs.theme || "system", {
+      window.SiteTheme.apply(prefs.theme || "light", {
         persistDevice: true,
         reduceMotion: !!prefs.reduceMotion,
       });

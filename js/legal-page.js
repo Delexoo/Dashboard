@@ -26,7 +26,7 @@
   const backBtn = document.getElementById("legal-back-btn");
   const unlocked = sessionStorage.getItem("lpc_site_unlock") === "1";
   if (backBtn) {
-    backBtn.href = "index.html";
+    backBtn.href = "setup.html";
     backBtn.textContent = unlocked ? "← Back to dashboard" : "← Back to sign in";
   }
 

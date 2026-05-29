@@ -23,6 +23,7 @@
     const next = { id: String(rep.id), name: String(rep.name).trim() };
     sessionStorage.setItem(STORAGE_KEY, JSON.stringify(next));
     applyToTracker(true);
+    refreshNameDisplays();
     if (prev?.id && prev.id !== next.id && global.RepStorage?.resetForRep) {
       global.RepStorage.resetForRep();
     }
@@ -42,6 +43,15 @@
 
   function getName() {
     return get()?.name || "";
+  }
+
+  function refreshNameDisplays() {
+    const name = getName();
+    if (!name) return;
+    ["bug-report-rep-name", "feedback-rep-name"].forEach((id) => {
+      const el = document.getElementById(id);
+      if (el) el.textContent = name;
+    });
   }
 
   function loadTrackerRaw() {
@@ -107,6 +117,7 @@
     clear,
     signOut,
     getName,
+    refreshNameDisplays,
     applyToTracker,
     enforceTrackerIdentity,
     STORAGE_KEY,

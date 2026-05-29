@@ -12,105 +12,123 @@
   <div id="page-body">
     <p class="page-label" data-icon="external-link">Help</p>
     <h1>All links</h1>
-    <p class="lead links-lead">Bookmark this page — tap any row to open.</p>
+    <p class="lead links-lead">Tap a URL to open.</p>
 
-    <div class="links-hub">
-      <section class="card links-card">
-        <h2 class="links-group-title" data-icon="target">Daily essentials</h2>
-        <div class="links-rows">
-          <a class="links-row no-underline" href="leads.html" data-icon="search" data-icon-after="chevron-right">
-            <span class="links-row-label">Lead Finder</span>
-            <span class="links-row-hint">Browse &amp; call leads</span>
-          </a>
-          <a class="links-row no-underline" data-config="interestedBusinessesUrl" href="#" target="_blank" rel="noopener" data-icon="send" data-icon-after="external-link">
-            <span class="links-row-label">Interested Businesses</span>
-            <span class="links-row-hint">Post leads here</span>
-          </a>
-          <a class="links-row no-underline" data-config="telegramTeam" href="#" target="_blank" rel="noopener" data-icon="message-square" data-icon-after="external-link">
-            <span class="links-row-label">Team Telegram</span>
-          </a>
-          <a class="links-row no-underline" data-config="payoutTelegramUrl" href="#" target="_blank" rel="noopener" data-icon="banknote" data-icon-after="external-link">
-            <span class="links-row-label">Website Agency</span>
-            <span class="links-row-hint">Open &amp; paste payout method</span>
-          </a>
-        </div>
-      </section>
-
-      <section class="card links-card">
-        <h2 class="links-group-title" data-icon="phone">Daily tools</h2>
-        <div class="links-rows">
-          <a class="links-row no-underline" href="leads.html" data-icon="search" data-icon-after="chevron-right">
-            <span class="links-row-label">Lead Finder</span>
-          </a>
-          <a class="links-row no-underline" href="scripts.html" data-icon="phone" data-icon-after="chevron-right">
-            <span class="links-row-label">Call scripts</span>
-          </a>
-          <a class="links-row no-underline" href="template.html" data-icon="file-plus" data-icon-after="chevron-right">
-            <span class="links-row-label">Lead Builder</span>
-          </a>
-          <a class="links-row no-underline" href="outreach.html" data-icon="mail" data-icon-after="chevron-right">
-            <span class="links-row-label">Text &amp; email</span>
-          </a>
-          <a class="links-row no-underline" href="index.html" data-icon="layout-dashboard" data-icon-after="chevron-right">
-            <span class="links-row-label">Dashboard</span>
-            <span class="links-row-hint">Log closes</span>
-          </a>
-        </div>
-      </section>
-
-      <section class="card links-card">
-        <h2 class="links-group-title" data-icon="book-open">Course</h2>
-        <div class="links-rows">
-          <a class="links-row no-underline" href="setup.html#video" data-icon="play-circle" data-icon-after="chevron-right">
-            <span class="links-row-label">Start here — video</span>
-          </a>
-          <a class="links-row no-underline" href="accounts.html" data-icon="settings" data-icon-after="chevron-right">
-            <span class="links-row-label">Set up accounts</span>
-          </a>
-          <a class="links-row no-underline" href="workflow.html" data-icon="repeat-2" data-icon-after="chevron-right">
-            <span class="links-row-label">Everyday Tasks</span>
-          </a>
-        </div>
-      </section>
-
-      <section class="card links-card">
-        <h2 class="links-group-title" data-icon="help-circle">Help</h2>
-        <div class="links-rows">
-          <a class="links-row no-underline" href="checklist.html" data-icon="badge-check" data-icon-after="chevron-right">
-            <span class="links-row-label">Setup checklist</span>
-          </a>
-          <a class="links-row no-underline" href="earnings.html" data-icon="wallet" data-icon-after="chevron-right">
-            <span class="links-row-label">How you get paid</span>
-          </a>
-          <a class="links-row no-underline" href="feedback.html" data-icon="message-square" data-icon-after="chevron-right">
-            <span class="links-row-label">Feedback</span>
-            <span class="links-row-hint">Ideas &amp; suggestions</span>
-          </a>
-          <a class="links-row no-underline" href="bug-bounty.html" data-icon="bug" data-icon-after="chevron-right">
-            <span class="links-row-label">Bug Bounty</span>
-            <span class="links-row-hint">Report bugs &amp; earn bounties</span>
-          </a>
-          <a class="links-row no-underline" href="settings.html" data-icon="settings" data-icon-after="chevron-right">
-            <span class="links-row-label">Settings</span>
-            <span class="links-row-hint">PIN, name, theme &amp; more</span>
-          </a>
-          <a class="links-row no-underline" href="owner.html" data-icon="message-square" data-icon-after="chevron-right">
-            <span class="links-row-label">Meet the Owner</span>
-          </a>
-        </div>
-      </section>
-
-      <section class="card links-card">
-        <h2 class="links-group-title" data-icon="shield">Legal</h2>
-        <div class="links-rows">
-          <a class="links-row no-underline" href="privacy.html" data-icon="shield" data-icon-after="chevron-right">
-            <span class="links-row-label">Privacy policy</span>
-          </a>
-          <a class="links-row no-underline" href="terms.html" data-icon="file-text" data-icon-after="chevron-right">
-            <span class="links-row-label">Terms of service</span>
-          </a>
-        </div>
-      </section>
+    <div class="links-table-wrap">
+      <table class="links-table">
+        <thead>
+          <tr>
+            <th scope="col">Name</th>
+            <th scope="col">URL</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td class="links-table-name">Start here (default)</td>
+            <td class="links-table-url"><a href="setup.html">setup.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Dashboard</td>
+            <td class="links-table-url"><a href="dashboard.html">dashboard.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">All links</td>
+            <td class="links-table-url"><a href="resources.html">resources.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Start here — video</td>
+            <td class="links-table-url"><a href="setup.html#video">setup.html#video</a></td>
+          </tr>
+          <tr data-config-row="onboardingVideoUrl">
+            <td class="links-table-name">Course video (direct)</td>
+            <td class="links-table-url"><a data-config="onboardingVideoUrl" href="#" target="_blank" rel="noopener" data-config-text data-config-short data-config-hide-row>—</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Set up accounts</td>
+            <td class="links-table-url"><a href="accounts.html">accounts.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Everyday Tasks</td>
+            <td class="links-table-url"><a href="workflow.html">workflow.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Setup checklist</td>
+            <td class="links-table-url"><a href="checklist.html">checklist.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Lead Finder</td>
+            <td class="links-table-url"><a href="leads.html">leads.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Call scripts</td>
+            <td class="links-table-url"><a href="scripts.html">scripts.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Lead Builder</td>
+            <td class="links-table-url"><a href="template.html">template.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Text &amp; email</td>
+            <td class="links-table-url"><a href="outreach.html">outreach.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Interested Businesses</td>
+            <td class="links-table-url"><a data-config="interestedBusinessesUrl" href="#" target="_blank" rel="noopener" data-config-text data-config-short>—</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Team Telegram</td>
+            <td class="links-table-url"><a data-config="telegramTeam" href="#" target="_blank" rel="noopener" data-config-text data-config-short>—</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Website Agency</td>
+            <td class="links-table-url"><a data-config="payoutTelegramUrl" href="#" target="_blank" rel="noopener" data-config-text data-config-short>—</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">How you get paid</td>
+            <td class="links-table-url"><a href="earnings.html">earnings.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Feedback</td>
+            <td class="links-table-url"><a href="feedback.html">feedback.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Bug Bounty</td>
+            <td class="links-table-url"><a href="bug-bounty.html">bug-bounty.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Settings</td>
+            <td class="links-table-url"><a href="settings.html">settings.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Meet the Owner</td>
+            <td class="links-table-url"><a href="owner.html">owner.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Owner Telegram</td>
+            <td class="links-table-url"><a data-config="ownerTelegram" href="#" target="_blank" rel="noopener" data-config-text data-config-short>—</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Support Telegram</td>
+            <td class="links-table-url"><a data-config="supportTelegram" href="#" target="_blank" rel="noopener" data-config-text data-config-short>—</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Owner email</td>
+            <td class="links-table-url"><a data-config="email" href="#" data-config-text>—</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Owner phone</td>
+            <td class="links-table-url"><a data-config="phone" href="#" data-config-text>—</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Privacy policy</td>
+            <td class="links-table-url"><a href="privacy.html">privacy.html</a></td>
+          </tr>
+          <tr>
+            <td class="links-table-name">Terms of service</td>
+            <td class="links-table-url"><a href="terms.html">terms.html</a></td>
+          </tr>
+        </tbody>
+      </table>
     </div>
   </div>
   <script>

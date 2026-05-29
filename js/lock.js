@@ -252,8 +252,9 @@
       "</form>" +
       "</div>" +
       '<div class="site-lock-legal">' +
-      '<a href="privacy.html" class="site-lock-legal-btn">Privacy Policy</a>' +
-      '<a href="terms.html" class="site-lock-legal-btn">Terms of Service</a>' +
+      '<a href="privacy.html" class="site-lock-legal-link">Privacy Policy</a>' +
+      '<span class="site-lock-legal-sep" aria-hidden="true">·</span>' +
+      '<a href="terms.html" class="site-lock-legal-link">Terms of Service</a>' +
       "</div>";
 
     document.body.appendChild(root);
