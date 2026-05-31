@@ -6,50 +6,114 @@
   <title>Meet the Owner · Sales Team Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css">
+  <script src="js/config.js"></script>
+  <script src="js/config-merge.js"></script>
+  <script src="js/image-preload.js"></script>
 </head>
 <body data-page="owner">
   <div id="shell"></div>
-  <div id="page-body">
-    <p class="page-label" data-icon="message-square">Help</p>
-    <h1>Meet the Owner</h1>
-    <p class="lead">Call or text for help or <strong>1:1 meetings</strong>.</p>
+  <div id="page-body" class="owner-page">
+    <header class="owner-page-header">
+      <p class="page-label" data-icon="message-square">Help</p>
+      <h1>Meet the Owner</h1>
+      <p class="owner-page-lead">Everything you need to reach Delexo—photo, background, and contact options in one place.</p>
+    </header>
 
-    <article class="owner-card owner-card-v2">
-      <div class="owner-layout">
-        <section class="owner-photo-card" aria-label="Owner photo">
-          <img
-            class="owner-photo"
-            data-config="ownerPhotoUrl"
-            data-config-attr="src"
-            src="https://github.com/Delexoo/test/blob/main/IMG_7243%20(1).jpg?raw=true"
-            alt="Owner photo"
-            width="520"
-            height="640"
-            loading="lazy"
+    <article class="owner-card" aria-labelledby="owner-identity">
+      <figure class="owner-figure">
+        <span class="owner-badge">Owner</span>
+        <img
+          class="owner-photo"
+          data-config="ownerPhotoUrl"
+          data-config-attr="src"
+          src="https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/meettheowner.jpg"
+          alt="Delexo — owner photo"
+          width="520"
+          height="640"
+          decoding="async"
+          fetchpriority="high"
+        >
+      </figure>
+
+      <div class="owner-content">
+        <h2 id="owner-identity" class="owner-identity" data-config="ownerHandle" data-config-text>@delexoo</h2>
+
+        <div class="owner-bio" data-config="ownerBio" data-config-paragraphs>
+          <p>Hi, my name is Delexo. I'm 19 and highly ambitious, and I'm always willing to take risks. I completed and earned Harvard CS50 and Google's Cybersecurity Certificate in 2025, and I'm currently pursuing Harvard's Cybersecurity for Business program.</p>
+          <p>My interests include cybersecurity, computer science, and entrepreneurship. Over the years, I've worked on a variety of innovative softwares and cybersecurity projects, explored some of the deepest parts of the internet, and continuously expanded my technical skills through self-learning and hands-on experience.</p>
+          <p>Feel free to reach out anytime. If you have any questions or concerns, I'm always happy to help, whether by text, phone call, or a scheduled meeting.</p>
+        </div>
+
+        <div class="owner-actions" aria-label="Contact the owner">
+          <a class="owner-btn" id="owner-phone-sms" href="#" data-icon="phone" data-icon-class="ico-owner-btn">
+            <span class="owner-btn-text">Text or call</span>
+          </a>
+          <a
+            class="owner-btn"
+            href="https://t.me/delexoo"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-config="ownerTelegram"
+            data-icon="send"
+            data-icon-class="ico-owner-btn"
           >
-        </section>
-
-        <section class="owner-info-card" aria-label="Owner info">
-          <p class="owner-hero-kicker">Owner</p>
-          <h2 class="owner-name" data-config="ownerHandle" data-config-text>@delexoo</h2>
-          <p class="owner-bio owner-bio-short" data-config="ownerBio" data-config-text>
-            19 • Google Cybersecurity certified • CS50 • focused on cybersecurity and keeping our team systems clean + secure.
-          </p>
-
-          <div class="owner-contact-row" aria-label="Contact">
-            <a class="owner-phone-btn" id="owner-phone-sms" href="#" data-icon="message-square">
-              <span class="owner-phone-btn-number" data-config="phone" data-config-text>(401) 300-0957</span>
-            </a>
-            <p class="owner-phone-sub muted">
-              Text or Call
-            </p>
-          </div>
-        </section>
+            <span class="owner-btn-text">Telegram</span>
+          </a>
+          <a
+            class="owner-btn"
+            id="owner-book-meeting"
+            href="https://cal.com/delexo"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-config="ownerCalUrl"
+            data-icon="clock"
+            data-icon-class="ico-owner-btn"
+          >
+            <span class="owner-btn-text">Book a meeting</span>
+          </a>
+          <a
+            class="owner-btn"
+            href="https://delexo.store"
+            target="_blank"
+            rel="noopener noreferrer"
+            data-config="ownerStoreUrl"
+            data-icon="globe"
+            data-icon-class="ico-owner-btn"
+          >
+            <span class="owner-btn-text">Visit my store</span>
+          </a>
+        </div>
       </div>
     </article>
+
+    <section class="owner-mention" aria-labelledby="owner-mention-title">
+      <h2 id="owner-mention-title" class="owner-mention-title" data-icon="star">Honorable mention</h2>
+      <p class="owner-mention-lead muted">A spot reserved for a teammate who helps make this team what it is.</p>
+
+      <article class="owner-mention-card">
+        <figure class="owner-mention-figure">
+          <span class="owner-badge owner-badge--mention">Coming soon</span>
+          <img
+            class="owner-mention-photo"
+            data-config="honorableMentionPhotoUrl"
+            data-config-attr="src"
+            src="https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/meettheowner.jpg"
+            alt="Honorable mention — photo placeholder"
+            width="520"
+            height="640"
+            decoding="async"
+            fetchpriority="high"
+          >
+        </figure>
+        <div class="owner-mention-copy">
+          <h3 class="owner-mention-name" data-config="honorableMentionName" data-config-text>Coming soon</h3>
+          <p class="owner-mention-bio" data-config="honorableMentionBio" data-config-text>
+            Profile coming soon — same image as a placeholder until your friend’s details are added here.
+          </p>
+        </div>
+      </article>
+    </section>
   </div>
-  <script src="js/config.js"></script>
-  <script src="js/config-merge.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/icons.js"></script>
   <script src="js/rep-session.js"></script>
@@ -58,6 +122,7 @@
   <script src="js/theme.js"></script>
   <script src="js/lock.js"></script>
   <script src="js/layout-fix.js"></script>
+  <script src="js/course-modules.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

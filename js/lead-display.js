@@ -180,5 +180,23 @@
       const [a, b] = avatarColorsForLead(lead);
       return `--lf-avatar-a:${a};--lf-avatar-b:${b}`;
     },
+    /** Suggested upfront tier from Google review count (Lead Finder → Lead Builder). */
+    priceTierFromReviewCount(reviewCount) {
+      const c = Number(reviewCount);
+      if (!Number.isFinite(c) || c < 0) return "$500";
+      if (c <= 10) return "$500";
+      if (c <= 30) return "$700";
+      if (c <= 100) return "$1,000";
+      return "$1,500";
+    },
+    buildLeadBuilderPick(lead) {
+      const phone = raw(lead?.phone);
+      const mapsUrl = raw(lead?.mapsUrl);
+      return {
+        phone: phone && phone.toUpperCase() !== "NULL" ? phone : "",
+        mapsUrl,
+        price: global.LeadDisplay.priceTierFromReviewCount(lead?.reviewCount),
+      };
+    },
   };
 })(window);

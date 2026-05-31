@@ -5,6 +5,7 @@
   const UNLOCK_KEY = "lpc_site_unlock";
 
   function shouldShow() {
+    if (global.UserPrefs?.showSignOutFloat?.() === false) return false;
     if (global.SiteLock?.isAuthenticated) return global.SiteLock.isAuthenticated();
     if (global.document.body?.dataset?.public === "1") return false;
     if (sessionStorage.getItem(UNLOCK_KEY) !== "1") return false;
@@ -34,6 +35,7 @@
     global.addEventListener("site-unlocked", update);
     global.addEventListener("site-locked", update);
     global.addEventListener("rep-session-changed", update);
+    global.addEventListener("user-prefs-changed", update);
   }
 
   if (document.readyState === "loading") {

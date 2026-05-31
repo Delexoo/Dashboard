@@ -3,6 +3,7 @@
  */
 (function (global) {
   const LOCAL_KEY = "lpc_rep_payout_v1";
+  const LOCAL_LIST_KEY = "lpc_rep_payouts_list_v1";
 
   const METHODS = [
     {
@@ -119,14 +120,177 @@
     return global.RepSession?.get?.() || null;
   }
 
-  function localKey() {
+  function loadRepItem(base) {
+    if (global.RepStorage?.loadItem) return global.RepStorage.loadItem(base);
     const id = rep()?.id;
-    return id ? "lpc_rep_" + id + "_" + LOCAL_KEY : LOCAL_KEY;
+    const key = id ? "lpc_rep_" + id + "_" + base : base;
+    return localStorage.getItem(key);
+  }
+
+  function saveRepItem(base, value) {
+    if (global.RepStorage?.saveItem) global.RepStorage.saveItem(base, value);
+    else {
+      const id = rep()?.id;
+      const key = id ? "lpc_rep_" + id + "_" + base : base;
+      localStorage.setItem(key, value);
+    }
+  }
+
+  function removeRepItem(base) {
+    if (global.RepStorage?.saveItem) global.RepStorage.saveItem(base, "");
+    else {
+      const id = rep()?.id;
+      const key = id ? "lpc_rep_" + id + "_" + base : base;
+      localStorage.removeItem(key);
+    }
+  }
+
+  function methodMeta(id) {
+    return METHODS.find((m) => m.id === id) || null;
+  }
+
+  function orderMethodsWithDefault(methods, defaultMethod) {
+    const list = Array.isArray(methods) ? methods.filter((m) => m?.method && m?.link) : [];
+    if (list.length <= 1) return list;
+    const id = String(defaultMethod || "").trim();
+    if (!id) return list;
+    const idx = list.findIndex((m) => m.method === id);
+    if (idx <= 0) return list;
+    const ordered = list.slice();
+    const [picked] = ordered.splice(idx, 1);
+    ordered.unshift(picked);
+    return ordered;
+  }
+
+  function parseLocalListStore() {
+    try {
+      const raw = loadRepItem(LOCAL_LIST_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (Array.isArray(parsed?.methods)) {
+          const methods = parsed.methods.filter((m) => m && m.method && m.link);
+          const defaultMethod = parsed.defaultMethod || methods[0]?.method || null;
+          return {
+            methods: orderMethodsWithDefault(methods, defaultMethod),
+            defaultMethod,
+          };
+        }
+      }
+    } catch (e) {
+      /* ignore */
+    }
+    const legacy = loadLocal();
+    if (legacy?.method && legacy?.link) {
+      const methods = [
+        {
+          method: legacy.method,
+          link: legacy.link,
+          updatedAt: legacy.updatedAt || null,
+        },
+      ];
+      return { methods, defaultMethod: legacy.method };
+    }
+    return { methods: [], defaultMethod: null };
+  }
+
+  function loadLocalList() {
+    return parseLocalListStore().methods;
+  }
+
+  function loadDefaultMethodKey() {
+    return parseLocalListStore().defaultMethod;
+  }
+
+  function hasLocalListStore() {
+    try {
+      const raw = loadRepItem(LOCAL_LIST_KEY);
+      return raw != null && raw !== "";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function clearLocalPayout() {
+    try {
+      removeRepItem(LOCAL_KEY);
+      removeRepItem(LOCAL_LIST_KEY);
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function saveLocalList(methods, defaultMethod) {
+    const list = Array.isArray(methods)
+      ? methods.filter((m) => m && m.method && m.link)
+      : [];
+    if (!list.length) {
+      try {
+        saveRepItem(
+          LOCAL_LIST_KEY,
+          JSON.stringify({ methods: [], defaultMethod: null })
+        );
+        removeRepItem(LOCAL_KEY);
+      } catch (e) {
+        /* ignore */
+      }
+      return;
+    }
+    const resolvedDefault =
+      (defaultMethod && list.some((m) => m.method === defaultMethod) ? defaultMethod : null) ||
+      loadDefaultMethodKey() ||
+      list[0].method;
+    const ordered = orderMethodsWithDefault(list, resolvedDefault);
+    saveRepItem(
+      LOCAL_LIST_KEY,
+      JSON.stringify({ methods: ordered, defaultMethod: resolvedDefault })
+    );
+    const primary = ordered[0];
+    saveLocal({
+      method: primary.method,
+      link: primary.link,
+      updatedAt: primary.updatedAt || new Date().toISOString(),
+    });
+  }
+
+  function notifyPayoutChanged(detail) {
+    try {
+      global.dispatchEvent(
+        new CustomEvent("payout-methods-changed", { detail: detail || {} })
+      );
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function saveChecklistProgress(mutator) {
+    try {
+      const key = global.RepStorage?.key
+        ? global.RepStorage.key("lpc_sales_onboarding_progress_v1")
+        : "lpc_sales_onboarding_progress_v1";
+      const raw = global.RepStorage?.loadItem
+        ? global.RepStorage.loadItem("lpc_sales_onboarding_progress_v1")
+        : localStorage.getItem(key);
+      const p = JSON.parse(raw || "{}");
+      mutator(p);
+      const json = JSON.stringify(p);
+      if (global.RepStorage?.saveItem) {
+        global.RepStorage.saveItem("lpc_sales_onboarding_progress_v1", json);
+      } else {
+        localStorage.setItem(key, json);
+      }
+      try {
+        global.dispatchEvent(new CustomEvent("onboarding-progress-changed"));
+      } catch (e) {
+        /* ignore */
+      }
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   function loadLocal() {
     try {
-      const raw = localStorage.getItem(localKey());
+      const raw = loadRepItem(LOCAL_KEY);
       return raw ? JSON.parse(raw) : null;
     } catch (e) {
       return null;
@@ -134,7 +298,99 @@
   }
 
   function saveLocal(data) {
-    localStorage.setItem(localKey(), JSON.stringify(data));
+    saveRepItem(LOCAL_KEY, JSON.stringify(data));
+  }
+
+  function parseCloudMethods(data) {
+    if (!data) return [];
+    let json = data.methods_json;
+    if (typeof json === "string") {
+      try {
+        json = JSON.parse(json);
+      } catch (e) {
+        json = null;
+      }
+    }
+    if (Array.isArray(json) && json.length) {
+      return json
+        .map((row) => ({
+          method: row.method,
+          link: row.payout_link || row.link,
+          updatedAt: row.updated_at || data.updated_at,
+        }))
+        .filter((m) => m.method && m.link);
+    }
+    if (data.method && data.payout_link) {
+      return [
+        {
+          method: data.method,
+          link: data.payout_link,
+          updatedAt: data.updated_at,
+        },
+      ];
+    }
+    return [];
+  }
+
+  function mergeMethods(...lists) {
+    const byMethod = new Map();
+    for (const list of lists) {
+      if (!Array.isArray(list)) continue;
+      for (const m of list) {
+        if (!m?.method || !m?.link) continue;
+        const prev = byMethod.get(m.method);
+        const prevAt = prev?.updatedAt || "";
+        const nextAt = m.updatedAt || "";
+        if (!prev || nextAt >= prevAt) {
+          byMethod.set(m.method, {
+            method: m.method,
+            link: m.link,
+            updatedAt: m.updatedAt || prev?.updatedAt || null,
+          });
+        }
+      }
+    }
+    return Array.from(byMethod.values());
+  }
+
+  function primaryMethod(methods) {
+    if (!methods.length) return null;
+    return methods[0];
+  }
+
+  async function syncCloud(methods) {
+    const r = rep();
+    const sb = getClient();
+    if (!r || !sb) return { cloud: false };
+
+    if (!methods.length) {
+      const { error } = await sb.from("rep_payouts").delete().eq("rep_id", r.id);
+      if (error) throw error;
+      return { cloud: true };
+    }
+
+    const primary = primaryMethod(methods) || methods[0];
+    const updatedAt = primary.updatedAt || new Date().toISOString();
+    const row = {
+      rep_id: r.id,
+      rep_name: r.name,
+      method: primary.method,
+      payout_link: primary.link,
+      updated_at: updatedAt,
+      methods_json: methods.map((m) => ({
+        method: m.method,
+        payout_link: m.link,
+      })),
+    };
+
+    let { error } = await sb.from("rep_payouts").upsert(row, { onConflict: "rep_id" });
+    if (error && /methods_json|column|schema cache/i.test(String(error.message || ""))) {
+      const fallback = { ...row };
+      delete fallback.methods_json;
+      ({ error } = await sb.from("rep_payouts").upsert(fallback, { onConflict: "rep_id" }));
+    }
+    if (error) throw error;
+    return { cloud: true };
   }
 
   function isPlainTextMethod(method) {
@@ -187,58 +443,156 @@
       .replace(/"/g, "&quot;");
   }
 
-  async function fetchMine() {
+  async function fetchCloudMethodsForRep() {
     const r = rep();
-    if (!r) return loadLocal();
-
     const sb = getClient();
-    if (!sb) return loadLocal();
+    if (!sb || !r) return [];
 
-    const { data, error } = await sb
+    let data = null;
+    let error = null;
+    ({ data, error } = await sb
       .from("rep_payouts")
-      .select("method,payout_link,updated_at")
+      .select("method,payout_link,updated_at,methods_json")
       .eq("rep_id", r.id)
-      .maybeSingle();
+      .maybeSingle());
+    if (error && /methods_json|column|schema cache/i.test(String(error.message || ""))) {
+      ({ data, error } = await sb
+        .from("rep_payouts")
+        .select("method,payout_link,updated_at")
+        .eq("rep_id", r.id)
+        .maybeSingle());
+    }
     if (error) throw error;
-    if (!data) return loadLocal();
-    const out = {
-      method: data.method,
-      link: data.payout_link,
-      updatedAt: data.updated_at,
-    };
-    saveLocal(out);
-    return out;
+    return data ? parseCloudMethods(data) : [];
   }
 
-  async function saveMine(method, link) {
-    const r = rep();
+  async function fetchAllMine() {
+    const localStore = parseLocalListStore();
+
+    if (hasLocalListStore()) {
+      const defaultMethod =
+        localStore.defaultMethod || localStore.methods[0]?.method || null;
+      return orderMethodsWithDefault(localStore.methods, defaultMethod);
+    }
+
+    let methods = localStore.methods.slice();
+    const cloud = await fetchCloudMethodsForRep();
+    if (cloud.length) {
+      methods = mergeMethods(methods, cloud);
+    }
+
+    const defaultMethod = methods[0]?.method || null;
+    methods = orderMethodsWithDefault(methods, defaultMethod);
+    if (methods.length) saveLocalList(methods, defaultMethod);
+    return methods;
+  }
+
+  async function fetchMine() {
+    const methods = await fetchAllMine();
+    if (methods[0]) {
+      return {
+        method: methods[0].method,
+        link: methods[0].link,
+        updatedAt: methods[0].updatedAt,
+      };
+    }
+    return loadLocal();
+  }
+
+  async function saveOne(method, link) {
     const normalized = normalizeLink(method, link);
     if (!normalized) throw new Error("Enter your payout link");
 
-    const payload = {
+    const entry = {
       method,
       link: normalized,
       updatedAt: new Date().toISOString(),
     };
-    saveLocal(payload);
 
-    if (!r) return payload;
+    const localBefore = loadLocalList();
+    let methods = mergeMethods(localBefore, await fetchAllMine());
+    const idx = methods.findIndex((m) => m.method === method);
+    if (idx >= 0) methods[idx] = entry;
+    else methods.push(entry);
 
-    const sb = getClient();
-    if (!sb) return payload;
+    const defaultMethod = loadDefaultMethodKey() || methods[0]?.method;
+    methods = orderMethodsWithDefault(methods, defaultMethod);
+    saveLocalList(methods, defaultMethod);
+    await syncCloud(methods);
+    markPayoutChecklistDone();
+    notifyPayoutChanged({ methods });
+    return entry;
+  }
 
-    const { error } = await sb.from("rep_payouts").upsert(
-      {
-        rep_id: r.id,
-        rep_name: r.name,
-        method,
-        payout_link: normalized,
-        updated_at: payload.updatedAt,
-      },
-      { onConflict: "rep_id" }
-    );
-    if (error) throw error;
-    return payload;
+  async function saveMine(method, link) {
+    const entry = await saveOne(method, link);
+    return {
+      method: entry.method,
+      link: entry.link,
+      updatedAt: entry.updatedAt,
+    };
+  }
+
+  async function removeOne(method) {
+    const id = String(method || "").trim();
+    if (!id) throw new Error("Choose a payout method to remove.");
+
+    let methods = loadLocalList();
+    if (!methods.length && !hasLocalListStore()) {
+      methods = await fetchCloudMethodsForRep();
+    }
+    methods = methods.filter((m) => m.method !== id);
+
+    let defaultMethod = loadDefaultMethodKey();
+    if (defaultMethod === id) defaultMethod = methods[0]?.method || null;
+    methods = orderMethodsWithDefault(methods, defaultMethod);
+    saveLocalList(methods, defaultMethod);
+
+    try {
+      await syncCloud(methods);
+    } catch (e) {
+      const msg = String(e?.message || e || "");
+      if (/policy|permission|denied|42501/i.test(msg)) {
+        throw new Error(
+          "Could not update Supabase — run supabase-rep-payouts-setup.sql (delete policy) in the SQL Editor."
+        );
+      }
+      throw e;
+    }
+
+    if (!methods.length) unmarkPayoutChecklist();
+    else markPayoutChecklistDone();
+    notifyPayoutChanged({ methods });
+    return methods;
+  }
+
+  async function setDefaultPayout(method) {
+    const id = String(method || "").trim();
+    if (!id) throw new Error("Choose a payout method.");
+
+    let methods = mergeMethods(loadLocalList(), await fetchAllMine());
+    if (!methods.some((m) => m.method === id)) {
+      throw new Error("That payout method was not found.");
+    }
+
+    methods = orderMethodsWithDefault(methods, id);
+    saveLocalList(methods, id);
+
+    try {
+      await syncCloud(methods);
+    } catch (e) {
+      const msg = String(e?.message || e || "");
+      if (/policy|permission|denied|42501/i.test(msg)) {
+        throw new Error(
+          "Could not update Supabase — run supabase-rep-payouts-setup.sql in the SQL Editor."
+        );
+      }
+      throw e;
+    }
+
+    markPayoutChecklistDone();
+    notifyPayoutChanged({ methods, defaultMethod: id });
+    return methods;
   }
 
   async function resetMine() {
@@ -247,15 +601,12 @@
       throw new Error("Sign in with your PIN before resetting payout.");
     }
 
-    try {
-      localStorage.removeItem(localKey());
-    } catch (e) {
-      /* ignore */
-    }
+    clearLocalPayout();
 
     const sb = getClient();
     if (!sb) {
       unmarkPayoutChecklist();
+      notifyPayoutChanged({ methods: [] });
       return { cloud: false, reason: "no_client" };
     }
 
@@ -271,47 +622,20 @@
     }
 
     unmarkPayoutChecklist();
+    notifyPayoutChanged({ methods: [] });
     return { cloud: true };
   }
 
   function unmarkPayoutChecklist() {
-    try {
-      const key = global.RepStorage?.key
-        ? global.RepStorage.key("lpc_sales_onboarding_progress_v1")
-        : "lpc_sales_onboarding_progress_v1";
-      const raw = global.RepStorage?.loadItem
-        ? global.RepStorage.loadItem("lpc_sales_onboarding_progress_v1")
-        : localStorage.getItem(key);
-      const p = JSON.parse(raw || "{}");
+    saveChecklistProgress((p) => {
       delete p.payout;
-      if (global.RepStorage?.saveItem) {
-        global.RepStorage.saveItem("lpc_sales_onboarding_progress_v1", JSON.stringify(p));
-      } else {
-        localStorage.setItem(key, JSON.stringify(p));
-      }
-    } catch (e) {
-      /* ignore */
-    }
+    });
   }
 
   function markPayoutChecklistDone() {
-    try {
-      const key = global.RepStorage?.key
-        ? global.RepStorage.key("lpc_sales_onboarding_progress_v1")
-        : "lpc_sales_onboarding_progress_v1";
-      const raw = global.RepStorage?.loadItem
-        ? global.RepStorage.loadItem("lpc_sales_onboarding_progress_v1")
-        : localStorage.getItem(key);
-      const p = JSON.parse(raw || "{}");
+    saveChecklistProgress((p) => {
       p.payout = true;
-      if (global.RepStorage?.saveItem) {
-        global.RepStorage.saveItem("lpc_sales_onboarding_progress_v1", JSON.stringify(p));
-      } else {
-        localStorage.setItem(key, JSON.stringify(p));
-      }
-    } catch (e) {
-      /* ignore */
-    }
+    });
   }
 
   function renderMethodButtons(selected) {
@@ -521,9 +845,20 @@
   global.PayoutSetup = {
     METHODS,
     fetchMine,
+    fetchAllMine,
+    mergeMethods,
     saveMine,
+    saveOne,
+    setDefaultPayout,
+    removeOne,
     resetMine,
+    orderMethodsWithDefault,
     methodLabel,
+    methodMeta,
     isPlainTextMethod,
+    renderMethodButtons,
+    esc,
+    markPayoutChecklistDone,
+    unmarkPayoutChecklist,
   };
 })(window);
