@@ -6,14 +6,17 @@
   <title>Sales Team Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css">
-  <style>#sales-tracker:not(.dash-hydrated){visibility:hidden}</style>
+  <style>
+    #sales-tracker:not(.dash-hydrated){visibility:hidden}
+    #dash-pending-section:not(.dash-pending-ready) .dash-pending-count{visibility:hidden}
+    #contributors-team-stats:not(.contributors-stats-ready){visibility:hidden}
+  </style>
 </head>
 <body data-page="home">
   <div id="shell"></div>
   <div id="page-body">
     <div class="dash-header">
       <div class="page-hero dash-page-hero">
-        <p class="page-label" data-icon="layout-dashboard">Home</p>
         <h1>Dashboard</h1>
         <p class="lead dash-page-lead">Track goals, log sales, and jump to your daily tools.</p>
       </div>
@@ -151,13 +154,13 @@
         <header class="dash-pending-head">
           <div class="dash-pending-head-copy">
             <h2 class="dash-board-work-title" id="dash-pending-title" data-icon="clock">Pending businesses</h2>
-            <p class="dash-pending-desc">Follow up on leads you marked <strong>Pending</strong> in Lead Finder.</p>
+            <p class="dash-pending-desc">Follow up on leads you started with <strong>Build Lead</strong> or marked <strong>Pending</strong> in Lead Finder.</p>
           </div>
           <span class="dash-pending-count" id="dash-pending-count">0 pending</span>
         </header>
         <div class="dash-empty dash-pending-empty" id="dash-pending-empty">
           <p class="dash-empty-title">No pending businesses</p>
-          <p class="dash-empty-desc">Mark a lead as Pending in Lead Finder when you plan to call or build their site later.</p>
+          <p class="dash-empty-desc">Click <strong>Build Lead</strong> on a business in Lead Finder to pin it here while you work the lead.</p>
         </div>
         <ul class="dash-pending-list" id="dash-pending-list"></ul>
         <footer class="dash-pending-foot">
@@ -181,7 +184,7 @@
   <script src="js/leads-loader.js"></script>
   <script src="js/lead-sync.js"></script>
   <script src="js/lead-display.js"></script>
-  <script src="js/app.js"></script>
   <script src="js/dashboard-pending.js"></script>
+  <script src="js/app.js"></script>
 </body>
 </html>

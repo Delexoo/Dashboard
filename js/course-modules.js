@@ -21,19 +21,19 @@
           title: "Welcome",
           transcript: true,
           body: [
-            "You're hired!",
-            "Welcome to the official Website Agency Sales Team.",
-            "Before we get started, I would want you to relax and sit back and make sure you don't skip anything. I will be straightforward with you, I'll walk you through how to use this platform. I'm not here to waste your time, no bs.",
+            "Welcome to the Sales Team!",
+            "This training will guide you through everything you need to know, from using the platform to closing your first deal. Please take your time, follow each step, and avoid skipping lessons to get the most out of the training.",
           ],
         },
         {
-          id: "tips-tricks",
-          label: "Tips & Tricks",
-          title: "Tips & Tricks",
+          id: "platform-overview",
+          label: "Platform Overview",
+          title: "Platform Overview",
           transcript: true,
           body: [
-            "This platform is designed to be as convenient and interactive as possible. You'll notice chapters listed right below each video that looks a lot like this. You can actually click on them and you'll open the chapters summary, I built this so you don't have to rewatch the video a million times now you can review at any given moment. You can also use the blue arrow buttons to navigate between different chapters, or if you'd like to exit this mode simply click on the red exit button.",
-            "Inside each video, you'll also see the chapters displayed on screen like this along with the duration, so you can follow along by reading the summary while listening to me talk, that's fine too. These are here so you can easily track the current chapter and the summary.",
+            "This platform was designed to be as convenient and interactive as possible. Below each video, you'll find {{Welcome}}, {{Platform Overview}}, and {{Recommendations}} that open a summary of each section, allowing you to quickly review important information without rewatching the entire video.",
+            "You can use {{btn-prev}} and {{btn-next}} to navigate between chapters and {{btn-exit}} to leave chapter view at any time.",
+            "You'll also see the current chapter, summary, and duration displayed directly within the video. This allows you to follow along by reading the key points while watching, making it easier to stay on track and review information whenever needed.",
           ],
         },
         {
@@ -42,8 +42,8 @@
           title: "Recommendations",
           transcript: true,
           body: [
-            "For the best results, I recommend using a computer when going through this platform, although everything will still work on other devices.",
-            "With that being said, click on the black \"Next\" button to see you in the next video!",
+            "For the best experience, I recommend using a computer while going through this platform, although all features will still work on other devices.",
+            "When you're ready, click the black \"Next\" button below to continue to the next video. See you there!",
           ],
         },
       ],
@@ -402,8 +402,9 @@
 
   function chapterById(mod, chapterId) {
     if (!mod?.chapters) return null;
-    const resolved =
-      chapterId === "additional-info" ? "recommendations" : chapterId;
+    let resolved = chapterId;
+    if (resolved === "additional-info") resolved = "recommendations";
+    if (resolved === "tips-tricks") resolved = "platform-overview";
     return mod.chapters.find((c) => c.id === resolved) || null;
   }
 

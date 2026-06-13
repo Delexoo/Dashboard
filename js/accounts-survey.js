@@ -45,7 +45,7 @@
   let telegramDevice = null;
   let telegramReady = false;
   let surveyDataReady = false;
-  let surveyPreparePromise = null;
+  let cloudRefreshPromise = null;
 
   function surveyNextBtn(attr) {
     const dataAttr = attr || "data-advance";
@@ -1166,10 +1166,74 @@
 
   function resetSurveyDataState() {
     surveyDataReady = false;
-    surveyPreparePromise = null;
+    cloudRefreshPromise = null;
     savedPayout = null;
     savedPayoutMethods = [];
     selectedMethod = null;
+  }
+
+  function kickRepStorageInit() {
+    if (global.RepStorage?.init) {
+      global.RepStorage.init().catch((e) => console.warn("RepStorage init failed", e));
+    }
+  }
+
+  function loadSavedPayoutsLocal() {
+    try {
+      const methods = global.PayoutSetup?.loadLocalMethods?.() || [];
+      syncSavedPayoutFromList(methods);
+      if (savedPayout?.method && !selectedMethod) selectedMethod = savedPayout.method;
+    } catch (e) {
+      console.warn("Payout local load failed", e);
+    }
+  }
+
+  function bootstrapSurveyFromLocal() {
+    loadFlowFlags();
+    loadSavedPayoutsLocal();
+    surveyDataReady = true;
+  }
+
+  function applyCloudSurveyState() {
+    loadFlowFlags();
+    if (isSurveyComplete()) markSurveyComplete();
+    const root = document.getElementById("accounts-survey");
+    if (!root || root.dataset.surveyMounted !== "1") return;
+    root.classList.toggle("accounts-survey--complete", isSurveyComplete());
+    const stepIdx = resolveSurveyStep();
+    if (stepIdx !== currentStep) {
+      goTo(stepIdx);
+      return;
+    }
+    updateProgress();
+    if (STEPS[currentStep]?.id === "done") renderStep();
+  }
+
+  async function waitForRepStorage(maxMs) {
+    if (global.RepStorage?.whenReady) {
+      await Promise.race([
+        new Promise((resolve) => global.RepStorage.whenReady(resolve)),
+        new Promise((resolve) => setTimeout(resolve, maxMs || 8000)),
+      ]);
+      return;
+    }
+    if (global.RepStorage?.init) await global.RepStorage.init();
+  }
+
+  async function refreshSurveyFromCloud() {
+    if (!cloudRefreshPromise) {
+      cloudRefreshPromise = (async () => {
+        kickRepStorageInit();
+        await waitForRepStorage(8000);
+        await loadSavedPayouts();
+        applyCloudSurveyState();
+      })().catch((e) => {
+        console.warn("Survey cloud sync failed", e);
+      }).finally(() => {
+        cloudRefreshPromise = null;
+      });
+    }
+    return cloudRefreshPromise;
   }
 
   function setSurveyLoading(loading) {
@@ -1181,22 +1245,13 @@
     if (loading && text) text.textContent = "Loading…";
   }
 
-  async function prepareSurveyData() {
-    if (surveyDataReady) return;
-    if (!surveyPreparePromise) {
-      surveyPreparePromise = (async () => {
-        if (global.RepStorage?.whenReady) {
-          await new Promise((resolve) => global.RepStorage.whenReady(resolve));
-        }
-        await loadSavedPayouts();
-        if (isSurveyComplete()) markSurveyComplete();
-        surveyDataReady = true;
-      })().catch((e) => {
-        surveyPreparePromise = null;
-        throw e;
-      });
+  async function loadSavedPayouts() {
+    try {
+      syncSavedPayoutFromList((await global.PayoutSetup?.fetchAllMine?.()) || []);
+      if (savedPayout?.method && !selectedMethod) selectedMethod = savedPayout.method;
+    } catch (e) {
+      console.warn("Payout load failed", e);
     }
-    await surveyPreparePromise;
   }
 
   async function mountSurvey() {
@@ -1209,45 +1264,32 @@
       bindPayoutListener();
     }
 
-    setSurveyLoading(true);
-    try {
-      await prepareSurveyData();
-    } catch (e) {
-      console.warn("Survey prepare failed", e);
-    } finally {
-      setSurveyLoading(false);
-    }
+    kickRepStorageInit();
+    bootstrapSurveyFromLocal();
 
-    loadFlowFlags();
     const stepIdx = resolveSurveyStep();
     const alreadyMounted = root.dataset.surveyMounted === "1";
     root.classList.toggle("accounts-survey--complete", isSurveyComplete());
+    setSurveyLoading(false);
 
     if (alreadyMounted && currentStep === stepIdx) {
       if (STEPS[currentStep]?.id === "done") renderStep();
       else updateProgress();
+      refreshSurveyFromCloud();
       return true;
     }
 
     goTo(stepIdx);
     root.dataset.surveyMounted = "1";
+    refreshSurveyFromCloud();
     return true;
-  }
-
-  async function loadSavedPayouts() {
-    try {
-      syncSavedPayoutFromList((await global.PayoutSetup?.fetchAllMine?.()) || []);
-      if (savedPayout?.method && !selectedMethod) selectedMethod = savedPayout.method;
-    } catch (e) {
-      console.warn("Payout load failed", e);
-    }
   }
 
   async function onPayoutMethodsChanged(e) {
     const root = document.getElementById("accounts-survey");
     if (!root || root.dataset.surveyBound !== "1") return;
     try {
-      if (!surveyDataReady) await prepareSurveyData();
+      if (!surveyDataReady) bootstrapSurveyFromLocal();
       const fromEvent = e?.detail?.methods;
       if (Array.isArray(fromEvent)) {
         syncSavedPayoutFromList(fromEvent);
@@ -1282,6 +1324,13 @@
       if (!root || root.dataset.surveyBound !== "1") return;
       root.dataset.surveyMounted = "0";
       mountSurvey().catch((e) => console.warn("Survey remount failed", e));
+    });
+  }
+
+  if (!global.__accountsSurveySettingsListener) {
+    global.__accountsSurveySettingsListener = true;
+    global.addEventListener("rep-settings-ready", () => {
+      applyCloudSurveyState();
     });
   }
 

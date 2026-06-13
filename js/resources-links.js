@@ -99,79 +99,51 @@
     return rows;
   }
 
-  function buildGroups() {
+  function buildLinks() {
     const c = cfg();
     return [
-      {
-        title: "Daily tools",
-        links: [
-          internalRow("Dashboard", "dashboard.html"),
-          internalRow("Lead Finder", "leads.html"),
-          internalRow("Lead Finder — Pending list", "leads.html#pending"),
-          internalRow("Lead Builder", "template.html"),
-          internalRow("Call scripts", "scripts.html"),
-          internalRow("Text & email", "outreach.html"),
-          internalRow("Setup checklist", "checklist.html"),
-        ],
-      },
-      {
-        title: "Course",
-        links: courseRows(),
-      },
-      {
-        title: "Help & account",
-        links: [
-          internalRow("FAQ", "faq.html"),
-          internalRow("FAQ — Ask the team", "faq.html", "Team Q&A at top"),
-          internalRow("How you get paid", "faq.html#how-you-get-paid"),
-          internalRow("Settings", "settings.html", "Name, photo, payout"),
-          internalRow("Feedback", "feedback.html"),
-          internalRow("Bug Bounty", "bug-bounty.html"),
-          internalRow("All links", "resources.html"),
-        ],
-      },
-      {
-        title: "Team & owner",
-        links: [
-          internalRow("Meet the Owner", "owner.html"),
-          internalRow("Contributors", "contributors.html"),
-          configRow("Interested Businesses (Telegram)", "interestedBusinessesUrl", {
-            short: true,
-          }),
-          configRow("Team Telegram", "telegramTeam", { short: true }),
-          configRow(
-            (c.payoutTelegramName || "Website Agency") + " (payout Telegram)",
-            "payoutTelegramUrl",
-            { short: true }
-          ),
-          configRow("Contributors — Invite / apply", "contributorsShareUrl", {
-            short: true,
-          }),
-          configRow("Owner Telegram", "ownerTelegram", { short: true }),
-          configRow("Support Telegram", "supportTelegram", { short: true }),
-          externalRow("Owner store", c.ownerStoreUrl),
-          externalRow("Book a call (Cal.com)", c.ownerCalUrl),
-          configRow("Owner email", "email"),
-          configRow("Owner phone", "phone"),
-        ],
-      },
-      {
-        title: "Legal",
-        links: [
-          internalRow("Privacy policy", "privacy.html"),
-          internalRow("Terms of service", "terms.html"),
-        ],
-      },
-      {
-        title: "Redirects (old bookmarks still work)",
-        links: [
-          internalRow("accounts.html", "accounts.html", "→ setup.html"),
-          internalRow("earnings.html", "earnings.html", "→ FAQ How you get paid"),
-          internalRow("everyday-tasks.html", "everyday-tasks.html", "→ Course Everyday Tasks"),
-          internalRow("workflow.html", "workflow.html", "→ Course Platform Tour"),
-          internalRow("Sign in", "index.html", "PIN gate"),
-        ],
-      },
+      internalRow("Dashboard", "dashboard.html"),
+      internalRow("Lead Finder", "leads.html"),
+      internalRow("Lead Finder — Pending list", "leads.html#pending"),
+      internalRow("Lead Builder", "template.html"),
+      internalRow("Call scripts", "scripts.html"),
+      internalRow("Text & email", "outreach.html"),
+      internalRow("Setup checklist", "checklist.html"),
+      ...courseRows(),
+      internalRow("FAQ", "faq.html"),
+      internalRow("FAQ — Ask the team", "faq.html", "Team Q&A at top"),
+      internalRow("How you get paid", "faq.html#how-you-get-paid"),
+      internalRow("Settings", "settings.html", "Name, photo, payout"),
+      internalRow("Feedback", "feedback.html"),
+      internalRow("Bug Bounty", "bug-bounty.html"),
+      internalRow("All links", "resources.html"),
+      internalRow("Meet the Owner", "owner.html"),
+      internalRow("Contributors", "contributors.html"),
+      configRow("Interested Businesses (Telegram)", "interestedBusinessesUrl", {
+        short: true,
+      }),
+      configRow("Team Telegram", "telegramTeam", { short: true }),
+      configRow(
+        (c.payoutTelegramName || "Website Agency") + " (payout Telegram)",
+        "payoutTelegramUrl",
+        { short: true }
+      ),
+      configRow("Contributors — Invite / apply", "contributorsShareUrl", {
+        short: true,
+      }),
+      configRow("Owner Telegram", "ownerTelegram", { short: true }),
+      configRow("Support Telegram", "supportTelegram", { short: true }),
+      externalRow("Owner store", c.ownerStoreUrl),
+      externalRow("Book a call (Cal.com)", c.ownerCalUrl),
+      configRow("Owner email", "email"),
+      configRow("Owner phone", "phone"),
+      internalRow("Privacy policy", "privacy.html"),
+      internalRow("Terms of service", "terms.html"),
+      internalRow("accounts.html", "accounts.html", "→ setup.html"),
+      internalRow("earnings.html", "earnings.html", "→ FAQ How you get paid"),
+      internalRow("everyday-tasks.html", "everyday-tasks.html", "→ Course Everyday Tasks"),
+      internalRow("workflow.html", "workflow.html", "→ Course Platform Tour"),
+      internalRow("Sign in", "index.html", "PIN gate"),
     ];
   }
 
@@ -225,8 +197,8 @@
     return name;
   }
 
-  function renderGroup(group) {
-    const rows = (group.links || []).filter((link) => {
+  function renderTable(links) {
+    const rows = (links || []).filter((link) => {
       if (link.kind === "external") return !!String(link.href || "").trim();
       return true;
     });
@@ -252,9 +224,6 @@
 
     return (
       '<section class="links-section card">' +
-      '<h2 class="links-section-title section-head" data-icon="external-link">' +
-      esc(group.title) +
-      "</h2>" +
       '<div class="links-table-wrap">' +
       '<table class="links-table">' +
       "<thead><tr><th scope=\"col\">Name</th><th scope=\"col\">URL</th></tr></thead>" +
@@ -268,8 +237,7 @@
     const root = document.getElementById("resources-links-root");
     if (!root) return;
 
-    const groups = buildGroups();
-    root.innerHTML = groups.map(renderGroup).join("");
+    root.innerHTML = renderTable(buildLinks());
 
     if (global.SiteIcons) global.SiteIcons.initIcons(root);
 
@@ -320,5 +288,5 @@
     init();
   }
 
-  global.ResourcesLinks = { render, buildGroups };
+  global.ResourcesLinks = { render, buildLinks };
 })(window);

@@ -244,8 +244,19 @@
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-modal", "true");
     root.setAttribute("aria-label", "Enter PIN");
+    const c = window.SITE_CONFIG || {};
+    const logoUrl = String(c.brandLogoUrl || c.telegramTeamAvatar || "").trim();
+    const logoName = String(c.companyName || "Sales Team Dashboard").trim();
+    const logoBlock = logoUrl
+      ? '<img class="site-lock-logo" src="' +
+        logoUrl.replace(/"/g, "&quot;") +
+        '" alt="' +
+        logoName.replace(/"/g, "&quot;") +
+        '" width="72" height="72" decoding="async" fetchpriority="high">'
+      : "";
     root.innerHTML =
       '<div class="site-lock-inner">' +
+      logoBlock +
       '<p class="site-lock-hint">Use the PIN your manager gave you</p>' +
       '<form class="site-lock-form" autocomplete="off">' +
       '<input type="password" class="site-lock-input" inputmode="numeric" pattern="[0-9]*" maxlength="8" placeholder="Your PIN" aria-label="PIN" autofocus>' +
@@ -347,6 +358,14 @@
     }
     window.RepSession?.enforceTrackerIdentity?.();
     window.RepSession?.touchSessionMeta?.();
+    window.RepSession?.startOnlineHeartbeat?.();
+    if (window.RepStorage?.flushSync) {
+      try {
+        await window.RepStorage.flushSync();
+      } catch (e) {
+        console.warn("Rep settings sync on login failed", e);
+      }
+    }
 
     applyUnlockedUi();
 

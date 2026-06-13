@@ -4,6 +4,13 @@
 (function (global) {
   const LOCAL_KEY = "lpc_rep_payout_v1";
   const LOCAL_LIST_KEY = "lpc_rep_payouts_list_v1";
+  const PAYOUT_ICON_BASE =
+    "https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/";
+
+  const PAYOUT_ICON_FILES = {
+    cashapp: "Cashapp.png",
+    venmo: "Venmo.png",
+  };
 
   const METHODS = [
     {
@@ -147,6 +154,30 @@
 
   function methodMeta(id) {
     return METHODS.find((m) => m.id === id) || null;
+  }
+
+  function payoutIconUrl(id) {
+    const file = PAYOUT_ICON_FILES[id];
+    return file ? PAYOUT_ICON_BASE + file : "";
+  }
+
+  function renderMethodIcon(id, extraClass) {
+    const meta = methodMeta(id);
+    const extra = extraClass ? " " + extraClass : "";
+    const url = payoutIconUrl(id);
+    if (url) {
+      return (
+        `<span class="payout-method-icon-wrap payout-method-${esc(id)}${extra}" aria-hidden="true">` +
+        `<img class="payout-method-icon-img" src="${esc(url)}" alt="" width="40" height="40" decoding="async">` +
+        `</span>`
+      );
+    }
+    const short = meta?.short || methodLabel(id).charAt(0);
+    return (
+      `<span class="payout-method-${esc(id)} payout-method-icon-host${extra}" aria-hidden="true">` +
+      `<span class="payout-method-icon">${esc(short)}</span>` +
+      `</span>`
+    );
   }
 
   function orderMethodsWithDefault(methods, defaultMethod) {
@@ -644,7 +675,7 @@
     return METHODS.map(
       (m) =>
         `<button type="button" class="payout-method-btn payout-method-${esc(m.id)}" data-method="${esc(m.id)}" aria-pressed="${selected === m.id ? "true" : "false"}">` +
-        `<span class="payout-method-icon" aria-hidden="true">${esc(m.short || m.label.charAt(0))}</span>` +
+        renderMethodIcon(m.id) +
         `<span class="payout-method-label">${esc(m.label)}</span>` +
         `</button>`
     ).join("");
@@ -848,6 +879,7 @@
     METHODS,
     fetchMine,
     fetchAllMine,
+    loadLocalMethods: loadLocalList,
     mergeMethods,
     saveMine,
     saveOne,
@@ -859,6 +891,7 @@
     methodMeta,
     isPlainTextMethod,
     renderMethodButtons,
+    renderMethodIcon,
     esc,
     markPayoutChecklistDone,
     unmarkPayoutChecklist,

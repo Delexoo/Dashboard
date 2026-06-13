@@ -6,11 +6,8 @@
 
   const DEFAULT_PREFS = {
     theme: "light",
-    reduceMotion: false,
     showCourseFullscreenHint: true,
     showSignOutFloat: true,
-    showNavHints: true,
-    compactTables: false,
   };
 
   function loadRaw() {
@@ -35,19 +32,8 @@
     if (global.SiteTheme) {
       global.SiteTheme.apply(merged.theme || "light", {
         persistDevice: true,
-        reduceMotion: !!merged.reduceMotion,
       });
       localStorage.setItem(global.SiteTheme.DEVICE_KEY, merged.theme || "light");
-    }
-    if (merged.showNavHints === false) {
-      document.documentElement.setAttribute("data-hide-nav-hints", "1");
-    } else {
-      document.documentElement.removeAttribute("data-hide-nav-hints");
-    }
-    if (merged.compactTables) {
-      document.documentElement.setAttribute("data-compact-tables", "1");
-    } else {
-      document.documentElement.removeAttribute("data-compact-tables");
     }
     global.dispatchEvent(new Event("user-prefs-changed"));
   }
@@ -63,23 +49,6 @@
   function showSignOutFloat() {
     return loadRaw().showSignOutFloat !== false;
   }
-
-  function applyDomHints() {
-    const prefs = loadRaw();
-    if (prefs.showNavHints === false) {
-      document.documentElement.setAttribute("data-hide-nav-hints", "1");
-    } else {
-      document.documentElement.removeAttribute("data-hide-nav-hints");
-    }
-    if (prefs.compactTables) {
-      document.documentElement.setAttribute("data-compact-tables", "1");
-    } else {
-      document.documentElement.removeAttribute("data-compact-tables");
-    }
-  }
-
-  applyDomHints();
-  global.addEventListener("user-prefs-changed", applyDomHints);
 
   global.UserPrefs = {
     PREFS_KEY,

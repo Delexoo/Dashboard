@@ -5,14 +5,32 @@
   const STEP_DONE_KEY = "lpc_sales_onboarding_steps_v1";
   const NAV_COLLAPSED_KEY = "lpc_nav_collapsed_v1";
   const SIDEBAR_COLLAPSED_KEY = "lpc_sidebar_collapsed_v1";
-  const NAV_DEFAULT_COLLAPSED = ["help"];
+  const NAV_DEFAULT_COLLAPSED = [];
 
   const NAV_GROUP_PAGES = {
-    overview: ["home"],
     course: ["course-module", "setup"],
     tools: ["leads", "scripts", "template", "outreach", "checklist"],
     help: ["faq", "feedback", "bug-bounty", "settings", "resources", "owner", "contributors", "privacy", "terms"],
   };
+
+  const NAV_CATEGORIES = {
+    course: { label: "Course", icon: "book-open" },
+    tools: { label: "Daily tools", icon: "repeat-2" },
+    help: { label: "Help", icon: "help-circle" },
+  };
+
+  const PAGE_NAV_CATEGORY = (function () {
+    const map = {};
+    Object.entries(NAV_GROUP_PAGES).forEach(([groupId, pages]) => {
+      const cat = NAV_CATEGORIES[groupId];
+      if (!cat) return;
+      pages.forEach((p) => {
+        map[p] = cat;
+      });
+    });
+    map.videoscript = NAV_CATEGORIES.course;
+    return map;
+  })();
 
   const COMMISSION_RATE = 0.4;
   const COMMISSION_PRESET = { 500: 200, 700: 280, 1000: 400, 1500: 600 };
@@ -81,11 +99,60 @@
     return html;
   }
 
+  function renderToolsNav(activeId, progress) {
+    return TOOL_PAGES.map((p) => {
+      if (p.id === "checklist") {
+        const cls = p.id === activeId ? "nav-link active nav-link--checklist" : "nav-link nav-link--checklist";
+        const pct = checklistProgressPercent(progress);
+        return (
+          `<li><a class="${cls}" href="${p.href}">` +
+          `<span class="nav-link-text">${ico("badge-check", "ico-nav")}${p.label}</span>` +
+          `<span class="nav-link-progress" aria-hidden="true">` +
+          `<span class="nav-link-progress-bar" style="width:${pct}%"></span></span></a></li>`
+        );
+      }
+      const cls = p.id === activeId ? "nav-link active" : "nav-link";
+      const ic =
+        p.id === "leads"
+          ? "search"
+          : p.id === "template"
+            ? "file-plus"
+            : p.id === "scripts"
+              ? "phone"
+              : "message-square";
+      return `<li><a class="${cls}" href="${p.href}"><span class="nav-link-text">${ico(ic, "ico-nav")}${p.label}</span></a></li>`;
+    }).join("");
+  }
+
+  function renderHelpNav(activeId) {
+    const resourcesActive =
+      activeId === "resources" || activeId === "privacy" || activeId === "terms";
+    return (
+      `<li><a class="${activeId === "owner" ? "nav-link active" : "nav-link"}" href="owner.html"><span class="nav-link-text">${ico("message-square", "ico-nav")}Meet the Owner</span></a></li>` +
+      `<li><a class="${activeId === "contributors" ? "nav-link active" : "nav-link"}" href="contributors.html"><span class="nav-link-text">${ico("users", "ico-nav")}Contributors</span></a></li>` +
+      `<li><a class="${activeId === "settings" ? "nav-link active" : "nav-link"}" href="settings.html"><span class="nav-link-text">${ico("settings", "ico-nav")}Settings</span></a></li>` +
+      `<li><a class="${activeId === "faq" ? "nav-link active" : "nav-link"}" href="faq.html"><span class="nav-link-text">${ico("help-circle", "ico-nav")}FAQ</span></a></li>` +
+      `<li><a class="${resourcesActive ? "nav-link active" : "nav-link"}" href="resources.html"><span class="nav-link-text">${ico("external-link", "ico-nav")}All links</span></a></li>` +
+      `<li><a class="${activeId === "feedback" ? "nav-link active" : "nav-link"}" href="feedback.html"><span class="nav-link-text">${ico("message-square", "ico-nav")}Feedback</span></a></li>` +
+      `<li><a class="${activeId === "bug-bounty" ? "nav-link active" : "nav-link"}" href="bug-bounty.html"><span class="nav-link-text">${ico("bug", "ico-nav")}Bug Bounty</span></a></li>`
+    );
+  }
+
+  function renderOverviewNav(activeId) {
+    const dashCls = activeId === "home" ? "nav-link active" : "nav-link";
+    return (
+      `<li><a class="${dashCls}" href="dashboard.html">` +
+      `<span class="nav-link-text">${ico("layout-dashboard", "ico-nav")}Dashboard</span></a></li>`
+    );
+  }
+
   function refreshCourseNavInSidebar() {
-    const list = document.getElementById("nav-panel-course");
-    if (!list) return;
     const page = document.body.dataset.page || "home";
-    list.innerHTML = renderCourseNav(page, loadProgress());
+    const progress = loadProgress();
+    const courseList = document.getElementById("nav-panel-course");
+    const toolsList = document.getElementById("nav-panel-tools");
+    if (courseList) courseList.innerHTML = renderCourseNav(page, progress);
+    if (toolsList) toolsList.innerHTML = renderToolsNav(page, progress);
     const sidebar = document.getElementById("sidebar");
     const overlay = document.getElementById("sidebar-overlay");
     const btn = document.getElementById("menu-btn");
@@ -95,7 +162,9 @@
       overlay?.classList.remove("open");
       syncMenuBtnState(btn, sidebar, overlay);
     };
-    list.querySelectorAll(".nav-link").forEach((a) => a.addEventListener("click", close));
+    [courseList, toolsList].forEach((list) => {
+      list?.querySelectorAll(".nav-link").forEach((a) => a.addEventListener("click", close));
+    });
   }
 
   function pulseCourseModuleBadge(mod) {
@@ -398,6 +467,24 @@
     return window.SiteIcons ? window.SiteIcons.icon(name, cls || "") : "";
   }
 
+  function brandLogoUrl() {
+    const c = cfg();
+    return String(c.brandLogoUrl || c.telegramTeamAvatar || "").trim();
+  }
+
+  function brandMarkHtml() {
+    const url = brandLogoUrl();
+    const name = cfg().companyName || "Sales Team Dashboard";
+    if (url) {
+      return (
+        `<span class="brand-mark">` +
+        `<img class="brand-mark-img" src="${escHtml(url)}" alt="${escHtml(name)}" width="44" height="44" decoding="async" fetchpriority="high">` +
+        `</span>`
+      );
+    }
+    return `<span class="brand-mark">${ico("sparkles", "ico-brand")}</span>`;
+  }
+
   function navQuickLink(icon, label, attrs, external) {
     const trail = ico(external ? "external-link" : "chevron-right", "ico-nav-trail");
     return `<li><a class="nav-link nav-link-out nav-link-important" ${attrs}><span class="nav-link-text">${ico(icon, "ico-nav")}${label}</span><span class="nav-link-trail" aria-hidden="true">${trail}</span></a></li>`;
@@ -446,17 +533,19 @@
     lsSet(NAV_COLLAPSED_KEY, JSON.stringify(state));
   }
 
+  let navGroupsClickBound = false;
+
   function initNavGroups(activeId) {
+    const page = activeId || document.body.dataset.page || "home";
     const saved = loadNavCollapsed();
     document.querySelectorAll(".nav-group").forEach((group) => {
       const id = group.dataset.navGroup;
       if (!id) return;
       const toggle = group.querySelector(".nav-section-toggle");
-      if (!toggle || toggle.dataset.bound) return;
-      toggle.dataset.bound = "1";
+      if (!toggle) return;
 
       const pages = NAV_GROUP_PAGES[id] || [];
-      const hasActive = pages.includes(activeId);
+      const hasActive = pages.includes(page);
       let collapsed = false;
       if (!hasActive) {
         if (saved[id] === true) collapsed = true;
@@ -465,13 +554,25 @@
       }
       group.classList.toggle("is-collapsed", collapsed);
       toggle.setAttribute("aria-expanded", String(!collapsed));
+    });
+    ensureNavGroupsClick();
+  }
 
-      toggle.addEventListener("click", () => {
-        const isCollapsed = group.classList.toggle("is-collapsed");
-        toggle.setAttribute("aria-expanded", String(!isCollapsed));
-        saved[id] = isCollapsed;
-        saveNavCollapsed(saved);
-      });
+  function ensureNavGroupsClick() {
+    if (navGroupsClickBound) return;
+    navGroupsClickBound = true;
+    document.addEventListener("click", (e) => {
+      const toggle = e.target.closest(".nav-section-toggle");
+      if (!toggle) return;
+      const group = toggle.closest(".nav-group");
+      const id = group?.dataset?.navGroup;
+      if (!id) return;
+      e.preventDefault();
+      const isCollapsed = group.classList.toggle("is-collapsed");
+      toggle.setAttribute("aria-expanded", String(!isCollapsed));
+      const saved = loadNavCollapsed();
+      saved[id] = isCollapsed;
+      saveNavCollapsed(saved);
     });
   }
 
@@ -516,39 +617,17 @@
     btn.setAttribute("aria-label", collapsed ? "Open menu" : "Close menu");
   }
 
+  function applyPageCategoryLabel() {
+    const body = document.getElementById("page-body");
+    if (!body) return;
+    body.querySelectorAll(".page-label").forEach((el) => el.remove());
+  }
+
   function renderShell(activeId) {
     const c = cfg();
     const progress = loadProgress();
     const stepIcons = (window.SiteIcons && window.SiteIcons.STEP_ICONS) || {};
 
-    const onboardingNav = renderCourseNav(activeId, progress);
-
-    const toolsNav = TOOL_PAGES.map((p) => {
-      if (p.id === "checklist") {
-        const cls = p.id === activeId ? "nav-link active nav-link--checklist" : "nav-link nav-link--checklist";
-        const pct = checklistProgressPercent(progress);
-        return (
-          `<li><a class="${cls}" href="${p.href}">` +
-          `<span class="nav-link-text">${ico("badge-check", "ico-nav")}${p.label}</span>` +
-          `<span class="nav-link-progress" aria-hidden="true">` +
-          `<span class="nav-link-progress-bar" style="width:${pct}%"></span></span></a></li>`
-        );
-      }
-      const cls = p.id === activeId ? "nav-link active" : "nav-link";
-      const ic =
-        p.id === "leads"
-          ? "search"
-          : p.id === "template"
-            ? "file-plus"
-            : p.id === "scripts"
-              ? "phone"
-              : "message-square";
-      return `<li><a class="${cls}" href="${p.href}"><span class="nav-link-text">${ico(ic, "ico-nav")}${p.label}</span></a></li>`;
-    }).join("");
-
-    const dashCls = activeId === "home" ? "nav-link active" : "nav-link";
-    const resourcesActive =
-      activeId === "resources" || activeId === "privacy" || activeId === "terms";
     const brandName = c.companyName || "Sales Team Dashboard";
     const shell = document.getElementById("shell");
     if (!shell) return;
@@ -559,28 +638,14 @@
       `<div class="sidebar-overlay" id="sidebar-overlay"></div>` +
         `<aside class="sidebar" id="sidebar">` +
         `<div class="sidebar-panel">` +
-        `<div class="brand">` +
-        `<span class="brand-mark">${ico("sparkles", "ico-brand")}</span>` +
+        `<a class="brand" href="dashboard.html" aria-label="Go to Dashboard">` +
+        `${brandMarkHtml()}` +
         `<span class="brand-text"><strong>${brandName}</strong><span class="brand-sub">${escHtml(brandSubText())}</span></span>` +
-        `</div>` +
-        navGroup(
-          "overview",
-          "Overview",
-          `<li><a class="${dashCls}" href="dashboard.html"><span class="nav-link-text">${ico("layout-dashboard", "ico-nav")}Dashboard</span></a></li>`
-        ) +
-        navGroup("course", "Course", onboardingNav) +
-        navGroup("tools", "Daily tools", toolsNav) +
-        navGroup(
-          "help",
-          "Help",
-          `<li><a class="${activeId === "owner" ? "nav-link active" : "nav-link"}" href="owner.html"><span class="nav-link-text">${ico("message-square", "ico-nav")}Meet the Owner</span></a></li>` +
-            `<li><a class="${activeId === "contributors" ? "nav-link active" : "nav-link"}" href="contributors.html"><span class="nav-link-text">${ico("users", "ico-nav")}Contributors</span></a></li>` +
-            `<li><a class="${activeId === "settings" ? "nav-link active" : "nav-link"}" href="settings.html"><span class="nav-link-text">${ico("settings", "ico-nav")}Settings</span></a></li>` +
-            `<li><a class="${activeId === "faq" ? "nav-link active" : "nav-link"}" href="faq.html"><span class="nav-link-text">${ico("help-circle", "ico-nav")}FAQ</span></a></li>` +
-            `<li><a class="${resourcesActive ? "nav-link active" : "nav-link"}" href="resources.html"><span class="nav-link-text">${ico("external-link", "ico-nav")}All links</span></a></li>` +
-            `<li><a class="${activeId === "feedback" ? "nav-link active" : "nav-link"}" href="feedback.html"><span class="nav-link-text">${ico("message-square", "ico-nav")}Feedback</span></a></li>` +
-            `<li><a class="${activeId === "bug-bounty" ? "nav-link active" : "nav-link"}" href="bug-bounty.html"><span class="nav-link-text">${ico("bug", "ico-nav")}Bug Bounty</span></a></li>`
-        ) +
+        `</a>` +
+        `<ul class="nav-list nav-list-standalone">${renderOverviewNav(activeId)}</ul>` +
+        navGroup("course", "Course", renderCourseNav(activeId, progress)) +
+        navGroup("tools", "Daily tools", renderToolsNav(activeId, progress)) +
+        navGroup("help", "Help", renderHelpNav(activeId)) +
         `</div>` +
         `<button type="button" class="menu-btn" id="menu-btn" aria-label="Open menu" aria-controls="sidebar" aria-expanded="true">${ico("menu", "ico-menu")}<span>Menu</span></button>` +
         `</aside>`
@@ -613,7 +678,7 @@
       syncMenuBtnState(btn, sidebar, overlay);
     });
     overlay.addEventListener("click", close);
-    sidebar.querySelectorAll(".nav-link").forEach((a) => a.addEventListener("click", close));
+    sidebar.querySelectorAll(".nav-link, .brand").forEach((a) => a.addEventListener("click", close));
     if (!window.__lpcSidebarResizeBound) {
       window.__lpcSidebarResizeBound = true;
       window.addEventListener("resize", () => {
@@ -688,7 +753,8 @@
     },
     {
       step: 4,
-      taskFlow: ["If interested", "Lead Builder"],
+      taskHeading: "If interested:",
+      inlineBullets: ["Fill out the Lead Builder"],
       detailBullets: [
         "Price must match what you quoted on the call",
         "Google Maps link is filled from Build Lead",
@@ -699,9 +765,9 @@
     },
     {
       step: 5,
-      taskFlow: ["Copy template", "Interested Businesses"],
+      taskFlow: ["Copy template", "Send it into the Interested Businesses chat"],
       detail:
-        "In Lead Builder, click Copy template, then paste the full message into Interested Businesses on Telegram right away.",
+        "In Lead Builder, click Copy template, then paste the full message into the Interested Businesses chat on Telegram right away.",
       resource: {
         hrefKey: "interestedBusinessesUrl",
         label: "Interested Businesses",
@@ -710,7 +776,7 @@
     },
     {
       step: 6,
-      task: "Mark complete",
+      task: "Mark the business as complete",
       detail:
         "In Lead Finder, tag the business Complete (team sees it). Use Pending if you need to call back. Quick Save and Pin are only for you. Then start again at step 2.",
       completeTag: true,
@@ -769,13 +835,15 @@
       return `<span class="everyday-tasks-flow">${inner}</span>`;
     }
     if (row.taskHeading) {
-      let html = `<span class="everyday-tasks-heading">${escHtml(row.taskHeading)}</span>`;
+      let html = '<span class="everyday-tasks-label-stack">';
+      html += `<span class="everyday-tasks-heading">${escHtml(row.taskHeading)}</span>`;
       if (Array.isArray(row.inlineBullets) && row.inlineBullets.length) {
         html +=
-          '<ul class="everyday-tasks-inline-list">' +
+          '<ul class="everyday-tasks-bullets">' +
           row.inlineBullets.map((item) => `<li>${escHtml(item)}</li>`).join("") +
           "</ul>";
       }
+      html += "</span>";
       return html;
     }
     return `<strong class="everyday-tasks-task">${escHtml(row.task || "")}</strong>`;
@@ -994,18 +1062,22 @@
     if (!root && !form) return;
     if (form?.dataset.trackerBound === "1") {
       reloadSalesTracker?.();
+      root?.classList.add("dash-hydrated");
       return;
     }
 
-    const runTracker = () => {
-      window.RepSession?.enforceTrackerIdentity?.();
-      bootTracker();
+    const revealTracker = () => {
+      reloadSalesTracker?.();
+      document.getElementById("sales-tracker")?.classList.add("dash-hydrated");
     };
 
-    runTracker();
+    window.RepSession?.enforceTrackerIdentity?.();
+    bootTracker();
 
-    if (window.RepSession?.get?.() && window.RepStorage?.whenReady) {
-      window.RepStorage.whenReady(() => reloadSalesTracker?.());
+    if (window.RepStorage?.whenReady) {
+      window.RepStorage.whenReady(revealTracker);
+    } else {
+      revealTracker();
     }
   }
 
@@ -1175,7 +1247,6 @@
     function renderAll() {
       renderStats();
       renderDealsList();
-      root?.classList.add("dash-hydrated");
     }
 
     function reloadFromStorage() {
@@ -1271,30 +1342,48 @@
     }
   }
 
-  function initAccordions() {
-    document.querySelectorAll(".acc.open").forEach((o) => o.classList.remove("open"));
-
-    document.querySelectorAll(".acc").forEach((acc) => {
-      const q = acc.querySelector(".acc-q");
-      const panel = acc.querySelector(".acc-a");
-      if (!q || q.dataset.bound) return;
-      q.dataset.bound = "1";
-      q.setAttribute("aria-expanded", "false");
-
-      q.addEventListener("click", () => {
-        const open = acc.classList.contains("open");
-        document.querySelectorAll(".acc.open").forEach((o) => {
-          o.classList.remove("open");
-          o.querySelector(".acc-q")?.setAttribute("aria-expanded", "false");
-        });
-        if (!open) {
-          acc.classList.add("open");
-          q.setAttribute("aria-expanded", "true");
-        }
-      });
-
-      panel?.addEventListener("click", (e) => e.stopPropagation());
+  function toggleAccordion(acc) {
+    if (!acc) return;
+    const q = acc.querySelector(":scope > .acc-q");
+    const wasOpen = acc.classList.contains("open");
+    document.querySelectorAll(".acc.open").forEach((o) => {
+      o.classList.remove("open");
+      o.querySelector(":scope > .acc-q")?.setAttribute("aria-expanded", "false");
     });
+    if (!wasOpen) {
+      acc.classList.add("open");
+      q?.setAttribute("aria-expanded", "true");
+    }
+  }
+
+  function bindAccordionAcc(acc) {
+    const q = acc.querySelector(":scope > .acc-q");
+    if (!q || q.dataset.accBound === "1") return;
+    q.dataset.accBound = "1";
+    q.addEventListener("click", (e) => {
+      if (e.target.closest(".custom-script-title-input, .custom-outreach-title-input")) return;
+      e.preventDefault();
+      toggleAccordion(acc);
+    });
+    q.addEventListener("keydown", (e) => {
+      if (e.key !== "Enter" && e.key !== " ") return;
+      if (e.target.closest(".custom-script-title-input, .custom-outreach-title-input")) return;
+      e.preventDefault();
+      toggleAccordion(acc);
+    });
+  }
+
+  function syncAccordionAria() {
+    document.querySelectorAll(".acc").forEach((acc) => {
+      const q = acc.querySelector(":scope > .acc-q");
+      if (!q) return;
+      q.setAttribute("aria-expanded", acc.classList.contains("open") ? "true" : "false");
+    });
+  }
+
+  function initAccordions() {
+    document.querySelectorAll(".acc").forEach(bindAccordionAcc);
+    syncAccordionAria();
   }
 
   const SCRIPTS_STORAGE_KEY = "lpc_call_scripts_edits_v1";
@@ -1509,6 +1598,68 @@
     });
   }
 
+  function openScriptAccordion(scriptId) {
+    if (!scriptId) return;
+    const acc = document.querySelector('#scripts-editor .acc[data-script-id="' + scriptId + '"]');
+    if (!acc) return;
+    document.querySelectorAll("#scripts-editor .acc.open").forEach((a) => {
+      a.classList.remove("open");
+      a.querySelector(":scope > .acc-q")?.setAttribute("aria-expanded", "false");
+    });
+    acc.classList.add("open");
+    acc.querySelector(":scope > .acc-q")?.setAttribute("aria-expanded", "true");
+    acc.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
+
+  const SCRIPT_ENTRY_TARGET = {
+    d: "script-d-transfer",
+    g: "script-g-close",
+  };
+
+  function clearScriptHighlights() {
+    document.querySelectorAll(".script-block--highlight").forEach((node) => {
+      node.classList.remove("script-block--highlight");
+    });
+  }
+
+  function highlightScriptBlock(el) {
+    if (!el) return;
+    clearScriptHighlights();
+    el.classList.add("script-block--highlight");
+    el.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+
+  function scrollToScriptTarget(targetId) {
+    if (!targetId) return;
+    const el =
+      document.getElementById(targetId) ||
+      document.querySelector('[data-script-target="' + targetId + '"]');
+    if (!el) return;
+    highlightScriptBlock(el);
+  }
+
+  function bindScriptPathways(page) {
+    if (!page || page.dataset.pathBound) return;
+    page.dataset.pathBound = "1";
+    page.addEventListener("click", (e) => {
+      const pathBtn = e.target.closest(".script-path-btn[data-scroll-target]");
+      if (pathBtn) {
+        e.preventDefault();
+        scrollToScriptTarget(pathBtn.dataset.scrollTarget);
+        return;
+      }
+      const jump = e.target.closest(".script-open-btn");
+      if (!jump) return;
+      e.preventDefault();
+      const scriptId = jump.dataset.scriptId;
+      const scrollTarget = jump.dataset.scrollTarget || SCRIPT_ENTRY_TARGET[scriptId];
+      openScriptAccordion(scriptId);
+      if (scrollTarget) {
+        window.setTimeout(() => scrollToScriptTarget(scrollTarget), 100);
+      }
+    });
+  }
+
   function initCallScripts() {
     const root = document.getElementById("scripts-editor");
     const customRoot = document.getElementById("custom-scripts-list");
@@ -1560,19 +1711,11 @@
         if (dl) {
           const acc = dl.closest(".acc");
           if (acc) downloadScriptFromAcc(acc, dl.dataset.format || "txt");
-          return;
         }
-        const jump = e.target.closest(".script-open-btn");
-        if (!jump) return;
-        const scriptId = jump.dataset.scriptId;
-        if (!scriptId) return;
-        const acc = document.querySelector('#scripts-editor .acc[data-script-id="' + scriptId + '"]');
-        if (!acc) return;
-        document.querySelectorAll("#scripts-editor .acc.open").forEach((a) => a.classList.remove("open"));
-        acc.classList.add("open");
-        acc.scrollIntoView({ behavior: "smooth", block: "start" });
       });
     }
+
+    bindScriptPathways(scriptsPage);
 
     const addBtn = document.getElementById("add-custom-script");
     if (addBtn && !addBtn.dataset.bound) {
@@ -1665,6 +1808,7 @@
           `<div class="script-toolbar script-toolbar-custom">` +
           `<button type="button" class="btn secondary custom-outreach-delete">Delete</button>` +
           `<button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>` +
+          `<button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>` +
           `</div>` +
           `<div class="script-block">` +
           `<div class="script-body" contenteditable="true" spellcheck="true" data-custom-outreach-body="1">${s.html || "<p><br></p>"}</div>` +
@@ -1864,9 +2008,9 @@
     const nameEl = document.getElementById("tpl-name");
     const phoneEl = document.getElementById("tpl-phone");
     const mapsEl = document.getElementById("tpl-maps");
-    if (nameEl && s.name) nameEl.value = s.name;
-    if (phoneEl && s.phone) phoneEl.value = s.phone;
-    if (mapsEl && s.maps) mapsEl.value = s.maps;
+    if (nameEl) nameEl.value = String(s.name ?? "");
+    if (phoneEl) phoneEl.value = String(s.phone ?? "");
+    if (mapsEl) mapsEl.value = String(s.maps ?? "");
     syncTplCallBtn();
   }
 
@@ -1892,53 +2036,105 @@
     return t || "[Phone Number]";
   }
 
-  function copyTpl(btn) {
-    closeTplInfoPanels();
+  function copyTextToClipboard(text) {
+    if (navigator.clipboard?.writeText) {
+      return navigator.clipboard.writeText(text).catch(() => {
+        copyTextViaTextarea(text);
+      });
+    }
+    copyTextViaTextarea(text);
+    return Promise.resolve();
+  }
+
+  function copyTextViaTextarea(text) {
+    const ta = document.createElement("textarea");
+    ta.value = text;
+    ta.setAttribute("readonly", "");
+    ta.style.position = "fixed";
+    ta.style.left = "-9999px";
+    document.body.appendChild(ta);
+    ta.focus();
+    ta.select();
+    ta.setSelectionRange(0, text.length);
+    try {
+      document.execCommand("copy");
+    } finally {
+      document.body.removeChild(ta);
+    }
+  }
+
+  function buildTemplateCopyText() {
     const pref = tplMode === "dl" ? "Direct Link" : "Booking";
-    const text =
+    const maps =
+      String(document.getElementById("tpl-maps")?.value || "").trim() ||
+      "[Google Maps link]";
+    const phone = formatPhoneForCopy(document.getElementById("tpl-phone")?.value);
+    const name =
+      String(document.getElementById("tpl-name")?.value || "").trim() || "[Name]";
+    const price = tplPrice || "$500";
+    return (
       "Price: " +
-      tplPrice +
+      price +
       "\nGoogle Maps: " +
-      (document.getElementById("tpl-maps")?.value || "[Google Maps link]") +
+      maps +
       "\nPreference: " +
       pref +
       "\nPhone: " +
-      formatPhoneForCopy(document.getElementById("tpl-phone")?.value) +
+      phone +
       "\nOwner Name: " +
-      (document.getElementById("tpl-name")?.value || "[Name]");
+      name
+    );
+  }
+
+  function copyTpl(btn) {
+    closeTplInfoPanels();
+    const copyBtn = btn || document.getElementById("tpl-copy-btn");
+    const text = buildTemplateCopyText();
     const ok = () => {
+      if (!copyBtn) return;
       preserveScroll(() => {
-        btn.textContent = "Copied";
+        copyBtn.textContent = "Copied";
       });
       setTimeout(() => {
         preserveScroll(() => {
-          btn.textContent = "Copy template";
+          copyBtn.textContent = "Copy template";
         });
       }, 2000);
       persistTemplateBuilder();
     };
-    if (navigator.clipboard?.writeText) navigator.clipboard.writeText(text).then(ok);
-    else {
-      const ta = document.createElement("textarea");
-      ta.value = text;
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-      ok();
-    }
+    const fail = () => {
+      if (!copyBtn) return;
+      preserveScroll(() => {
+        copyBtn.textContent = "Copy failed";
+      });
+      setTimeout(() => {
+        preserveScroll(() => {
+          copyBtn.textContent = "Copy template";
+        });
+      }, 2000);
+    };
+    copyTextToClipboard(text).then(ok).catch(fail);
   }
 
   function clearTpl() {
     closeTplInfoPanels();
+    clearStashedLeadPick();
     ["tpl-name", "tpl-phone", "tpl-maps"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.value = "";
     });
-    setTplPrice("$500");
-    setTplMode("dl");
-    persistTemplateBuilder();
+    setTplPrice("$500", true);
+    setTplMode("dl", true);
+    saveTemplateBuilder({
+      mode: "dl",
+      price: "$500",
+      name: "",
+      phone: "",
+      maps: "",
+    });
     syncTplCallBtn();
+    initTplAutosaveTag();
+    void window.RepStorage?.flushSync?.();
   }
 
   function telHrefFromTplPhone(raw) {
@@ -1998,25 +2194,32 @@
     });
   }
 
-  function bindTemplateBuilderActions() {
+  function bindTemplateBuilderActions(force) {
     const copyBtn = document.getElementById("tpl-copy-btn");
     const clearBtn = document.getElementById("tpl-clear-btn");
-    if (copyBtn && !copyBtn.dataset.bound) {
+    if (copyBtn && (force || !copyBtn.dataset.bound)) {
       copyBtn.dataset.bound = "1";
-      copyBtn.addEventListener("click", (e) => {
+      copyBtn.onclick = (e) => {
         e.preventDefault();
-        e.stopPropagation();
         copyTpl(copyBtn);
-      });
+      };
     }
-    if (clearBtn && !clearBtn.dataset.bound) {
+    if (clearBtn && (force || !clearBtn.dataset.bound)) {
       clearBtn.dataset.bound = "1";
-      clearBtn.addEventListener("click", (e) => {
+      clearBtn.onclick = (e) => {
         e.preventDefault();
-        e.stopPropagation();
         clearTpl();
-      });
+      };
     }
+  }
+
+  function initTemplateBuilderPage() {
+    if (!document.getElementById("tpl-builder")) return;
+    initTplInfo();
+    bindTemplateBuilderAutosave();
+    applyTemplateBuilder();
+    initLeadPickFromFinder();
+    if (!readStashedLeadPick()) initTplAutosaveTag();
   }
 
   function initTplInfo() {
@@ -2098,66 +2301,119 @@
       return window.LeadDisplay.buildLeadBuilderPick(lead);
     }
     return {
+      leadId: String(lead?.id || "").trim(),
+      name: "",
       phone: lead?.phone || "",
-      mapsUrl: lead?.mapsUrl || "",
+      mapsUrl: lead?.mapsUrl || lead?.maps_url || "",
       price: "$500",
     };
   }
 
+  function stashLeadPick(pick) {
+    if (!pick) return;
+    try {
+      sessionStorage.setItem("lpc_lead_pick_v1", JSON.stringify(pick));
+    } catch (e) {
+      console.warn("Could not stash lead pick for Lead Builder", e);
+    }
+  }
+
+  function readStashedLeadPick() {
+    try {
+      const raw = sessionStorage.getItem("lpc_lead_pick_v1");
+      if (!raw) return null;
+      const pick = JSON.parse(raw);
+      return pick && typeof pick === "object" ? pick : null;
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function clearStashedLeadPick() {
+    try {
+      sessionStorage.removeItem("lpc_lead_pick_v1");
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
   function applyLeadPick(pick) {
-    if (!pick || !document.getElementById("tpl-builder")) return;
+    if (!pick || !document.getElementById("tpl-builder")) return false;
+    if (pick.mode) setTplMode(pick.mode, true);
     if (pick.price) setTplPrice(pick.price, true);
-    const mapsVal = pick.mapsUrl || pick.maps || "";
+    const mapsVal = String(pick.mapsUrl || pick.maps || "").trim();
+    const nameEl = document.getElementById("tpl-name");
     const phoneEl = document.getElementById("tpl-phone");
     const mapsEl = document.getElementById("tpl-maps");
-    if (phoneEl && pick.phone) {
-      phoneEl.value =
-        global.LeadDisplay?.formatPhoneForLeadBuilder?.(pick.phone) || pick.phone;
+    const nameVal = String(pick.name || "").trim();
+    if (nameEl) nameEl.value = nameVal;
+    if (phoneEl) {
+      phoneEl.value = pick.phone
+        ? window.LeadDisplay?.formatPhoneForLeadBuilder?.(pick.phone) || pick.phone
+        : "";
     }
-    if (mapsEl && mapsVal) mapsEl.value = mapsVal;
+    if (mapsEl) mapsEl.value = mapsVal;
     persistTemplateBuilder();
     syncTplCallBtn();
+    initTplAutosaveTag();
+    return !!(nameVal || pick.phone || mapsVal);
   }
 
   function mergeLeadPickIntoStorage(pick) {
+    if (!pick) return;
     const s = loadTemplateBuilder();
-    const mapsVal = pick.mapsUrl || pick.maps || "";
+    const mapsVal = String(pick.mapsUrl || pick.maps || "").trim();
     saveTemplateBuilder({
-      mode: s.mode || tplMode || "dl",
+      mode: pick.mode || s.mode || tplMode || "dl",
       price: pick.price || s.price || "$500",
-      name: s.name || "",
-      phone: pick.phone || "",
+      name: "name" in pick ? String(pick.name || "").trim() : String(s.name || "").trim(),
+      phone: pick.phone || s.phone || "",
       maps: mapsVal || s.maps || "",
     });
   }
 
   function forwardLeadToBuilder(lead) {
-    const leadId = lead?.id;
+    if (!lead) return;
+    const leadId = lead.id;
     if (leadId && window.LeadsPage?.pinLeadForBuilder) {
       void window.LeadsPage.pinLeadForBuilder(leadId);
     }
     const pick = buildLeadPickFromLead(lead);
-    try {
-      sessionStorage.setItem("lpc_lead_pick_v1", JSON.stringify(pick));
-    } catch (e) {}
+    stashLeadPick(pick);
+    mergeLeadPickIntoStorage(pick);
     if (document.getElementById("tpl-builder")) {
-      applyLeadPick(pick);
-      try {
-        sessionStorage.removeItem("lpc_lead_pick_v1");
-      } catch (e) {}
+      if (applyLeadPick(pick)) clearStashedLeadPick();
       return;
     }
-    mergeLeadPickIntoStorage(pick);
-    window.location.href = "template.html";
+    const qs = leadId ? "?lead=" + encodeURIComponent(String(leadId)) : "";
+    window.location.href = "template.html" + qs;
   }
 
   function initLeadPickFromFinder() {
-    try {
-      const raw = sessionStorage.getItem("lpc_lead_pick_v1");
-      if (!raw) return;
-      sessionStorage.removeItem("lpc_lead_pick_v1");
-      applyLeadPick(JSON.parse(raw));
-    } catch (e) {}
+    const pick = readStashedLeadPick();
+    if (pick) {
+      if (applyLeadPick(pick)) clearStashedLeadPick();
+      return;
+    }
+    const s = loadTemplateBuilder();
+    if (s.phone || s.maps || s.name) {
+      applyLeadPick({
+        name: s.name,
+        phone: s.phone,
+        mapsUrl: s.maps,
+        price: s.price,
+        mode: s.mode,
+      });
+    }
+  }
+
+  function reapplyLeadPickFromFinder() {
+    const pick = readStashedLeadPick();
+    if (pick) {
+      applyLeadPick(pick);
+      return;
+    }
+    applyTemplateBuilder();
   }
 
   let tplAutosaveAnimTimer = null;
@@ -2409,12 +2665,7 @@
   }
 
   function initOwnerPage() {
-    const phone = cfg().phone;
-    if (!phone) return;
-    const digits = phone.replace(/\D/g, "");
-    const e164 = digits.length === 10 ? "+1" + digits : "+" + digits;
-    const sms = document.getElementById("owner-phone-sms");
-    if (sms) sms.href = "sms:" + e164;
+    global.OwnerContact?.init?.();
   }
 
   function ensureSignOutFloatScript() {
@@ -2431,6 +2682,7 @@
     if (!document.getElementById("shell")) return;
     ensurePageLayout();
     if (!document.getElementById("sidebar")) renderShell(page);
+    applyPageCategoryLabel();
     ensureSignOutFloatScript();
   }
 
@@ -2448,6 +2700,14 @@
     }
     document.body.dataset.appBooted = "1";
     mountPage();
+
+    const page = document.body.dataset.page || "home";
+    if (page === "settings") {
+      window.SiteImagePreload?.warmDocumentImages?.(document.body);
+      if (window.SiteIcons) window.SiteIcons.initIcons();
+      return;
+    }
+
     touchDailyToolProgress();
 
     initEverydayTasks();
@@ -2467,11 +2727,7 @@
     if (window.SiteIcons) window.SiteIcons.initIcons();
 
     if (document.getElementById("tpl-builder")) {
-      applyTemplateBuilder();
-      initTplInfo();
-      bindTemplateBuilderAutosave();
-      initLeadPickFromFinder();
-      initTplAutosaveTag();
+      initTemplateBuilderPage();
     }
   }
 
@@ -2479,11 +2735,16 @@
     const page = document.body.dataset.page || "home";
     return (
       page === "home" ||
+      page === "scripts" ||
+      page === "outreach" ||
+      page === "faq" ||
       !!document.getElementById("deals-list") ||
       !!document.getElementById("onboarding-path") ||
       !!document.getElementById("course-module-list") ||
       !!document.getElementById("course-module-root") ||
-      !!document.getElementById("call-scripts-root")
+      !!document.getElementById("call-scripts-root") ||
+      !!document.getElementById("scripts-editor") ||
+      !!document.getElementById("outreach-editor")
     );
   }
 
@@ -2508,7 +2769,11 @@
       return;
     }
     appLaunchStarted = true;
-    bootApp();
+    try {
+      bootApp();
+    } catch (e) {
+      console.error("Dashboard boot failed", e);
+    }
 
     if (window.RepStorage?.init) {
       window.RepStorage.init().catch((e) => console.warn("Rep settings init failed", e));
@@ -2530,6 +2795,12 @@
   window.addEventListener("site-unlocked", () => {
     ensureSignOutFloatScript();
     if (!appLaunchStarted) startWhenReady();
+    else if (document.body.dataset.appBooted === "1") {
+      initAccordions();
+      if (document.getElementById("scripts-editor")) initCallScripts();
+      if (document.getElementById("outreach-editor")) initOutreachEditor();
+    }
+    global.DashboardPending?.refresh?.();
     if (window.RepStorage?.whenReady) {
       window.RepStorage.whenReady(applyPostLoginRedirect);
     } else {
@@ -2550,9 +2821,34 @@
       const prefs = window.UserPrefs.get();
       window.SiteTheme.apply(prefs.theme || "light", { persistDevice: true });
     }
+    if (document.getElementById("tpl-builder")) {
+      bindTemplateBuilderActions(true);
+      reapplyLeadPickFromFinder();
+    }
     if (document.body.dataset.appBooted !== "1" || settingsUiSynced) return;
     settingsUiSynced = true;
     refreshAfterSettingsSync();
+  });
+
+  window.addEventListener("rep-settings-pulled", () => {
+    if (window.UserPrefs && window.SiteTheme) {
+      const prefs = window.UserPrefs.get();
+      window.SiteTheme.apply(prefs.theme || "light", { persistDevice: true });
+    }
+    if (document.getElementById("tpl-builder")) {
+      bindTemplateBuilderActions(true);
+      reapplyLeadPickFromFinder();
+    }
+  });
+
+  window.addEventListener("pageshow", (e) => {
+    if (document.getElementById("tpl-builder")) {
+      bindTemplateBuilderActions(true);
+    }
+    if (e.persisted) {
+      initAccordions();
+      initNavGroups(document.body.dataset.page || "home");
+    }
   });
 
   window.addEventListener("onboarding-progress-changed", () => {

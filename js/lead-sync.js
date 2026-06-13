@@ -11,6 +11,8 @@
   let client = null;
   let channel = null;
   let onUpdate = null;
+  /** @type {((map: object, meta?: object) => void)[]} */
+  let updateListeners = [];
   let realtimeTimer = null;
   let lastMapJson = "";
   /** null = unknown, true/false after first fetch */
@@ -59,6 +61,30 @@
       overlay[leadId] = { workflow: w, called: false };
     }
     saveWorkflowOverlay(overlay);
+  }
+
+  /** Immediate local backup so Pending survives navigation before team sync finishes. */
+  function savePendingLocalSnapshot(leadId, businessName) {
+    const id = String(leadId || "").trim();
+    if (!id) return;
+    const overlay = loadWorkflowOverlay();
+    overlay[id] = {
+      workflow: "pending",
+      called: false,
+      pendingAt: new Date().toISOString(),
+      businessName: String(businessName || "").trim(),
+    };
+    saveWorkflowOverlay(overlay);
+  }
+
+  function clearPendingLocalSnapshot(leadId) {
+    const id = String(leadId || "").trim();
+    if (!id) return;
+    const overlay = loadWorkflowOverlay();
+    if (overlay[id]?.workflow === "pending") {
+      delete overlay[id];
+      saveWorkflowOverlay(overlay);
+    }
   }
 
   function applyWorkflow(map, leadId, workflow, businessName) {
@@ -152,11 +178,26 @@
   }
 
   function emitUpdate(map, meta) {
-    if (!onUpdate) return;
     const sig = mapSignature(map);
-    if (sig === lastMapJson) return;
+    const force = !!(meta && meta.force);
+    if (!force && sig === lastMapJson) return;
     lastMapJson = sig;
-    onUpdate(map, meta);
+    updateListeners.forEach((fn) => {
+      try {
+        fn(map, meta);
+      } catch (e) {
+        console.warn(e);
+      }
+    });
+    if (onUpdate) onUpdate(map, meta);
+  }
+
+  function addUpdateListener(fn) {
+    if (typeof fn !== "function") return () => {};
+    updateListeners.push(fn);
+    return () => {
+      updateListeners = updateListeners.filter((x) => x !== fn);
+    };
   }
 
   function cfg() {
@@ -173,7 +214,9 @@
   }
 
   function getRepId() {
-    return String(global.RepSession?.get?.()?.id || "").trim();
+    return String(
+      global.RepSession?.getId?.() || global.RepSession?.get?.()?.id || ""
+    ).trim();
   }
 
   function getRepName() {
@@ -501,5 +544,13 @@
     return canUseTeam();
   }
 
-  global.LeadSync = { init, getMode, isConfigured, refreshTeam };
+  global.LeadSync = {
+    init,
+    getMode,
+    isConfigured,
+    refreshTeam,
+    addUpdateListener,
+    savePendingLocalSnapshot,
+    clearPendingLocalSnapshot,
+  };
 })(window);

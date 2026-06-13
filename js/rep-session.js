@@ -50,6 +50,7 @@
   }
 
   function touchSessionMeta() {
+    if (!getId()) return;
     try {
       const meta = readSessionMeta();
       const now = new Date().toISOString();
@@ -60,6 +61,7 @@
       if (meta.activeMs == null) meta.activeMs = 0;
       if (!meta.activeSince) meta.activeSince = now;
       writeSessionMeta(meta);
+      global.RepStorage?.scheduleSync?.();
     } catch (e) {
       /* ignore */
     }
@@ -75,7 +77,7 @@
   }
 
   function pauseActiveMs() {
-    if (!get()) return;
+    if (!getId()) return;
     try {
       const meta = readSessionMeta();
       const now = Date.now();
@@ -108,10 +110,10 @@
   let onlineHeartbeatStarted = false;
 
   function startOnlineHeartbeat() {
-    if (onlineHeartbeatStarted || !get()) return;
+    if (onlineHeartbeatStarted || !getId()) return;
     onlineHeartbeatStarted = true;
     touchOnline();
-    setInterval(touchOnline, 3 * 60 * 1000);
+    setInterval(touchOnline, 60 * 1000);
     document.addEventListener("visibilitychange", () => {
       if (document.visibilityState === "visible") {
         try {
@@ -189,10 +191,7 @@
       if (el) el.textContent = label;
     });
     const settingsEl = document.getElementById("settings-rep-id");
-    if (settingsEl) {
-      if (name && id) settingsEl.textContent = name + " (" + id + ")";
-      else settingsEl.textContent = label;
-    }
+    if (settingsEl) settingsEl.textContent = label;
   }
 
   function loadTrackerRaw() {
@@ -272,10 +271,7 @@
   global.addEventListener("site-unlocked", () => {
     startOnlineHeartbeat();
   });
-  if (
-    get() &&
-    sessionStorage.getItem("lpc_site_unlock") === "1"
-  ) {
+  if (getId() && sessionStorage.getItem("lpc_site_unlock") === "1") {
     startOnlineHeartbeat();
   }
 })(window);

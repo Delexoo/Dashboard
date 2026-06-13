@@ -83,8 +83,6 @@
       rem.textContent =
         earned >= goal ? "Goal reached" : "$" + formatMoney(goal - earned) + " to go";
     }
-
-    root.classList.add("dash-hydrated");
   }
 
   apply();

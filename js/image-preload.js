@@ -6,10 +6,15 @@
   let started = false;
 
   const CONFIG_IMAGE_KEYS = [
+    "brandLogoUrl",
     "ownerPhotoUrl",
     "honorableMentionPhotoUrl",
+    "contributorsVerifiedBadgeUrl",
     "telegramTeamAvatar",
     "telegramAppIcon",
+    "ownerPhoneIcon",
+    "ownerCalIcon",
+    "ownerStoreIcon",
   ];
 
   function isImageUrl(value) {
@@ -64,12 +69,30 @@
     return [...urls].filter(Boolean);
   }
 
+  function ensureFavicon() {
+    const c = global.SITE_CONFIG || {};
+    const url = normalizeUrl(c.brandLogoUrl || c.telegramTeamAvatar);
+    if (!url) return;
+    let link = document.querySelector('link[rel="icon"]');
+    if (!link) {
+      link = document.createElement("link");
+      link.rel = "icon";
+      document.head.appendChild(link);
+    }
+    link.href = url;
+  }
+
   function init() {
     if (started) return;
     started = true;
     preconnectHosts();
+    ensureFavicon();
     const urls = collectConfigUrls();
     urls.forEach((url, i) => preloadOne(url, i === 0 ? "high" : "auto"));
+    preloadOne(
+      "https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/Default.jpg",
+      "high"
+    );
   }
 
   function warmDocumentImages(root) {

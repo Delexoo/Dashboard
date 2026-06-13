@@ -8,6 +8,143 @@
 
   const $ = (id) => document.getElementById(id);
 
+  let profileRefresh = null;
+  let profilePhotoRefresh = null;
+  let payoutRefresh = null;
+  let settingsMounted = false;
+  let profilePhotoBusy = false;
+
+  function trackerName(id) {
+    try {
+      const raw = global.RepStorage?.loadItem?.("lpc_sales_tracker_v2");
+      if (!raw) return "";
+      const data = JSON.parse(raw);
+      if (String(data?.repId || "") !== String(id)) return "";
+      return String(data?.name || "").trim();
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function resolveRepLocal() {
+    let rep = global.RepSession?.get?.();
+    const id = rep?.id || global.RepSession?.getId?.();
+    if (!id) return null;
+    let name = String(rep?.name || "").trim();
+    if (!name) name = trackerName(id);
+    return { id: String(id), name: name || String(id) };
+  }
+
+  function refreshSettingsUI() {
+    const rep = resolveRepLocal();
+    if (!rep?.id) return;
+    profileRefresh?.(rep);
+    if (!profilePhotoBusy) {
+      profilePhotoRefresh?.(rep.name);
+    }
+    payoutRefresh?.();
+    paintAppearancePrefs(global.UserPrefs?.get?.());
+  }
+
+  function setProfilePhotoBusy(busy) {
+    profilePhotoBusy = !!busy;
+    const wrap = document.querySelector(".settings-profile-photo-wrap");
+    if (wrap) wrap.classList.toggle("is-busy", profilePhotoBusy);
+  }
+
+  function showProfilePhotoStatus(msg, ok) {
+    showStatus($("settings-profile-status"), msg, ok);
+  }
+
+  function paintAppearancePrefs(prefs) {
+    if (!prefs) return;
+    document.querySelectorAll("[data-theme-pick]").forEach((btn) => {
+      btn.classList.toggle("active", btn.dataset.themePick === prefs.theme);
+    });
+
+    const fsBtn = $("settings-fullscreen-hint-toggle");
+    if (fsBtn) {
+      const on = prefs.showCourseFullscreenHint !== false;
+      fsBtn.classList.toggle("is-on", on);
+      fsBtn.setAttribute("aria-checked", on ? "true" : "false");
+    }
+    const soBtn = $("settings-sign-out-float-toggle");
+    if (soBtn) {
+      const on = prefs.showSignOutFloat !== false;
+      soBtn.classList.toggle("is-on", on);
+      soBtn.setAttribute("aria-checked", on ? "true" : "false");
+    }
+  }
+
+  function renderProfilePhoto(name, options) {
+    const RPP = global.RepProfilePhoto;
+    if (!RPP) return;
+
+    const img = $("settings-profile-photo-img");
+    const initialsEl = $("settings-profile-photo-initials");
+    const removeBtn = $("settings-profile-photo-remove");
+    const logicalUrl = RPP.displayUrl ? RPP.displayUrl() : RPP.loadUrl() || RPP.DEFAULT_URL;
+    const hasCustom = RPP.hasCustomPhoto ? RPP.hasCustomPhoto() : !!RPP.loadUrl();
+    const displayName = String(name || "").trim() || "Rep";
+    const force = options?.force === true;
+
+    global.SiteImagePreload?.preloadOne?.(logicalUrl, "high");
+
+    if (img) {
+      const prev = img.dataset.photoUrl || "";
+      const changed = prev !== logicalUrl;
+      if (changed || force) {
+        img.dataset.photoUrl = logicalUrl;
+        if (logicalUrl === RPP.DEFAULT_URL) {
+          img.src = logicalUrl;
+        } else {
+          const bust = options?.cacheKey || Date.now();
+          img.src =
+            logicalUrl + (logicalUrl.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(String(bust));
+        }
+      }
+      img.alt = displayName + " profile photo";
+      img.hidden = false;
+    }
+    if (initialsEl) initialsEl.hidden = true;
+    if (removeBtn) {
+      const showReset = !!hasCustom;
+      const wasHidden = removeBtn.hidden;
+      removeBtn.hidden = !showReset;
+      if (showReset && wasHidden && global.SiteIcons?.initIcons) {
+        global.SiteIcons.initIcons(removeBtn);
+      }
+    }
+  }
+
+  function paintSettingsFromLocal() {
+    const rep = resolveRepLocal();
+    if (!rep?.id) return;
+
+    const idEl = $("settings-rep-id");
+    const nameEl = $("settings-display-name");
+    const displayName = String(rep.name || "").trim() || rep.id;
+    if (idEl) idEl.textContent = displayName;
+    if (nameEl && document.activeElement !== nameEl) {
+      nameEl.value = displayName;
+    }
+
+    renderProfilePhoto(displayName);
+
+    paintAppearancePrefs(global.UserPrefs?.get?.());
+
+    if (global.SiteIcons?.initIcons) {
+      const page = document.getElementById("page-body");
+      if (page) global.SiteIcons.initIcons(page);
+    }
+
+    document.body.classList.add("settings-ready");
+  }
+
+  function ensureSettingsReady() {
+    document.body.classList.add("settings-ready");
+  }
+
 
 
   function cfg() {
@@ -146,23 +283,6 @@
 
 
 
-  function bindPrefCheckbox(id, key, prefs) {
-    const el = $(id);
-    if (!el) return;
-    if (key === "showSignOutFloat" || key === "showNavHints" || key === "showCourseFullscreenHint") {
-      el.checked = prefs[key] !== false;
-    } else {
-      el.checked = !!prefs[key];
-    }
-    if (el.dataset.bound) return;
-    el.dataset.bound = "1";
-    el.addEventListener("change", () => {
-      prefs[key] = el.checked;
-      global.UserPrefs.save(prefs);
-      if (key === "showSignOutFloat") global.SignOutFloat?.update?.();
-    });
-  }
-
   function bindFullscreenHintToggle(prefs) {
     const btn = $("settings-fullscreen-hint-toggle");
     if (!btn) return;
@@ -210,19 +330,8 @@
 
   function initAppearance(prefs) {
     bindThemeSegment(prefs);
-    bindPrefCheckbox("settings-reduce-motion", "reduceMotion", prefs);
-    bindPrefCheckbox("settings-nav-hints", "showNavHints", prefs);
-    bindPrefCheckbox("settings-compact-tables", "compactTables", prefs);
     bindFullscreenHintToggle(prefs);
     bindSignOutFloatToggle(prefs);
-    const motion = $("settings-reduce-motion");
-    motion?.addEventListener("change", () => {
-      if (motion.checked) {
-        document.querySelectorAll(".earnings-chart.is-animating").forEach((chart) => {
-          chart.classList.remove("is-animating");
-        });
-      }
-    });
   }
 
 
@@ -231,26 +340,24 @@
     const RPP = global.RepProfilePhoto;
     if (!RPP) return;
 
-    const img = $("settings-profile-photo-img");
-    const initialsEl = $("settings-profile-photo-initials");
     const removeBtn = $("settings-profile-photo-remove");
     const input = $("settings-profile-photo-input");
-    const status = $("settings-profile-photo-status");
     let uploading = false;
 
-    function renderPhoto(name) {
-      const url = RPP.displayUrl ? RPP.displayUrl() : RPP.loadUrl() || RPP.DEFAULT_URL;
-      const hasCustom = RPP.hasCustomPhoto ? RPP.hasCustomPhoto() : !!RPP.loadUrl();
-      if (img) {
-        img.src = url;
-        img.alt = (name || "Rep") + " profile photo";
-        img.hidden = false;
-      }
-      if (initialsEl) initialsEl.hidden = true;
-      if (removeBtn) removeBtn.hidden = !hasCustom;
+    function currentDisplayName() {
+      return ($("settings-display-name")?.value || resolveRepLocal()?.name || rep.name || "").trim();
     }
 
-    renderPhoto(rep.name);
+    function currentRepId() {
+      return resolveRepLocal()?.id || rep.id;
+    }
+
+    profilePhotoRefresh = (name) => {
+      renderProfilePhoto(name || currentDisplayName());
+    };
+
+    if (input?.dataset.photoBound === "1") return;
+    if (input) input.dataset.photoBound = "1";
 
     input?.addEventListener("change", async () => {
       const file = input.files?.[0];
@@ -258,42 +365,46 @@
       if (!file || uploading) return;
       const err = RPP.validateFile(file);
       if (err) {
-        showStatus(status, err, false);
+        showProfilePhotoStatus(err, false);
         return;
       }
       uploading = true;
-      showStatus(status, "Uploading…", true);
+      setProfilePhotoBusy(true);
+      showProfilePhotoStatus("", true);
       try {
-        await RPP.upload(file, rep.id);
-        renderPhoto(($("settings-display-name")?.value || rep.name || "").trim());
-        showStatus(status, "Photo saved", true);
-        setTimeout(() => {
-          if (status?.textContent === "Photo saved") showStatus(status, "", true);
-        }, 1800);
+        const id = currentRepId();
+        if (!id) throw new Error("Sign in again to upload a photo.");
+        await RPP.upload(file, id);
+        renderProfilePhoto(currentDisplayName(), { force: true, cacheKey: Date.now() });
+        showProfilePhotoStatus("", true);
       } catch (e) {
         console.error(e);
-        showStatus(status, e.message || "Could not upload photo.", false);
+        showProfilePhotoStatus(e.message || "Could not upload photo.", false);
       } finally {
         uploading = false;
+        setProfilePhotoBusy(false);
       }
     });
 
-    removeBtn?.addEventListener("click", async () => {
+    removeBtn?.addEventListener("click", async (e) => {
+      e.preventDefault();
+      e.stopPropagation();
       if (uploading) return;
       uploading = true;
-      showStatus(status, "Removing…", true);
+      setProfilePhotoBusy(true);
+      showProfilePhotoStatus("", true);
       try {
-        await RPP.remove(rep.id);
-        renderPhoto(($("settings-display-name")?.value || rep.name || "").trim());
-        showStatus(status, "Reset to default photo", true);
-        setTimeout(() => {
-          if (status?.textContent === "Reset to default photo") showStatus(status, "", true);
-        }, 1800);
+        const id = currentRepId();
+        if (!id) throw new Error("Sign in again to reset your photo.");
+        await RPP.remove(id);
+        renderProfilePhoto(currentDisplayName(), { force: true });
+        showProfilePhotoStatus("", true);
       } catch (e) {
         console.error(e);
-        showStatus(status, "Could not remove photo.", false);
+        showProfilePhotoStatus(e.message || "Could not reset photo.", false);
       } finally {
         uploading = false;
+        setProfilePhotoBusy(false);
       }
     });
   }
@@ -316,9 +427,21 @@
 
 
 
-    if (idEl) idEl.textContent = savedName + " (" + rep.id + ")";
+    if (idEl) idEl.textContent = savedName || rep.id;
 
     if (nameEl) nameEl.value = savedName;
+
+    profileRefresh = (nextRep) => {
+      const nextName = String(nextRep?.name || "").trim() || String(nextRep?.id || "").trim();
+      if (!nextRep?.id || !nextName) return;
+      savedName = nextName;
+      if (idEl) idEl.textContent = savedName;
+      if (nameEl && document.activeElement !== nameEl) nameEl.value = savedName;
+      const photoImg = $("settings-profile-photo-img");
+      if (photoImg && !photoImg.hidden) {
+        photoImg.alt = savedName + " profile photo";
+      }
+    };
 
 
 
@@ -327,8 +450,6 @@
       if (saving || name === savedName) return;
 
       saving = true;
-
-      showStatus(status, "Saving…", true);
 
       try {
 
@@ -364,20 +485,14 @@
 
         window.LeadSync?.refreshTeam?.().catch(() => {});
 
-        if (idEl) idEl.textContent = savedName + " (" + rep.id + ")";
+        if (idEl) idEl.textContent = savedName;
 
         const photoImg = $("settings-profile-photo-img");
         if (photoImg && !photoImg.hidden) {
           photoImg.alt = savedName + " profile photo";
         }
 
-        showStatus(status, "Saved", true);
-
-        setTimeout(() => {
-
-          if (status?.textContent === "Saved") showStatus(status, "", true);
-
-        }, 1800);
+        showStatus(status, "", true);
 
       } catch (e) {
 
@@ -569,11 +684,6 @@
     const saveBtn = $("settings-payout-save");
     const cancelBtn = $("settings-payout-cancel-add");
     const defaultBtn = $("settings-payout-set-default-btn");
-    const defaultDialog = $("settings-payout-default-dialog");
-    const defaultOptions = $("settings-payout-default-options");
-    const defaultSaveBtn = $("settings-payout-default-save");
-    const defaultCancelBtn = $("settings-payout-default-cancel");
-    const defaultCloseBtn = $("settings-payout-default-close");
     const status = $("settings-payout-status");
 
     let methods = [];
@@ -585,69 +695,135 @@
       showStatus(status, msg, ok);
     }
 
+    function syncDefaultPick() {
+      if (!methods.length) {
+        defaultPick = null;
+        return;
+      }
+      const ids = methods.map((m) => m.method);
+      if (!defaultPick || !ids.includes(defaultPick)) {
+        defaultPick = methods[0]?.method || null;
+      }
+    }
+
+    function selectPayoutMethod(methodId) {
+      if (methods.length <= 1) return;
+      const id = String(methodId || "").trim();
+      if (!id || !methods.some((m) => m.method === id)) return;
+      defaultPick = id;
+      syncPayoutSelection();
+      const item = listEl?.querySelector('.settings-payout-item[data-payout-method="' + CSS.escape(id) + '"]');
+      item?.focus();
+    }
+
+    function syncPayoutSelection() {
+      if (!listEl) return;
+      const selectable = methods.length > 1;
+      listEl.classList.toggle("is-selectable", selectable);
+      if (selectable) {
+        listEl.setAttribute("role", "radiogroup");
+        listEl.setAttribute("aria-label", "Choose default payout method");
+      } else {
+        listEl.removeAttribute("role");
+        listEl.removeAttribute("aria-label");
+      }
+
+      listEl.querySelectorAll(".settings-payout-item").forEach((item) => {
+        const picked = item.dataset.payoutMethod === defaultPick;
+        item.classList.toggle("is-pick-selected", selectable && picked);
+        if (selectable) {
+          item.setAttribute("role", "radio");
+          item.setAttribute("aria-checked", picked ? "true" : "false");
+          item.setAttribute("tabindex", picked ? "0" : "-1");
+        } else {
+          item.removeAttribute("role");
+          item.removeAttribute("aria-checked");
+          item.removeAttribute("tabindex");
+        }
+      });
+
+      if (defaultBtn) {
+        defaultBtn.disabled =
+          !selectable || !defaultPick || defaultPick === methods[0]?.method;
+      }
+    }
+
     function syncPayoutToolbar() {
       const multi = methods.length > 1;
       if (defaultBtn) {
         defaultBtn.hidden = !multi || adding;
-        defaultBtn.disabled = !multi;
       }
       if (addBtn) addBtn.hidden = adding;
+      syncPayoutSelection();
     }
 
-    function closeDefaultDialog() {
-      defaultDialog?.close();
-    }
+    function bindPayoutListSelection() {
+      if (!listEl || listEl.dataset.selectionBound === "1") return;
+      listEl.dataset.selectionBound = "1";
 
-    function renderDefaultDialogOptions() {
-      if (!defaultOptions) return;
-      defaultPick = methods[0]?.method || null;
-      defaultOptions.innerHTML = methods
-        .map((m, i) => {
-          const meta = PS.methodMeta(m.method);
-          const short = meta?.short || PS.methodLabel(m.method).charAt(0);
-          const checked = i === 0;
-          const plain = PS.isPlainTextMethod(m.method);
-          const detail = plain
-            ? `<span class="settings-payout-default-detail">${PS.esc(m.link)}</span>`
-            : `<span class="settings-payout-default-detail">${PS.esc(m.link)}</span>`;
-          return (
-            `<label class="settings-payout-default-option${checked ? " is-selected" : ""}">` +
-            `<input type="radio" name="settings-payout-default" value="${PS.esc(m.method)}"${checked ? " checked" : ""}>` +
-            `<span class="payout-method-icon payout-method-${PS.esc(m.method)} settings-payout-item-icon" aria-hidden="true">${PS.esc(short)}</span>` +
-            `<span class="settings-payout-default-copy">` +
-            `<span class="settings-payout-default-label">${PS.esc(PS.methodLabel(m.method))}</span>` +
-            detail +
-            `</span></label>`
-          );
-        })
-        .join("");
+      listEl.addEventListener("click", (e) => {
+        if (methods.length <= 1) return;
+        if (e.target.closest("[data-remove-method]")) return;
+        if (e.target.closest(".settings-payout-link")) return;
+        const item = e.target.closest(".settings-payout-item[data-payout-method]");
+        if (!item) return;
+        selectPayoutMethod(item.dataset.payoutMethod);
+      });
 
-      defaultOptions.querySelectorAll('input[type="radio"]').forEach((input) => {
-        input.addEventListener("change", () => {
-          if (!input.checked) return;
-          defaultPick = input.value;
-          defaultOptions.querySelectorAll(".settings-payout-default-option").forEach((label) => {
-            label.classList.toggle(
-              "is-selected",
-              label.querySelector('input[type="radio"]')?.value === defaultPick
-            );
-          });
-        });
+      listEl.addEventListener("keydown", (e) => {
+        if (methods.length <= 1) return;
+        const ids = methods.map((m) => m.method);
+        const idx = ids.indexOf(defaultPick);
+        if (idx < 0) return;
+
+        if (e.key === "Enter" || e.key === " ") {
+          const item = e.target.closest(".settings-payout-item[data-payout-method]");
+          if (!item) return;
+          e.preventDefault();
+          selectPayoutMethod(item.dataset.payoutMethod);
+          return;
+        }
+
+        if (e.key === "ArrowDown" || e.key === "ArrowRight") {
+          e.preventDefault();
+          selectPayoutMethod(ids[(idx + 1) % ids.length]);
+          return;
+        }
+
+        if (e.key === "ArrowUp" || e.key === "ArrowLeft") {
+          e.preventDefault();
+          selectPayoutMethod(ids[(idx - 1 + ids.length) % ids.length]);
+        }
       });
     }
 
-    function openDefaultDialog() {
-      if (methods.length <= 1 || !defaultDialog) return;
-      renderDefaultDialogOptions();
-      if (typeof defaultDialog.showModal === "function") {
-        defaultDialog.showModal();
-      } else {
-        defaultDialog.setAttribute("open", "");
+    async function saveDefaultPayout() {
+      if (!defaultPick || methods.length <= 1) return;
+      if (defaultPick === methods[0]?.method) return;
+
+      defaultBtn.disabled = true;
+      showPayoutStatus("Updating default…", true);
+      try {
+        methods = await PS.setDefaultPayout(defaultPick);
+        syncDefaultPick();
+        renderList();
+        showPayoutStatus(
+          PS.methodLabel(defaultPick) + " is now your default payout method.",
+          true
+        );
+        setTimeout(() => {
+          if (status?.textContent?.includes("default payout")) showPayoutStatus("", true);
+        }, 2200);
+      } catch (e) {
+        console.warn(e);
+        showPayoutStatus(e.message || "Could not set default.", false);
       }
+      syncPayoutSelection();
     }
 
     function renderList() {
       if (!listEl) return;
+      syncDefaultPick();
       if (!methods.length) {
         listEl.hidden = true;
         listEl.innerHTML = "";
@@ -658,22 +834,25 @@
       if (emptyEl) emptyEl.hidden = true;
       listEl.hidden = false;
 
+      const selectable = methods.length > 1;
       listEl.innerHTML = methods
         .map((m, i) => {
-          const meta = PS.methodMeta(m.method);
-          const short = meta?.short || PS.methodLabel(m.method).charAt(0);
           const plain = PS.isPlainTextMethod(m.method);
           const linkHtml = plain
             ? `<span class="settings-payout-link-text">${PS.esc(m.link)}</span>`
             : `<a class="link-bold-blue settings-payout-link" href="${PS.esc(m.link)}" target="_blank" rel="noopener">${PS.esc(m.link)}</a>`;
           const isDefault = i === 0;
+          const isPicked = m.method === defaultPick;
           const primaryBadge = isDefault
             ? `<span class="settings-payout-primary-badge">Default</span>`
             : "";
           return (
-            `<li class="settings-payout-item${isDefault ? " is-default" : ""}">` +
+            `<li class="settings-payout-item${isDefault ? " is-default" : ""}${selectable && isPicked ? " is-pick-selected" : ""}"` +
+            ` data-payout-method="${PS.esc(m.method)}"` +
+            ">" +
             `<div class="settings-payout-item-main">` +
-            `<span class="payout-method-icon payout-method-${PS.esc(m.method)} settings-payout-item-icon" aria-hidden="true">${PS.esc(short)}</span>` +
+            (selectable ? '<span class="settings-payout-pick" aria-hidden="true"></span>' : "") +
+            PS.renderMethodIcon(m.method, "settings-payout-item-icon") +
             `<div class="settings-payout-item-copy">` +
             `<p class="settings-payout-item-title">${PS.esc(PS.methodLabel(m.method))} ${primaryBadge}</p>` +
             linkHtml +
@@ -688,13 +867,15 @@
       syncPayoutToolbar();
 
       listEl.querySelectorAll("[data-remove-method]").forEach((btn) => {
-        btn.addEventListener("click", async () => {
+        btn.addEventListener("click", async (e) => {
+          e.stopPropagation();
           const id = btn.dataset.removeMethod;
           if (!id || btn.disabled) return;
           btn.disabled = true;
           showPayoutStatus("Removing…", true);
           try {
             methods = await PS.removeOne(id);
+            syncDefaultPick();
             renderList();
             showPayoutStatus(
               methods.length
@@ -758,44 +939,10 @@
 
     addBtn?.addEventListener("click", openAddPanel);
     cancelBtn?.addEventListener("click", closeAddPanel);
-    defaultBtn?.addEventListener("click", openDefaultDialog);
-    defaultCancelBtn?.addEventListener("click", closeDefaultDialog);
-    defaultCloseBtn?.addEventListener("click", closeDefaultDialog);
-    defaultDialog?.addEventListener("cancel", (e) => {
-      e.preventDefault();
-      closeDefaultDialog();
+    defaultBtn?.addEventListener("click", () => {
+      void saveDefaultPayout();
     });
-    defaultDialog?.addEventListener("click", (e) => {
-      if (e.target === defaultDialog) closeDefaultDialog();
-    });
-    defaultSaveBtn?.addEventListener("click", async () => {
-      if (!defaultPick || methods.length <= 1) {
-        closeDefaultDialog();
-        return;
-      }
-      if (defaultPick === methods[0]?.method) {
-        closeDefaultDialog();
-        return;
-      }
-      defaultSaveBtn.disabled = true;
-      showPayoutStatus("Updating default…", true);
-      try {
-        methods = await PS.setDefaultPayout(defaultPick);
-        renderList();
-        closeDefaultDialog();
-        showPayoutStatus(
-          PS.methodLabel(defaultPick) + " is now your default payout method.",
-          true
-        );
-        setTimeout(() => {
-          if (status?.textContent?.includes("default payout")) showPayoutStatus("", true);
-        }, 2200);
-      } catch (e) {
-        console.warn(e);
-        showPayoutStatus(e.message || "Could not set default.", false);
-      }
-      defaultSaveBtn.disabled = false;
-    });
+    bindPayoutListSelection();
 
     saveBtn?.addEventListener("click", async () => {
       if (!selectedMethod) {
@@ -835,36 +982,38 @@
       }
     });
 
-    (async () => {
-      try {
-        methods = await PS.fetchAllMine();
+    payoutRefresh = () => {
+      void refreshPayoutMethods(true);
+    };
+
+    function refreshPayoutMethods(showLocalFirst) {
+      if (showLocalFirst && PS.loadLocalMethods) {
+        methods = PS.loadLocalMethods();
         renderList();
-      } catch (e) {
-        console.warn("Payout load failed", e);
-        showPayoutStatus("Could not load payout methods.", false);
       }
-    })();
+      return PS.fetchAllMine()
+        .then((list) => {
+          methods = list;
+          renderList();
+        })
+        .catch((e) => {
+          console.warn("Payout load failed", e);
+          if (!methods.length) showPayoutStatus("Could not load payout methods.", false);
+        });
+    }
+
+    void refreshPayoutMethods(true);
   }
 
   async function mount() {
-
-    let rep = global.RepSession?.get?.();
-    const repIdOnly = global.RepSession?.getId?.();
-
-    if (!rep?.id && !repIdOnly) return;
-
-    if ((!rep?.name || !rep) && global.RepIdentity?.resolveRepIdentity) {
-      await global.RepIdentity.resolveRepIdentity();
-      rep = global.RepSession?.get?.();
-    }
-
-    if (!rep?.id && repIdOnly) {
-      rep = { id: repIdOnly, name: repIdOnly };
-    }
-
+    const rep = resolveRepLocal();
     if (!rep?.id) return;
 
-
+    if (settingsMounted) {
+      refreshSettingsUI();
+      return;
+    }
+    settingsMounted = true;
 
     const prefs = global.UserPrefs.get();
 
@@ -878,26 +1027,39 @@
 
     initSignOut();
 
+    const page = document.getElementById("page-body");
+    if (global.SiteIcons) global.SiteIcons.initIcons(page || document.body);
 
+    refreshSettingsUI();
 
-    if (global.SiteIcons) global.SiteIcons.initIcons();
-
+    void (global.RepIdentity?.resolveRepIdentity?.() || Promise.resolve()).then(() => {
+      refreshSettingsUI();
+    });
   }
 
 
 
   function start() {
-    const run = () => {
-      if (global.RepStorage?.whenReady) {
-        global.RepStorage.whenReady(() => {
-          void mount();
-        });
-      } else {
-        void mount();
-      }
+    paintSettingsFromLocal();
+    ensureSettingsReady();
+
+    const rep = resolveRepLocal();
+    if (rep?.id) initProfilePhoto(rep);
+
+    const boot = () => {
+      void mount();
+      global.RepStorage?.init?.().catch(() => {});
     };
-    if (global.SiteLock?.whenUnlocked) global.SiteLock.whenUnlocked(run);
-    else run();
+
+    const onRefresh = () => refreshSettingsUI();
+    global.addEventListener("rep-settings-ready", onRefresh);
+    global.addEventListener("rep-settings-pulled", onRefresh);
+    global.addEventListener("rep-session-changed", onRefresh);
+    global.addEventListener("rep-profile-photo-changed", onRefresh);
+    global.addEventListener("payout-methods-changed", onRefresh);
+
+    if (global.SiteLock?.whenUnlocked) global.SiteLock.whenUnlocked(boot);
+    else boot();
   }
 
 

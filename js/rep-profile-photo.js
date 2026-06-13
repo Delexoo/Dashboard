@@ -5,7 +5,7 @@
   const KEY = "lpc_rep_profile_photo_v1";
   const BUCKET = "rep-avatars";
   const DEFAULT_URL =
-    "https://github.com/Delexoo/Sales-Dashboard/raw/main/doc/default.jpg";
+    "https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/Default.jpg";
   const MAX_BYTES = 2 * 1024 * 1024;
   const ALLOWED = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
 
@@ -44,7 +44,7 @@
     }
   }
 
-  function saveStored(data) {
+  function saveStored(data, opts) {
     const url = String(data?.url || "").trim();
     const path = String(data?.path || "").trim();
     const json = url ? JSON.stringify({ url, path }) : "";
@@ -56,6 +56,15 @@
       if (json) localStorage.setItem(k, json);
       else localStorage.removeItem(k);
     }
+    if (opts?.silent) return;
+    try {
+      global.dispatchEvent(new CustomEvent("rep-profile-photo-changed", { detail: { url } }));
+    } catch (e) {
+      /* ignore */
+    }
+  }
+
+  function notifyPhotoChanged(url) {
     try {
       global.dispatchEvent(new CustomEvent("rep-profile-photo-changed", { detail: { url } }));
     } catch (e) {
@@ -118,8 +127,11 @@
       const url = String(data?.publicUrl || "").trim();
       if (!url) throw new Error("Upload succeeded but URL is missing.");
       const stored = { url, path };
-      saveStored(stored);
-      global.RepStorage?.flushSync?.().catch(() => {});
+      saveStored(stored, { silent: true });
+      if (global.RepStorage?.flushSync) {
+        await global.RepStorage.flushSync().catch(() => {});
+      }
+      notifyPhotoChanged(url);
       return stored;
     }
 
@@ -133,22 +145,58 @@
       reader.readAsDataURL(file);
     });
     const stored = { url, path: "" };
-    saveStored(stored);
+    saveStored(stored, { silent: true });
+    notifyPhotoChanged(url);
     return stored;
+  }
+
+  async function removeStorageAvatars(client, repId, knownPath) {
+    const id = String(repId || "").trim();
+    if (!id) return;
+
+    const bucket = client.storage.from(BUCKET);
+    const toRemove = new Set();
+    if (knownPath) toRemove.add(String(knownPath).trim());
+
+    try {
+      const { data } = await bucket.list(id, { limit: 20 });
+      (data || []).forEach((f) => {
+        const name = String(f?.name || "").trim();
+        if (name) toRemove.add(id + "/" + name);
+      });
+    } catch (e) {
+      /* list is best-effort */
+    }
+
+    if (!toRemove.size) {
+      ["jpg", "png", "webp", "gif"].forEach((ext) => {
+        toRemove.add(id + "/avatar." + ext);
+      });
+    }
+
+    const paths = [...toRemove].filter(Boolean);
+    if (!paths.length) return;
+    await bucket.remove(paths);
   }
 
   async function remove(repId) {
     const prev = loadStored();
-    if (canUseCloud() && prev.path) {
+    const id = String(repId || global.RepSession?.get?.()?.id || "").trim();
+
+    if (canUseCloud() && id) {
       try {
         const client = getClient();
-        await client.storage.from(BUCKET).remove([prev.path]);
+        await removeStorageAvatars(client, id, prev.path);
       } catch (e) {
-        console.warn("Could not delete old avatar from storage", e);
+        console.warn("Could not delete avatar from storage", e);
       }
     }
-    saveStored({ url: "", path: "" });
-    global.RepStorage?.flushSync?.().catch(() => {});
+
+    saveStored({ url: "", path: "" }, { silent: true });
+    if (global.RepStorage?.flushSync) {
+      await global.RepStorage.flushSync().catch(() => {});
+    }
+    notifyPhotoChanged("");
   }
 
   let teamByName = {};

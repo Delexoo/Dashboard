@@ -59,11 +59,6 @@
     return device + " · " + browser;
   }
 
-  function severityForDb(value) {
-    const v = String(value || "").trim();
-    return v || null;
-  }
-
   function sanitizeFilename(name) {
     return String(name || "file")
       .replace(/[^a-zA-Z0-9._-]+/g, "_")
@@ -132,7 +127,6 @@
     return {
       rep_id: rNow.id,
       rep_name: rNow.name,
-      severity: form.querySelector("#bug-report-severity")?.value || "",
       page_url: detectPage(),
       device: detectDevice(),
       steps: description,
@@ -160,7 +154,7 @@
         "Report form needs Supabase — run supabase-bug-reports-setup.sql.",
         "warn"
       );
-      form?.querySelectorAll("textarea, select, button[type=submit]").forEach((el) => {
+      form?.querySelectorAll("textarea, button[type=submit]").forEach((el) => {
         el.disabled = true;
       });
     }
@@ -218,7 +212,7 @@
         const { error } = await sb.from("bug_reports").insert({
           rep_id: payload.rep_id,
           rep_name: payload.rep_name,
-          severity: severityForDb(payload.severity),
+          severity: null,
           page_url: payload.page_url,
           device: payload.device,
           steps: payload.steps,

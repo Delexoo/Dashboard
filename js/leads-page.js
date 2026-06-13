@@ -402,7 +402,6 @@
     if (!id) return;
     pinLeadToTop(id);
     allLeads = sortLeadsPinnedFirst(allLeads);
-    switchToActiveView();
     syncPinUiForLeadId(id);
     try {
       sessionStorage.setItem("lpc_build_lead_pin_v1", id);
@@ -423,19 +422,17 @@
     const lead = allLeads.find((l) => normalizeLeadId(l.id) === id);
     if (!id || !lead || !canEditLeadStatus(lead)) return;
 
-    await pinLeadForBuilder(id);
-
     try {
-      await applyLeadWorkflow(id, "pending", { restoreView: true });
+      await pinLeadForBuilder(id);
+      await applyLeadWorkflow(id, "pending", { restoreView: false });
+      setListView("pending", { save: true });
+      if (typeof global.forwardLeadToBuilder === "function") {
+        global.forwardLeadToBuilder(lead);
+      }
+      invalidateGridRender();
+      applyFilters();
     } catch (err) {
-      return;
-    }
-
-    invalidateGridRender();
-    applyFilters();
-
-    if (typeof global.forwardLeadToBuilder === "function") {
-      global.forwardLeadToBuilder(lead);
+      console.warn("Build Lead: pin/pending sync failed", err);
     }
   }
 
@@ -470,7 +467,9 @@
   }
 
   function getRepId() {
-    return String(global.RepSession?.get?.()?.id || "").trim();
+    return String(
+      global.RepSession?.getId?.() || global.RepSession?.get?.()?.id || ""
+    ).trim();
   }
 
   function isOwnerMatch(ownerId, ownerName) {
@@ -496,6 +495,10 @@
     const id = escapeHtml(lead.id);
     const saved = isSaved(lead);
     const pinned = isPinned(lead);
+    const completeByMe = workflow === "complete" && isCompletedByMe(lead);
+    const pendingByMe = workflow === "pending" && isPendingByMe(lead);
+    const notInterestedByMe = workflow === "not-interested" && isNotInterestedByMe(lead);
+    const removed = workflow === "removed";
     return (
       '<div class="lf-menu-panel" role="menu" hidden>' +
       (workflow
@@ -512,33 +515,58 @@
       "</button>" +
       '<button type="button" class="lf-menu-item' +
       (pinned ? " is-active" : "") +
-      '" role="menuitem" data-action="pin" data-lead-id="' +
+      '" role="menuitem" data-lf-workflow="pin" data-lead-id="' +
       id +
       '">' +
       (pinned ? "Unpin" : "Pin") +
       "</button>" +
       '<button type="button" class="lf-menu-item' +
-      (workflow === "complete" ? " is-active" : "") +
+      (completeByMe ? " is-active" : "") +
       '" role="menuitem" data-lf-workflow="complete" data-lead-id="' +
       id +
-      '">Complete</button>' +
+      '">' +
+      (completeByMe ? "Unmark complete" : "Complete") +
+      "</button>" +
       '<button type="button" class="lf-menu-item' +
-      (workflow === "pending" ? " is-active" : "") +
+      (pendingByMe ? " is-active" : "") +
       '" role="menuitem" data-lf-workflow="pending" data-lead-id="' +
       id +
-      '">Pending</button>' +
+      '">' +
+      (pendingByMe ? "Clear pending" : "Pending") +
+      "</button>" +
       '<button type="button" class="lf-menu-item' +
-      (workflow === "not-interested" ? " is-active" : "") +
+      (notInterestedByMe ? " is-active" : "") +
       '" role="menuitem" data-lf-workflow="not-interested" data-lead-id="' +
       id +
-      '">Not interested</button>' +
+      '">' +
+      (notInterestedByMe ? "Clear not interested" : "Not interested") +
+      "</button>" +
       '<button type="button" class="lf-menu-item lf-menu-item-danger' +
-      (workflow === "removed" ? " is-active" : "") +
+      (removed ? " is-active" : "") +
       '" role="menuitem" data-lf-workflow="removed" data-lead-id="' +
       id +
-      '">Remove</button>' +
+      '">' +
+      (removed ? "Restore" : "Remove") +
+      "</button>" +
       "</div>"
     );
+  }
+
+  /** Clicking an active status again clears it (same idea as Pin / Like). */
+  function resolveMenuWorkflowAction(leadId, action) {
+    const act = String(action || "").trim();
+    if (act === "restore") return "active";
+    if (act === "save" || act === "pin") return act;
+    const lead = allLeads.find((l) => normalizeLeadId(l.id) === normalizeLeadId(leadId));
+    if (!lead) return act;
+    const w = getLeadWorkflow(lead);
+    if (act === "complete" && w === "complete" && isCompletedByMe(lead)) return "active";
+    if (act === "pending" && w === "pending" && isPendingByMe(lead)) return "active";
+    if (act === "not-interested" && w === "not-interested" && isNotInterestedByMe(lead)) {
+      return "active";
+    }
+    if (act === "removed" && w === "removed") return "active";
+    return act;
   }
 
   function isCompletedByMe(lead) {
@@ -556,6 +584,12 @@
     if (getLeadWorkflow(lead) !== "pending") return false;
     const s = statusEntry(lead.id);
     return isOwnerMatch(s?.pendingById || s?.calledById, pendingOwnerName(lead));
+  }
+
+  function isNotInterestedByMe(lead) {
+    if (getLeadWorkflow(lead) !== "not-interested") return false;
+    const s = statusEntry(lead.id);
+    return isOwnerMatch(s?.calledById, s?.calledBy);
   }
 
   /** Pending by a teammate — hidden from this rep's callable lists. */
@@ -686,12 +720,14 @@
       });
     }
 
-    return out.slice().sort((a, b) => {
-      const atA = String(statusEntry(a.id)?.pendingAt || statusEntry(a.id)?.calledAt || "");
-      const atB = String(statusEntry(b.id)?.pendingAt || statusEntry(b.id)?.calledAt || "");
-      if (atA !== atB) return atB.localeCompare(atA);
-      return String(a.name || "").localeCompare(String(b.name || ""));
-    });
+    return sortLeadsPinnedFirst(
+      out.slice().sort((a, b) => {
+        const atA = String(statusEntry(a.id)?.pendingAt || statusEntry(a.id)?.calledAt || "");
+        const atB = String(statusEntry(b.id)?.pendingAt || statusEntry(b.id)?.calledAt || "");
+        if (atA !== atB) return atB.localeCompare(atA);
+        return String(a.name || "").localeCompare(String(b.name || ""));
+      })
+    );
   }
 
   /** Team-wide — every rep sees businesses marked not interested. */
@@ -776,13 +812,16 @@
       return isSaved(lead) && !isPendingByOther(lead) && getLeadWorkflow(lead) !== "not-interested";
     }
     if (listView === "pinned") {
-      return isPinned(lead) && !isPendingByOther(lead) && getLeadWorkflow(lead) !== "not-interested";
+      return (
+        isPinned(lead) &&
+        !isPendingByMe(lead) &&
+        !isPendingByOther(lead) &&
+        getLeadWorkflow(lead) !== "not-interested"
+      );
     }
     const workflow = getLeadWorkflow(lead);
     if (listView === "default") {
-      if (isActiveLead(lead)) return true;
-      if (isPinned(lead) && isPendingByMe(lead)) return true;
-      return false;
+      return isActiveLead(lead);
     }
     if (listView === "removed") return workflow === "removed";
     if (listView === "pending") return isPendingByMe(lead);
@@ -800,7 +839,12 @@
         return isSaved(lead) && !isPendingByOther(lead) && getLeadWorkflow(lead) !== "not-interested";
       }
       if (view === "pinned") {
-        return isPinned(lead) && !isPendingByOther(lead) && getLeadWorkflow(lead) !== "not-interested";
+        return (
+          isPinned(lead) &&
+          !isPendingByMe(lead) &&
+          !isPendingByOther(lead) &&
+          getLeadWorkflow(lead) !== "not-interested"
+        );
       }
       if (view === "default") return isActiveLead(lead);
       if (view === "removed") return getLeadWorkflow(lead) === "removed";
@@ -1492,6 +1536,11 @@
     const lead = allLeads.find((l) => normalizeLeadId(l.id) === normalizeLeadId(leadId));
     const before = { ...statusMap };
     patchStatusMapLocal(leadId, workflow, lead?.name);
+    if (w === "pending") {
+      global.LeadSync?.savePendingLocalSnapshot?.(leadId, lead?.name);
+    } else if (w === "active" || !w) {
+      global.LeadSync?.clearPendingLocalSnapshot?.(leadId);
+    }
     applyFilters();
     try {
       if (syncApi?.setWorkflow) {
@@ -1506,6 +1555,13 @@
       applyFilters();
     } catch (e) {
       statusMap = before;
+      if (w === "pending") {
+        const key = normalizeLeadId(leadId);
+        const hadPending = Object.keys(before).some(
+          (k) => normalizeLeadId(k) === key && before[k]?.workflow === "pending"
+        );
+        if (!hadPending) global.LeadSync?.clearPendingLocalSnapshot?.(leadId);
+      }
       if (restoreView && listView !== viewBefore) {
         listView = viewBefore;
         syncWorkflowSelectFromListView();
@@ -1519,24 +1575,26 @@
 
   async function handleMenuWorkflowAction(leadId, action) {
     if (!leadId || !action) return;
-    if (action === "save") {
+    const resolved = resolveMenuWorkflowAction(leadId, action);
+    if (resolved === "save") {
       toggleSaved(leadId);
       invalidateGridRender();
       updateViewUi();
       applyFilters();
       return;
     }
-    if (action === "pin") {
+    if (resolved === "pin") {
       togglePinned(leadId);
       invalidateGridRender();
       applyFilters();
       return;
     }
-    const workflow = action === "restore" ? "active" : action;
+    const workflow = resolved === "restore" ? "active" : resolved;
     await applyLeadWorkflow(leadId, workflow, {
       restoreView: true,
-      switchToActive: action === "restore",
+      switchToActive: workflow === "active",
     });
+    invalidateGridRender();
   }
 
   function bindGridMarkActions() {
@@ -1547,7 +1605,7 @@
     grid.addEventListener(
       "mousedown",
       (e) => {
-        if (e.target.closest(".lf-menu-item[data-lf-workflow]")) {
+        if (e.target.closest(".lf-menu-item[data-lf-workflow], .lf-menu-item[data-action='pin']")) {
           e.preventDefault();
           e.stopPropagation();
         }
@@ -1574,12 +1632,14 @@
         return;
       }
 
-      const menuItem = e.target.closest(".lf-menu-item[data-lf-workflow]");
+      const menuItem = e.target.closest(
+        ".lf-menu-item[data-lf-workflow], .lf-menu-item[data-action='pin']"
+      );
       if (menuItem) {
         e.preventDefault();
         e.stopPropagation();
         const id = menuItem.dataset.leadId;
-        const action = menuItem.dataset.lfWorkflow;
+        const action = menuItem.dataset.lfWorkflow || menuItem.dataset.action;
         closeAllMenus();
         void handleMenuWorkflowAction(id, action);
         return;

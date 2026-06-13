@@ -32,8 +32,7 @@
   }
 
   function readReduceMotion() {
-    const prefs = readPrefsRaw();
-    return !!prefs?.reduceMotion;
+    return !!global.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
   }
 
   function apply(theme, reduceMotion) {
@@ -65,6 +64,10 @@
 
   global.matchMedia?.("(prefers-color-scheme: dark)")?.addEventListener?.("change", () => {
     if (readTheme() === "system") apply("system");
+  });
+
+  global.matchMedia?.("(prefers-reduced-motion: reduce)")?.addEventListener?.("change", () => {
+    apply(readTheme());
   });
 
   global.addEventListener("user-prefs-changed", () => {

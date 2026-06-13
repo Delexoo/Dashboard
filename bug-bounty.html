@@ -10,7 +10,6 @@
 <body data-page="bug-bounty">
   <div id="shell"></div>
   <div id="page-body">
-    <p class="page-label" data-icon="bug">Help</p>
     <h1>Bug Bounty</h1>
     <p class="lead">Found a bug on this site? Report it below. Approved reports can earn cash.</p>
 
@@ -19,18 +18,6 @@
       <p class="bug-report-as muted">Reporting as <strong id="bug-report-rep-name">—</strong></p>
 
       <form id="bug-report-form" class="bug-report-form" autocomplete="off">
-        <label class="field">
-          <span class="field-label">Severity <span class="field-optional">optional</span></span>
-          <select id="bug-report-severity">
-            <option value="">Skip / not sure</option>
-            <option value="unsure">I’m not sure</option>
-            <option value="low">Low</option>
-            <option value="medium">Medium</option>
-            <option value="high">High</option>
-            <option value="critical">Critical</option>
-          </select>
-        </label>
-
         <label class="field">
           <span class="field-label">What went wrong? *</span>
           <textarea id="bug-report-description" rows="4" required placeholder="What were you doing, and what happened?"></textarea>

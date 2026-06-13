@@ -65,6 +65,19 @@ python -m http.server 8765
 
 Open `http://localhost:8765` — hard refresh after edits.
 
+## Supabase SQL (parent folder — never commit)
+
+Run these in **Supabase → SQL Editor** (files live in `SalesTeamWebsite/`, not `github/`):
+
+| File | When to run |
+|------|-------------|
+| `supabase-all-setup.sql` | New project or full schema refresh |
+| `supabase-faq-qa-setup.sql` | First-time FAQ team Q&A tables |
+| `supabase-faq-qa-policies-only.sql` | FAQ edit/remove already broken (permission errors) |
+| `supabase-reset-rep-playtest.sql` | Clear test rep data (keeps leads + PINs) |
+
+After FAQ setup: **Database → Replication** → enable Realtime for `faq_questions` and `faq_answers`.
+
 ## Syncing updates from the main project
 
 From the `SalesTeamWebsite` folder (parent of `github/`):
@@ -78,7 +91,7 @@ This copies HTML, CSS, and JS into `github/`, injects `private-config.js` + `con
 ### Git Bash — sync and push to GitHub
 
 ```bash
-cd "/c/Users/TeamB/OneDrive/Desktop/Website Bot/SalesTeamWebsite"
+cd "/d/Website Bot/SalesTeamWebsite"
 
 # Copy latest public site into github/ (no secrets)
 node scripts/sync-to-github.js
@@ -98,7 +111,7 @@ Repo: [https://github.com/Delexoo/Sales-Dashboard](https://github.com/Delexoo/Sa
 First-time push only:
 
 ```bash
-cd "/c/Users/TeamB/OneDrive/Desktop/Website Bot/SalesTeamWebsite/github"
+cd "/d/Website Bot/SalesTeamWebsite/github"
 git init
 git branch -M main
 git remote add origin https://github.com/Delexoo/Sales-Dashboard.git

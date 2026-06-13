@@ -95,10 +95,7 @@
     });
     const settingsEl = document.getElementById(SETTINGS_LABEL_ID);
     if (settingsEl) {
-      if (display && id) settingsEl.textContent = display + " (" + id + ")";
-      else if (display) settingsEl.textContent = display;
-      else if (id) settingsEl.textContent = id;
-      else settingsEl.textContent = "—";
+      settingsEl.textContent = display || id || "—";
     }
     if (display) global.RepSession?.refreshNameDisplays?.();
   }

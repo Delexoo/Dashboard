@@ -6,6 +6,7 @@
   <title>Contributors · Sales Team Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css">
+  <style>#contributors-team-stats:not(.contributors-stats-ready){visibility:hidden}</style>
   <script src="js/config.js"></script>
   <script src="js/image-preload.js"></script>
 </head>
@@ -13,7 +14,6 @@
   <div id="shell"></div>
   <div id="page-body" class="contributors-page">
     <header class="contributors-page-header">
-      <p class="page-label" data-icon="users">Help</p>
       <h1>Contributors</h1>
       <p class="contributors-page-lead">The sales reps building this team — hover a profile for sales and activity stats.</p>
     </header>
@@ -24,6 +24,34 @@
         <h2 class="contributors-team-stats-title">Team status</h2>
         <dl class="contributors-team-stats-grid" id="contributors-team-stats-grid"></dl>
       </section>
+    </section>
+
+    <section class="owner-mention contributors-honorable" aria-labelledby="contributors-mention-title">
+      <h2 id="contributors-mention-title" class="owner-mention-title" data-icon="star">Honorable mention</h2>
+      <p class="owner-mention-lead muted">A spot reserved for a teammate who helps make this team what it is.</p>
+
+      <article class="owner-mention-card">
+        <figure class="owner-mention-figure">
+          <span class="owner-badge owner-badge--mention">Coming soon</span>
+          <img
+            class="owner-mention-photo"
+            data-config="honorableMentionPhotoUrl"
+            data-config-attr="src"
+            src="https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/Default.jpg"
+            alt="Honorable mention — photo placeholder"
+            width="520"
+            height="640"
+            decoding="async"
+            loading="lazy"
+          >
+        </figure>
+        <div class="owner-mention-copy">
+          <h3 class="owner-mention-name" data-config="honorableMentionName" data-config-text>Coming soon</h3>
+          <p class="owner-mention-bio" data-config="honorableMentionBio" data-config-text>
+            Profile coming soon — same image as a placeholder until your friend’s details are added here.
+          </p>
+        </div>
+      </article>
     </section>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>

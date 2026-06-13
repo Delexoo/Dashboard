@@ -13,7 +13,6 @@
   <div id="shell"></div>
   <div id="page-body" class="owner-page">
     <header class="owner-page-header">
-      <p class="page-label" data-icon="message-square">Help</p>
       <h1>Meet the Owner</h1>
       <p class="owner-page-lead">Everything you need to reach Delexo—photo, background, and contact options in one place.</p>
     </header>
@@ -27,91 +26,101 @@
           data-config-attr="src"
           src="https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/meettheowner.jpg"
           alt="Delexo — owner photo"
-          width="520"
-          height="640"
+          width="360"
+          height="443"
           decoding="async"
           fetchpriority="high"
         >
       </figure>
 
       <div class="owner-content">
-        <h2 id="owner-identity" class="owner-identity" data-config="ownerHandle" data-config-text>@delexoo</h2>
+        <h2 id="owner-identity" class="owner-identity" data-config="ownerHandle" data-config-text>@delexo</h2>
 
         <div class="owner-bio" data-config="ownerBio" data-config-paragraphs>
-          <p>Hi, my name is Delexo. I'm 19 and highly ambitious, and I'm always willing to take risks. I completed and earned Harvard CS50 and Google's Cybersecurity Certificate in 2025, and I'm currently pursuing Harvard's Cybersecurity for Business program.</p>
-          <p>My interests include cybersecurity, computer science, and entrepreneurship. Over the years, I've worked on a variety of innovative softwares and cybersecurity projects, explored some of the deepest parts of the internet, and continuously expanded my technical skills through self-learning and hands-on experience.</p>
-          <p>Feel free to reach out anytime. If you have any questions or concerns, I'm always happy to help, whether by text, phone call, or a scheduled meeting.</p>
+          <p>Hi, I'm Delexo. I'm 19, highly ambitious, and always up for a risk. I'm a Harvard CS50 alum and Google Cybersecurity certified. I'm currently pursuing Harvard's Cybersecurity for Business program and hope to graduate with Harvard VPAL credentials.</p>
+          <p>Reach out anytime by text, call, or meeting. Happy to help.</p>
         </div>
 
-        <div class="owner-actions" aria-label="Contact the owner">
-          <a class="owner-btn" id="owner-phone-sms" href="#" data-icon="phone" data-icon-class="ico-owner-btn">
-            <span class="owner-btn-text">Text or call</span>
-          </a>
-          <a
-            class="owner-btn"
-            href="https://t.me/delexoo"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-config="ownerTelegram"
-            data-icon="send"
-            data-icon-class="ico-owner-btn"
-          >
-            <span class="owner-btn-text">Telegram</span>
-          </a>
-          <a
-            class="owner-btn"
-            id="owner-book-meeting"
-            href="https://cal.com/delexo"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-config="ownerCalUrl"
-            data-icon="clock"
-            data-icon-class="ico-owner-btn"
-          >
-            <span class="owner-btn-text">Book a meeting</span>
-          </a>
-          <a
-            class="owner-btn"
-            href="https://delexo.store"
-            target="_blank"
-            rel="noopener noreferrer"
-            data-config="ownerStoreUrl"
-            data-icon="globe"
-            data-icon-class="ico-owner-btn"
-          >
-            <span class="owner-btn-text">Visit my store</span>
-          </a>
+        <div class="owner-contact" aria-label="Contact the owner">
+          <div class="owner-contact-grid">
+            <a class="owner-platform-btn" id="owner-phone-link" href="#">
+                <span class="owner-platform-icon">
+                  <img
+                    src="https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/iMessages.jpg"
+                    alt=""
+                    width="56"
+                    height="56"
+                    decoding="async"
+                    data-config="ownerPhoneIcon"
+                    data-config-attr="src"
+                  >
+                </span>
+                <span class="owner-platform-label">Text or call</span>
+              </a>
+              <a
+                class="owner-platform-btn"
+                href="https://t.me/delexoo"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-config="ownerTelegram"
+              >
+                <span class="owner-platform-icon">
+                  <img
+                    src="https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/Telegram.png"
+                    alt=""
+                    width="56"
+                    height="56"
+                    decoding="async"
+                    data-config="telegramAppIcon"
+                    data-config-attr="src"
+                  >
+                </span>
+                <span class="owner-platform-label">Telegram</span>
+              </a>
+              <a
+                class="owner-platform-btn"
+                href="https://cal.com/delexo"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-config="ownerCalUrl"
+              >
+                <span class="owner-platform-icon">
+                  <img
+                    src="https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/Cal.png"
+                    alt=""
+                    width="56"
+                    height="56"
+                    decoding="async"
+                    data-config="ownerCalIcon"
+                    data-config-attr="src"
+                  >
+                </span>
+                <span class="owner-platform-label">Book a meeting</span>
+              </a>
+              <a
+                class="owner-platform-btn"
+                href="https://delexo.store"
+                target="_blank"
+                rel="noopener noreferrer"
+                data-config="ownerStoreUrl"
+              >
+                <span class="owner-platform-icon">
+                  <img
+                    src="https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/delexologo.png"
+                    alt=""
+                    width="56"
+                    height="56"
+                    decoding="async"
+                    data-config="ownerStoreIcon"
+                    data-config-attr="src"
+                  >
+                </span>
+              <span class="owner-platform-label">Visit my store</span>
+            </a>
+          </div>
         </div>
       </div>
     </article>
-
-    <section class="owner-mention" aria-labelledby="owner-mention-title">
-      <h2 id="owner-mention-title" class="owner-mention-title" data-icon="star">Honorable mention</h2>
-      <p class="owner-mention-lead muted">A spot reserved for a teammate who helps make this team what it is.</p>
-
-      <article class="owner-mention-card">
-        <figure class="owner-mention-figure">
-          <span class="owner-badge owner-badge--mention">Coming soon</span>
-          <img
-            class="owner-mention-photo"
-            data-config="honorableMentionPhotoUrl"
-            data-config-attr="src"
-            src="https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/meettheowner.jpg"
-            alt="Honorable mention — photo placeholder"
-            width="520"
-            height="640"
-            decoding="async"
-            fetchpriority="high"
-          >
-        </figure>
-        <div class="owner-mention-copy">
-          <h3 class="owner-mention-name" data-config="honorableMentionName" data-config-text>Coming soon</h3>
-          <p class="owner-mention-bio" data-config="honorableMentionBio" data-config-text>
-            Profile coming soon — same image as a placeholder until your friend’s details are added here.
-          </p>
-        </div>
-      </article>
-    </section>
   </div>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <script src="js/icons.js"></script>
@@ -123,5 +132,6 @@
   <script src="js/layout-fix.js"></script>
   <script src="js/course-modules.js"></script>
   <script src="js/app.js"></script>
+  <script src="js/owner-contact.js"></script>
 </body>
 </html>

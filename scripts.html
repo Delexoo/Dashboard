@@ -10,11 +10,12 @@
 <body data-page="scripts">
   <div id="shell"></div>
   <div id="page-body">
-    <p class="page-label" data-icon="phone">Daily tools</p>
     <h1>Call scripts</h1>
     <p class="lead">Pick a script before you dial — your edits save to your account. Feel free to write your own if you think of something better. Use <a class="link-bold-blue" href="template.html">Lead Builder</a> when they are interested.</p>
 
     <div id="scripts-editor">
+      <p class="note scripts-flow-note">Follow the colored buttons at each step — they jump you to the right lines based on what they say on the call.</p>
+
       <div class="acc" data-script-id="a">
         <button type="button" class="acc-q">Script A — Honest cold call (H.C.C.)<span class="chev">▼</span></button>
         <div class="acc-a"><div class="acc-a-inner">
@@ -23,23 +24,58 @@
             <button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>
             <button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>
           </div>
-          <div class="script-block script-block-opener">
-            <span class="script-label">Opener</span>
+
+          <div class="script-block script-block-opener script-block-pathway-target" id="script-a-gate">
+            <span class="script-label">Step 1 — Gatekeeper</span>
             <p class="script-prompt">"Hey, is this the owner?"</p>
-            <button type="button" class="btn secondary script-open-btn" data-script-id="d">If NO — open Script D</button>
-            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="a-opener">"Good morning/afternoon — how is your day?"<br><br>"Listen — I'll be honest, this is a sales call. Do you want to hang up on me, or do you want to give me 30 seconds?"</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes" data-scroll-target="script-a-opener">Yes, owner</button>
+              <button type="button" class="script-path-btn script-path-btn--no script-open-btn" data-script-id="d">Not owner</button>
+              <button type="button" class="script-path-btn script-path-btn--maybe script-open-btn" data-script-id="d">Hold</button>
+            </div>
           </div>
-          <div class="script-block">
-            <span class="script-label">Pitch</span>
+
+          <div class="script-block script-block-pathway-target" id="script-a-opener" data-script-target="script-a-opener">
+            <span class="script-label">Step 2 — Opener (owner on the line)</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="a-opener">"Good morning/afternoon — how is your day?"<br><br>"Listen — I'll be honest, this is a sales call. Do you want to hang up on me, or do you want to give me 30 seconds?" <em>(wait for yes)</em></div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-a-pitch" data-script-target="script-a-pitch">
+            <span class="script-label">Step 3 — Pitch</span>
             <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="a-pitch">"So I actually went ahead and took a risk — I already built you a free website. It's free to look at. And if you like it, I'm only asking for $500. If you don't like it, you never have to hear from me ever again. How does that sound?"</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes script-open-btn" data-script-id="g">Yes</button>
+              <button type="button" class="script-path-btn script-path-btn--maybe" data-scroll-target="script-a-hesitant">Maybe</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-a-no">Not interested</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-a-exit">Hang up</button>
+            </div>
           </div>
-          <div class="script-block">
-            <span class="script-label">If hesitant</span>
-            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="a-hesitant">"Out of curiosity — how are people finding your business right now?"<br><br>"That's exactly the gap a website fills — people searching online at midnight who'd never find you otherwise."</div>
+
+          <div class="script-block script-block-pathway-target" id="script-a-hesitant" data-script-target="script-a-hesitant">
+            <span class="script-label">If hesitant / "send info"</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="a-hesitant">"Out of curiosity — how are people finding your business right now?"<br><br>"That's exactly the gap a website fills — people searching online at midnight who'd never find you otherwise."<br><br>"The demo is already built — zero cost to look. Would a direct link or a quick call work better?"</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes script-open-btn" data-script-id="g">Yes</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-a-no">Still no</button>
+            </div>
           </div>
-          <div class="script-block">
-            <span class="script-label">If NO / hesitate</span>
+
+          <div class="script-block script-block-pathway-target" id="script-a-no" data-script-target="script-a-no">
+            <span class="script-label">If NO — one reframe, then exit</span>
             <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="a-no">"Totally fair — most professional web agencies charge $3,000 to $10,000+ upfront, and you're still waiting weeks to see anything. I already built your demo for free — you only pay if you love it. If you want to look — would you rather a direct link or a quick call?"</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes script-open-btn" data-script-id="g">Yes</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-a-exit">Exit</button>
+            </div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-a-exit" data-script-target="script-a-exit">
+            <span class="script-label">Not interested — polite exit</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="a-exit">"No problem at all — I appreciate your time. Have a great rest of your day!" <em>(hang up — do not post this lead)</em></div>
           </div>
         </div></div>
       </div>
@@ -52,23 +88,52 @@
             <button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>
             <button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>
           </div>
-          <div class="script-block script-block-opener">
-            <span class="script-label">Opener</span>
+
+          <div class="script-block script-block-opener script-block-pathway-target" id="script-b-gate">
+            <span class="script-label">Step 1 — Gatekeeper</span>
             <p class="script-prompt">"Hello — is this the owner?"</p>
-            <button type="button" class="btn secondary script-open-btn" data-script-id="d">If NO — open Script D</button>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes" data-scroll-target="script-b-opener">Yes, owner</button>
+              <button type="button" class="script-path-btn script-path-btn--no script-open-btn" data-script-id="d">Not owner</button>
+              <button type="button" class="script-path-btn script-path-btn--maybe script-open-btn" data-script-id="d">Hold</button>
+            </div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-b-opener" data-script-target="script-b-opener">
+            <span class="script-label">Step 2 — Pattern interrupt</span>
             <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="b-opener">"Hi — this might be your <strong>least favorite call of the day</strong>. It's a cold call — I'll keep it to <strong>20 seconds</strong>, or you could hang up right now." <em>(wait for yes)</em></div>
           </div>
-          <div class="script-block">
-            <span class="script-label">Hook</span>
+
+          <div class="script-block script-block-pathway-target" id="script-b-hook" data-script-target="script-b-hook">
+            <span class="script-label">Step 3 — Hook</span>
             <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="b-hook">"Here's why I called — I noticed your business <strong>doesn't have a website yet</strong>, and I actually built you a <strong>free demo</strong> so you can see what you're missing before you spend anything."</div>
           </div>
-          <div class="script-block">
-            <span class="script-label">Offer</span>
+
+          <div class="script-block script-block-pathway-target" id="script-b-offer" data-script-target="script-b-offer">
+            <span class="script-label">Step 4 — Offer</span>
             <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="b-offer">"So I already built you a <strong>free website</strong>. Free to look at. If you like it, I'm only asking for <strong>$500</strong>. If you don't like it, you never have to hear from me again. How does that sound?"</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes script-open-btn" data-script-id="g">Yes</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-b-no">Reframe</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-b-exit">Exit</button>
+            </div>
           </div>
-          <div class="script-block">
-            <span class="script-label">If NO / hesitate</span>
+
+          <div class="script-block script-block-pathway-target" id="script-b-no" data-script-target="script-b-no">
+            <span class="script-label">If Reframe</span>
             <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="b-no">"Totally fair — professional agencies usually charge $3,000 to $10,000+ and you wait forever. Yours is already built — you only pay if you love it. Direct link or a quick meeting to walk through it?"</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes script-open-btn" data-script-id="g">Yes</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-b-exit">Exit</button>
+            </div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-b-exit" data-script-target="script-b-exit">
+            <span class="script-label">Not interested — exit</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="b-exit">"All good — thanks for hearing me out. Have a great day!" <em>(hang up — next lead)</em></div>
           </div>
         </div></div>
       </div>
@@ -81,34 +146,98 @@
             <button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>
             <button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>
           </div>
-          <div class="script-block script-block-opener">
-            <span class="script-label">Opener</span>
+
+          <div class="script-block script-block-opener script-block-pathway-target" id="script-c-gate">
+            <span class="script-label">Step 1 — Gatekeeper</span>
             <p class="script-prompt">"Hey, is this the business owner?"</p>
-            <button type="button" class="btn secondary script-open-btn" data-script-id="d">If NO — open Script D</button>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes" data-scroll-target="script-c-opener">Yes, owner</button>
+              <button type="button" class="script-path-btn script-path-btn--no script-open-btn" data-script-id="d">Not owner</button>
+            </div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-c-opener" data-script-target="script-c-opener">
+            <span class="script-label">Step 2 — Intro</span>
             <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="c-opener">"Hey, my name is [Your Name] — I'm a student locally and I run a small website design business on the side. I built a free personalized landing page for your business."</div>
           </div>
-          <div class="script-block">
-            <span class="script-label">Qualify + offer</span>
-            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="c-offer">"Do you have anything online right now, or mostly word-of-mouth?" … "That's why I made this — so people can find you." … Same $500 free-demo offer as other scripts.</div>
+
+          <div class="script-block script-block-pathway-target" id="script-c-qualify" data-script-target="script-c-qualify">
+            <span class="script-label">Step 3 — Qualify + offer</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="c-qualify">"Do you have anything online right now, or mostly word-of-mouth?" <em>(listen)</em><br><br>"That's why I made this — so people can find you when they search Google at night."<br><br>"It's free to look. If you like it, packages start at $500. If not, no hard feelings. How does that sound?"</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes script-open-btn" data-script-id="g">Yes</button>
+              <button type="button" class="script-path-btn script-path-btn--maybe" data-scroll-target="script-c-objection">Objection</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-c-exit">Exit</button>
+            </div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-c-objection" data-script-target="script-c-objection">
+            <span class="script-label">"We already have a site" / not sure</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="c-objection">"Got it — a lot of owners tell me their Facebook page or Google listing is enough. The demo I built is specifically for people who want something customers can bookmark and share. Want me to text you the link so you can compare?"</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes script-open-btn" data-script-id="g">Yes</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-c-exit">Exit</button>
+            </div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-c-exit" data-script-target="script-c-exit">
+            <span class="script-label">Not interested — exit</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="c-exit">"Totally understand — thanks for your time. Have a good one!" <em>(hang up)</em></div>
           </div>
         </div></div>
       </div>
 
       <div class="acc" data-script-id="d">
-        <button type="button" class="acc-q">Script D — Not the owner<span class="chev">▼</span></button>
+        <button type="button" class="acc-q">Script D — Not the owner / gatekeeper<span class="chev">▼</span></button>
         <div class="acc-a"><div class="acc-a-inner">
           <div class="script-toolbar">
             <button type="button" class="btn secondary script-reset-btn">Reset</button>
             <button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>
             <button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>
           </div>
-          <div class="script-block">
-            <span class="script-label">Get transferred</span>
-            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="d-transfer">"Hi — may I speak to the owner?" … "Hi, my name is [Your Name] — student locally studying web design. I noticed your business doesn't have a website. Is there a reason for that?"</div>
+
+          <div class="script-block script-block-pathway-target" id="script-d-transfer">
+            <span class="script-label">Step 1 — Ask for the owner</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="d-transfer">"Hi — may I speak with the owner, please?" <em>(if they ask why)</em> "It's [Your Name] — I built a free website preview for the business and need the owner to take a quick look."</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes" data-scroll-target="script-d-owner">Owner on</button>
+              <button type="button" class="script-path-btn script-path-btn--maybe" data-scroll-target="script-d-message">Leave message</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-d-exit">Exit</button>
+            </div>
           </div>
-          <div class="script-block">
-            <span class="script-label">Offer</span>
-            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="d-offer">Same free website / $500 pitch. If interested → three questions (link vs meeting, phone OK, name).</div>
+
+          <div class="script-block script-block-pathway-target" id="script-d-owner" data-script-target="script-d-owner">
+            <span class="script-label">Step 2 — Owner on the line</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="d-owner">"Hi, my name is [Your Name] — I'm a student locally studying web design. I noticed [Business Name] doesn't have a website yet, and I already built a free demo so you can see what you're missing. Is that something you'd want to look at?"</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes script-open-btn" data-script-id="g">Yes</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-d-offer">Reframe</button>
+            </div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-d-offer" data-script-target="script-d-offer">
+            <span class="script-label">Reframe + offer</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="d-offer">"Totally fair — agencies charge thousands and take weeks. I already built yours for free — $500 only if you love it. Would you rather a direct link or a quick call to walk through it?"</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes script-open-btn" data-script-id="g">Yes</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-d-exit">Exit</button>
+            </div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-d-message" data-script-target="script-d-message">
+            <span class="script-label">Leave message / callback</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="d-message">"No problem — could you let them know [Your Name] called about a free website preview for the business? Best number to reach me is [your number]. Thanks!" <em>(mark lead pending — try again later)</em></div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-d-exit" data-script-target="script-d-exit">
+            <span class="script-label">Can't reach owner — exit</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="d-exit">"Thanks for your help — I'll try again another time. Have a good day!" <em>(hang up or try another lead)</em></div>
           </div>
         </div></div>
       </div>
@@ -121,13 +250,76 @@
             <button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>
             <button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>
           </div>
-          <div class="script-block">
-            <span class="script-label">Opener</span>
-            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="e-opener">"Hey, quick question — do you want the good news or the bad news first?" … "Good news — I built a free custom landing page for your business. Bad news — you're probably missing sales because people can't find you online."</div>
+
+          <div class="script-block script-block-pathway-target" id="script-e-opener">
+            <span class="script-label">Step 1 — Opener</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="e-opener">"Hey, quick question — do you want the good news or the bad news first?" <em>(they pick)</em><br><br>"Good news — I built a free custom landing page for [Business Name]. Bad news — you're probably missing sales because people can't find you online when they search at night."</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes" data-scroll-target="script-e-qualify">Continue</button>
+              <button type="button" class="script-path-btn script-path-btn--no script-open-btn" data-script-id="d">Not owner</button>
+            </div>
           </div>
-          <div class="script-block">
-            <span class="script-label">Offer</span>
-            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="e-offer">Qualify how customers find them → same free demo / $500 offer.</div>
+
+          <div class="script-block script-block-pathway-target" id="script-e-qualify" data-script-target="script-e-qualify">
+            <span class="script-label">Step 2 — Qualify + offer</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="e-qualify">"How do most customers find you today — Google, referrals, drive-by?" <em>(listen)</em><br><br>"That's exactly why I built the demo — free to look, $500 if you want to go live. No cost to peek. Sound fair?"</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">They say</span>
+              <button type="button" class="script-path-btn script-path-btn--yes script-open-btn" data-script-id="g">Yes</button>
+              <button type="button" class="script-path-btn script-path-btn--no" data-scroll-target="script-e-exit">Exit</button>
+            </div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-e-exit" data-script-target="script-e-exit">
+            <span class="script-label">Not interested — exit</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="e-exit">"Fair enough — appreciate the minute. Have a great day!" <em>(hang up)</em></div>
+          </div>
+        </div></div>
+      </div>
+
+      <div class="acc" data-script-id="g">
+        <button type="button" class="acc-q">Script G — Interested (close the call)<span class="chev">▼</span></button>
+        <div class="acc-a"><div class="acc-a-inner">
+          <div class="script-toolbar">
+            <button type="button" class="btn secondary script-reset-btn">Reset</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="txt">.txt</button>
+            <button type="button" class="btn secondary script-dl-btn" data-format="md">.md</button>
+          </div>
+          <p class="note">Use this when they say <strong>yes</strong> — from any script above.</p>
+
+          <div class="script-block script-block-pathway-target" id="script-g-close">
+            <span class="script-label">Step 1 — Confirm interest</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="g-close">"Perfect — I'll get this to the team so we can send your preview. Three quick questions so we build it right:"</div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-g-q1" data-script-target="script-g-q1">
+            <span class="script-label">Question 1 — Delivery</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="g-q1">"Would you rather get a <strong>direct link</strong> to the site, or a <strong>booking page</strong> where customers schedule with you?" <em>(write their answer)</em></div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-g-q2" data-script-target="script-g-q2">
+            <span class="script-label">Question 2 — Phone</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="g-q2">"What's the best number for texts about the site — is this one on caller ID okay?" <em>(confirm phone)</em></div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-g-q3" data-script-target="script-g-q3">
+            <span class="script-label">Question 3 — Owner name</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="g-q3">"And who should I put as the owner on the site — first and last name?" <em>(get spelling)</em></div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-g-price" data-script-target="script-g-price">
+            <span class="script-label">Confirm price (must match Lead Builder)</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="g-price">"Just to confirm — if you love the demo, the package we discussed is <strong>$500</strong> upfront plus <strong>$5/month</strong> hosting. Sound good?" <em>(adjust if you quoted $700, $1K, or $1.5K on the call)</em></div>
+          </div>
+
+          <div class="script-block script-block-pathway-target" id="script-g-next" data-script-target="script-g-next">
+            <span class="script-label">Wrap up → Lead Builder</span>
+            <div class="script-body" contenteditable="true" spellcheck="true" data-block-id="g-next">"Awesome — I'll fill out the lead now and get it to the team. You'll hear from us soon. Thanks again, [Owner Name]!"</div>
+            <div class="script-pathways">
+              <span class="script-pathways-label">Next step</span>
+              <a class="script-path-btn script-path-btn--link" href="template.html">Lead Builder</a>
+            </div>
           </div>
         </div></div>
       </div>

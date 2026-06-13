@@ -4,6 +4,7 @@
 (function (global) {
   let client = null;
   let channel = null;
+  let currentRepId = null;
 
   function cfg() {
     const c = global.SITE_CONFIG || {};
@@ -91,31 +92,60 @@
     el.className = "faq-qa-status" + (type ? " faq-qa-status--" + type : "");
   }
 
+  function escTextarea(s) {
+    return String(s || "")
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+  }
+
+  function bodyHtml(body) {
+    return esc(body || "").replace(/\n/g, "<br>");
+  }
+
   function postHtml(row, opts) {
     opts = opts || {};
-    const id = esc(row.rep_id);
+    const kind = opts.kind || "question";
+    const id = esc(row.id);
+    const repId = esc(row.rep_id);
     const name = esc(row.rep_name || "Rep");
     const when = esc(formatTimeAgo(row.created_at));
-    const body = esc(row.body || "").replace(/\n/g, "<br>");
+    const body = bodyHtml(row.body);
     const img = esc(photoUrl(row.rep_id, row.rep_name));
     const tag = opts.compact ? "div" : "article";
+    const canManage = currentRepId && String(row.rep_id) === String(currentRepId) && row.id;
+    const actions = canManage
+      ? '<div class="faq-qa-post-actions">' +
+        '<button type="button" class="faq-qa-action-btn" data-faq-edit>Edit</button>' +
+        '<button type="button" class="faq-qa-action-btn faq-qa-action-btn--danger" data-faq-delete>Remove</button>' +
+        "</div>"
+      : "";
     return (
       "<" +
       tag +
       ' class="faq-qa-post' +
       (opts.reply ? " faq-qa-post--reply" : "") +
+      '" data-faq-id="' +
+      id +
+      '" data-faq-kind="' +
+      kind +
+      '" data-faq-body="' +
+      esc(row.body || "") +
       '">' +
       '<img class="faq-qa-avatar" src="' +
       img +
       '" alt="" width="40" height="40" decoding="async" data-rep-id="' +
-      id +
+      repId +
       '">' +
       '<div class="faq-qa-post-main">' +
       '<div class="faq-qa-post-meta">' +
+      '<div class="faq-qa-post-meta-main">' +
       '<strong class="faq-qa-author">' +
       name +
       "</strong>" +
       (when ? '<time class="faq-qa-time" datetime="' + esc(row.created_at || "") + '">' + when + "</time>" : "") +
+      "</div>" +
+      actions +
       "</div>" +
       '<div class="faq-qa-text">' +
       body +
@@ -147,7 +177,7 @@
         const replies =
           answers.length > 0
             ? '<div class="faq-qa-replies" role="list">' +
-              answers.map((a) => postHtml(a, { reply: true, compact: true })).join("") +
+              answers.map((a) => postHtml(a, { reply: true, compact: true, kind: "answer" })).join("") +
               "</div>"
             : "";
 
@@ -155,7 +185,7 @@
           '<article class="faq-qa-thread card" data-question-id="' +
           qid +
           '" role="listitem">' +
-          postHtml(q) +
+          postHtml(q, { kind: "question" }) +
           replies +
           '<form class="faq-qa-reply-form" data-reply-form="' +
           qid +
@@ -185,6 +215,158 @@
     });
 
     if (global.SiteIcons) global.SiteIcons.initIcons(list);
+  }
+
+  function startEdit(post) {
+    if (!post || post.classList.contains("is-editing")) return;
+    const kind = post.dataset.faqKind || "question";
+    const maxLen = kind === "question" ? 2000 : 4000;
+    const body = post.dataset.faqBody || "";
+    const textEl = post.querySelector(".faq-qa-text");
+    if (!textEl) return;
+
+    post.classList.add("is-editing");
+    textEl.innerHTML =
+      '<textarea class="faq-qa-textarea faq-qa-textarea--compact" rows="3" maxlength="' +
+      maxLen +
+      '">' +
+      escTextarea(body) +
+      "</textarea>" +
+      '<div class="faq-qa-form-actions">' +
+      '<button type="button" class="btn secondary" data-faq-cancel>Cancel</button>' +
+      '<button type="button" class="btn" data-faq-save>Save</button>' +
+      "</div>";
+    textEl.querySelector("textarea")?.focus();
+  }
+
+  function cancelEdit(post) {
+    if (!post) return;
+    const textEl = post.querySelector(".faq-qa-text");
+    if (!textEl) return;
+    post.classList.remove("is-editing");
+    textEl.innerHTML = bodyHtml(post.dataset.faqBody || "");
+  }
+
+  async function savePostEdit(post) {
+    if (!post) return;
+    const identity = await resolveIdentity();
+    if (!identity?.id) {
+      alert("Sign in with your PIN first.");
+      return;
+    }
+
+    const kind = post.dataset.faqKind || "question";
+    const id = post.dataset.faqId;
+    const ta = post.querySelector(".faq-qa-text textarea");
+    const body = String(ta?.value || "").trim();
+    if (!id || !body) {
+      if (!body) alert("Write something before saving.");
+      return;
+    }
+
+    const sb = getClient();
+    if (!sb) return;
+
+    const table = kind === "question" ? "faq_questions" : "faq_answers";
+    const saveBtn = post.querySelector("[data-faq-save]");
+    if (saveBtn) saveBtn.disabled = true;
+
+    try {
+      const { error } = await sb
+        .from(table)
+        .update({ body, rep_name: identity.name })
+        .eq("id", id)
+        .eq("rep_id", identity.id);
+      if (error) throw error;
+      post.dataset.faqBody = body;
+      post.classList.remove("is-editing");
+      post.querySelector(".faq-qa-text").innerHTML = bodyHtml(body);
+    } catch (e) {
+      console.warn(e);
+      const msg = String(e.message || "");
+      alert(
+        /policy|permission|denied|42501/i.test(msg)
+          ? "Could not save — run supabase-faq-qa-policies-only.sql in Supabase SQL Editor."
+          : msg || "Could not save changes."
+      );
+    } finally {
+      if (saveBtn) saveBtn.disabled = false;
+    }
+  }
+
+  async function removePost(post) {
+    if (!post) return;
+    const identity = await resolveIdentity();
+    if (!identity?.id) {
+      alert("Sign in with your PIN first.");
+      return;
+    }
+
+    const kind = post.dataset.faqKind || "question";
+    const id = post.dataset.faqId;
+    if (!id) return;
+
+    const msg =
+      kind === "question"
+        ? "Remove this question and all of its replies?"
+        : "Remove this reply?";
+    if (!global.confirm(msg)) return;
+
+    const sb = getClient();
+    if (!sb) return;
+
+    const table = kind === "question" ? "faq_questions" : "faq_answers";
+    const btn = post.querySelector("[data-faq-delete]");
+    if (btn) btn.disabled = true;
+
+    try {
+      const { error } = await sb.from(table).delete().eq("id", id).eq("rep_id", identity.id);
+      if (error) throw error;
+      await refresh();
+    } catch (e) {
+      console.warn(e);
+      const msg = String(e.message || "");
+      alert(
+        /policy|permission|denied|42501/i.test(msg)
+          ? "Could not remove — run supabase-faq-qa-policies-only.sql in Supabase SQL Editor."
+          : msg || "Could not remove."
+      );
+      if (btn) btn.disabled = false;
+    }
+  }
+
+  function bindPostActions(list) {
+    if (!list || list.dataset.actionsBound === "1") return;
+    list.dataset.actionsBound = "1";
+
+    list.addEventListener("click", (e) => {
+      const editBtn = e.target.closest("[data-faq-edit]");
+      if (editBtn) {
+        e.preventDefault();
+        startEdit(editBtn.closest(".faq-qa-post"));
+        return;
+      }
+
+      const delBtn = e.target.closest("[data-faq-delete]");
+      if (delBtn) {
+        e.preventDefault();
+        void removePost(delBtn.closest(".faq-qa-post"));
+        return;
+      }
+
+      const saveBtn = e.target.closest("[data-faq-save]");
+      if (saveBtn) {
+        e.preventDefault();
+        void savePostEdit(saveBtn.closest(".faq-qa-post"));
+        return;
+      }
+
+      const cancelBtn = e.target.closest("[data-faq-cancel]");
+      if (cancelBtn) {
+        e.preventDefault();
+        cancelEdit(cancelBtn.closest(".faq-qa-post"));
+      }
+    });
   }
 
   async function fetchThreads() {
@@ -228,6 +410,8 @@
 
     try {
       if (loading) loading.hidden = false;
+      const identity = await resolveIdentity();
+      currentRepId = identity?.id || null;
       await global.RepProfilePhoto?.refreshTeamPhotos?.();
       const { questions, answersByQ } = await fetchThreads();
       renderThread(questions, answersByQ);
@@ -334,7 +518,27 @@
       )
       .on(
         "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "faq_questions" },
+        () => refresh()
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "faq_questions" },
+        () => refresh()
+      )
+      .on(
+        "postgres_changes",
         { event: "INSERT", schema: "public", table: "faq_answers" },
+        () => refresh()
+      )
+      .on(
+        "postgres_changes",
+        { event: "UPDATE", schema: "public", table: "faq_answers" },
+        () => refresh()
+      )
+      .on(
+        "postgres_changes",
+        { event: "DELETE", schema: "public", table: "faq_answers" },
         () => refresh()
       )
       .subscribe();
@@ -367,6 +571,7 @@
       void submitQuestion(askTa, askForm.querySelector("#faq-qa-ask-submit"));
     });
 
+    bindPostActions(document.getElementById("faq-qa-list"));
     refresh().then(() => subscribeRealtime());
   }
 

@@ -140,6 +140,51 @@
     return html;
   }
 
+  /** Inline {{chapter label}} pills and {{btn-*}} UI mimics in transcript copy. */
+  function inlineTranscriptToken(token) {
+    const t = String(token || "").trim();
+    if (t === "btn-prev") {
+      return (
+        '<span class="course-inline-ui-btn course-inline-ui-btn--nav" aria-hidden="true">' +
+        '<span class="course-inline-ui-btn-arrow">←</span>' +
+        '<span class="course-inline-ui-btn-label">Previous</span>' +
+        "</span>"
+      );
+    }
+    if (t === "btn-next") {
+      return (
+        '<span class="course-inline-ui-btn course-inline-ui-btn--nav" aria-hidden="true">' +
+        '<span class="course-inline-ui-btn-label">Next</span>' +
+        '<span class="course-inline-ui-btn-arrow">→</span>' +
+        "</span>"
+      );
+    }
+    if (t === "btn-exit") {
+      return (
+        '<span class="course-inline-ui-btn course-inline-ui-btn--exit" aria-hidden="true">' +
+        "×" +
+        "</span>"
+      );
+    }
+    return '<span class="course-inline-chapter-tag">' + esc(t) + "</span>";
+  }
+
+  function enrichTranscriptText(raw) {
+    const text = String(raw || "").trim();
+    if (!text) return "";
+    const re = /\{\{([^}]+)\}\}/g;
+    let html = "";
+    let last = 0;
+    let m;
+    while ((m = re.exec(text)) !== null) {
+      html += linkifyTranscriptText(text.slice(last, m.index));
+      html += inlineTranscriptToken(m[1]);
+      last = m.index + m[0].length;
+    }
+    html += linkifyTranscriptText(text.slice(last));
+    return html;
+  }
+
   function hasSidePanel(mod) {
     return hasChapters(mod) || hasSplitAside(mod);
   }
@@ -403,7 +448,7 @@
     const paras = (chapter.body || [])
       .map(
         (line) =>
-          '<p class="course-chapter-transcript-p">' + linkifyTranscriptText(line) + "</p>"
+          '<p class="course-chapter-transcript-p">' + enrichTranscriptText(line) + "</p>"
       )
       .join("");
     return '<div class="course-chapter-transcript">' + paras + "</div>";
@@ -502,92 +547,125 @@
     });
   }
 
-  function bindSidePanel(mod) {
-    const layout = document.getElementById("course-module-layout");
-    const aside = document.getElementById("course-module-aside");
-    const bodyEl = document.getElementById("course-panel-body");
-    const navEl = document.getElementById("course-chapter-nav");
-    const closeBtn = document.getElementById("course-panel-close");
-    const tags = document.querySelectorAll(".course-panel-tag");
+  const courseChapterPanel = {
+    mod: null,
+    open: false,
+    activeView: null,
+    clickBound: false,
+  };
 
-    if (!layout || !aside || !bodyEl || !navEl || !tags.length) return;
+  function coursePanelEls() {
+    return {
+      layout: document.getElementById("course-module-layout"),
+      aside: document.getElementById("course-module-aside"),
+      bodyEl: document.getElementById("course-panel-body"),
+      navEl: document.getElementById("course-chapter-nav"),
+      closeBtn: document.getElementById("course-panel-close"),
+    };
+  }
 
-    let open = false;
-    let activeView = null;
+  function updateCoursePanelTags() {
+    const { layout } = coursePanelEls();
+    if (!layout) return;
+    layout.querySelectorAll(".course-panel-tag").forEach((btn) => {
+      const view = btn.getAttribute("data-panel-view");
+      const isActive = courseChapterPanel.open && courseChapterPanel.activeView === view;
+      btn.classList.toggle("is-active", isActive);
+      btn.setAttribute("aria-expanded", isActive ? "true" : "false");
+      btn.setAttribute("aria-selected", isActive ? "true" : "false");
+    });
+  }
 
-    function updateTags() {
-      tags.forEach((btn) => {
-        const view = btn.getAttribute("data-panel-view");
-        const isActive = open && activeView === view;
-        btn.classList.toggle("is-active", isActive);
-        btn.setAttribute("aria-expanded", isActive ? "true" : "false");
-        btn.setAttribute("aria-selected", isActive ? "true" : "false");
-      });
-    }
+  function renderCoursePanelContent(view) {
+    const mod = courseChapterPanel.mod;
+    const { bodyEl, navEl } = coursePanelEls();
+    if (!mod || !bodyEl || !navEl) return;
+    const chapter = global.CourseModules.chapterById(mod, view);
+    if (!chapter) return;
+    bodyEl.innerHTML = chapterHtml(chapter);
+    navEl.innerHTML = chapterNavHtml(mod, view);
+    navEl.hidden = false;
+  }
 
-    function renderPanelContent(view) {
-      const chapter = global.CourseModules.chapterById(mod, view);
-      if (!chapter) return;
-      bodyEl.innerHTML = chapterHtml(chapter);
-      navEl.innerHTML = chapterNavHtml(mod, view);
-      navEl.hidden = false;
-    }
-
-    function bindChapterNavButtons() {
-      navEl.querySelector("[data-chapter-done]")?.addEventListener("click", () => {
-        setOpen(false, null);
-      });
-      navEl.querySelectorAll("[data-chapter-nav]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          if (btn.disabled) return;
-          const target = btn.getAttribute("data-chapter-nav");
-          if (target) setOpen(true, target);
-        });
-      });
-    }
-
-    function setOpen(nextOpen, view) {
-      if (nextOpen && !view) return;
-
-      open = nextOpen;
-      activeView = open ? view : null;
-
-      layout.classList.toggle("course-module-layout--panel-open", open);
-      aside.setAttribute("aria-hidden", open ? "false" : "true");
-      if (closeBtn) closeBtn.hidden = !open;
-      updateTags();
-
-      if (open) {
-        renderPanelContent(activeView);
-        bindChapterNavButtons();
-        const panelContent = bodyEl.querySelector(".course-chapter-article, .course-chapter-transcript");
-        if (panelContent) {
-          panelContent.classList.remove("is-entering");
-          void panelContent.offsetWidth;
-          panelContent.classList.add("is-entering");
-        }
-        bodyEl.scrollTop = 0;
-      } else {
-        navEl.hidden = true;
-        navEl.innerHTML = "";
-      }
-    }
-
-    tags.forEach((btn) => {
+  function bindCourseChapterNavButtons() {
+    const { navEl } = coursePanelEls();
+    if (!navEl) return;
+    navEl.querySelector("[data-chapter-done]")?.addEventListener("click", () => {
+      setCourseChapterPanelOpen(false, null);
+    });
+    navEl.querySelectorAll("[data-chapter-nav]").forEach((btn) => {
       btn.addEventListener("click", () => {
-        const view = btn.getAttribute("data-panel-view");
-        if (!view) return;
-        if (open && activeView === view) {
-          setOpen(false, null);
-          return;
-        }
-        setOpen(true, view);
+        if (btn.disabled) return;
+        const target = btn.getAttribute("data-chapter-nav");
+        if (target) setCourseChapterPanelOpen(true, target);
       });
     });
+  }
 
-    if (closeBtn) {
-      closeBtn.addEventListener("click", () => setOpen(false, null));
+  function setCourseChapterPanelOpen(nextOpen, view) {
+    if (nextOpen && !view) return;
+
+    const { layout, aside, bodyEl, navEl, closeBtn } = coursePanelEls();
+    if (!layout || !aside || !bodyEl || !navEl) return;
+
+    courseChapterPanel.open = nextOpen;
+    courseChapterPanel.activeView = nextOpen ? view : null;
+
+    layout.classList.toggle("course-module-layout--panel-open", nextOpen);
+    aside.setAttribute("aria-hidden", nextOpen ? "false" : "true");
+    if (closeBtn) closeBtn.hidden = !nextOpen;
+    updateCoursePanelTags();
+
+    if (nextOpen) {
+      renderCoursePanelContent(courseChapterPanel.activeView);
+      bindCourseChapterNavButtons();
+      const panelContent = bodyEl.querySelector(".course-chapter-article, .course-chapter-transcript");
+      if (panelContent) {
+        panelContent.classList.remove("is-entering");
+        void panelContent.offsetWidth;
+        panelContent.classList.add("is-entering");
+      }
+      bodyEl.scrollTop = 0;
+    } else {
+      navEl.hidden = true;
+      navEl.innerHTML = "";
     }
+  }
+
+  function ensureCoursePanelClick() {
+    if (courseChapterPanel.clickBound) return;
+    courseChapterPanel.clickBound = true;
+    document.addEventListener("click", (e) => {
+      const tag = e.target.closest(".course-panel-tag");
+      const { layout } = coursePanelEls();
+      if (tag && layout?.contains(tag) && courseChapterPanel.mod) {
+        const view = tag.getAttribute("data-panel-view");
+        if (!view) return;
+        if (courseChapterPanel.open && courseChapterPanel.activeView === view) {
+          setCourseChapterPanelOpen(false, null);
+          return;
+        }
+        setCourseChapterPanelOpen(true, view);
+        return;
+      }
+      if (e.target.closest("#course-panel-close")) {
+        setCourseChapterPanelOpen(false, null);
+      }
+    });
+  }
+
+  function bindSidePanel(mod) {
+    const { layout, aside, bodyEl, navEl } = coursePanelEls();
+    const tags = layout?.querySelectorAll(".course-panel-tag") ?? [];
+    if (!layout || !aside || !bodyEl || !navEl || !tags.length) return;
+
+    courseChapterPanel.mod = mod;
+    courseChapterPanel.open = false;
+    courseChapterPanel.activeView = null;
+    layout.classList.remove("course-module-layout--panel-open");
+    aside.setAttribute("aria-hidden", "true");
+    updateCoursePanelTags();
+    ensureCoursePanelClick();
   }
 
   function render() {

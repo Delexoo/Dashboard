@@ -14,6 +14,8 @@
       .replace(/"/g, "&quot;");
   }
 
+  let contributorStatsReady = false;
+
   function formatMoney(n) {
     return Math.round(Number(n) || 0).toLocaleString();
   }
@@ -66,6 +68,73 @@
       (RPP?.urlForRepName && RPP.urlForRepName(person.name)) ||
       RPP?.DEFAULT_URL ||
       ""
+    );
+  }
+
+  function verifiedContributorKeys() {
+    const raw = global.SITE_CONFIG?.contributorsVerified;
+    if (!Array.isArray(raw)) return new Set();
+    return new Set(
+      raw
+        .map((entry) => String(entry || "").trim().toLowerCase())
+        .filter(Boolean)
+    );
+  }
+
+  function isVerifiedContributor(person) {
+    const keys = verifiedContributorKeys();
+    if (!keys.size) return false;
+    return personKeys(person).some((key) => keys.has(key));
+  }
+
+  function contributorCustomRoleFor(person) {
+    const roles = global.SITE_CONFIG?.contributorsRoles;
+    if (!roles || typeof roles !== "object") return "";
+    for (const key of personKeys(person)) {
+      for (const [name, role] of Object.entries(roles)) {
+        if (String(name).trim().toLowerCase() === key) {
+          return String(role || "").trim();
+        }
+      }
+    }
+    return "";
+  }
+
+  function contributorRoleFor(person) {
+    const custom = contributorCustomRoleFor(person);
+    if (custom) return custom;
+    return String(global.SITE_CONFIG?.contributorsDefaultRole || "Sales Representative").trim();
+  }
+
+  function tooltipTitleHtml(person) {
+    const role = contributorRoleFor(person);
+    let html = escapeHtml(person.name);
+    if (role) {
+      const accent = contributorCustomRoleFor(person);
+      html +=
+        ' <span class="owner-contributor-tooltip-role' +
+        (accent ? " owner-contributor-tooltip-role--accent" : "") +
+        '">(' +
+        escapeHtml(role) +
+        ")</span>";
+    }
+    return html;
+  }
+
+  function contributorPhotoHtml(url, person) {
+    const img =
+      '<img class="owner-contributor-photo" src="' +
+      escapeHtml(url) +
+      '" alt="" width="72" height="72" decoding="async">';
+    const badgeUrl = String(global.SITE_CONFIG?.contributorsVerifiedBadgeUrl || "").trim();
+    if (!badgeUrl || !isVerifiedContributor(person)) return img;
+    return (
+      '<span class="owner-contributor-photo-wrap">' +
+      img +
+      '<img class="owner-contributor-verified-badge" src="' +
+      escapeHtml(badgeUrl) +
+      '" alt="" width="22" height="22" decoding="async" aria-hidden="true">' +
+      "</span>"
     );
   }
 
@@ -194,12 +263,48 @@
     };
   }
 
+  function localLastOnlineIso() {
+    try {
+      const raw = global.RepStorage?.loadItem?.(META_KEY);
+      if (!raw) return "";
+      const meta = typeof raw === "string" ? JSON.parse(raw) : raw;
+      return String(meta?.lastOnlineAt || meta?.lastLoginAt || "").trim();
+    } catch (e) {
+      return "";
+    }
+  }
+
+  function isCurrentRep(person) {
+    const me = global.RepSession?.get?.();
+    const meId = global.RepSession?.getId?.() || me?.id;
+    if (!meId) return false;
+    const keys = personKeys(person);
+    const meKeys = [
+      String(meId || "").toLowerCase(),
+      String(me?.name || "").toLowerCase(),
+    ].filter(Boolean);
+    return meKeys.some((key) => keys.includes(key));
+  }
+
+  function pickLatestIso(a, b) {
+    const ta = a ? new Date(a).getTime() : NaN;
+    const tb = b ? new Date(b).getTime() : NaN;
+    if (Number.isNaN(ta) && Number.isNaN(tb)) return "";
+    if (Number.isNaN(ta)) return b;
+    if (Number.isNaN(tb)) return a;
+    return ta >= tb ? a : b;
+  }
+
   function lastOnlineForPerson(person) {
     const keys = personKeys(person);
+    let best = "";
     for (let i = 0; i < keys.length; i++) {
-      if (lastOnlineByName[keys[i]]) return lastOnlineByName[keys[i]];
+      best = pickLatestIso(best, lastOnlineByName[keys[i]]);
     }
-    return "";
+    if (isCurrentRep(person)) {
+      best = pickLatestIso(best, localLastOnlineIso());
+    }
+    return best;
   }
 
   function lastOnlineLabel(person) {
@@ -299,7 +404,7 @@
       escapeHtml(tipId) +
       '" role="tooltip">' +
       '<p class="owner-contributor-tooltip-title">' +
-      escapeHtml(person.name) +
+      tooltipTitleHtml(person) +
       "</p>" +
       '<dl class="owner-contributor-tooltip-stats">' +
       rows
@@ -399,6 +504,7 @@
       .join("");
 
     section.hidden = false;
+    section.classList.toggle("contributors-stats-ready", contributorStatsReady);
   }
 
   function shareCardConfig() {
@@ -413,6 +519,15 @@
       title: String(c.contributorsShareTitle || "Join our sales team").trim(),
       text: String(c.contributorsShareText || "Apply here:").trim(),
     };
+  }
+
+  function buildInviteMessage(share) {
+    const body = String(share.text || "").trim();
+    const url = String(share.url || "").trim();
+    if (!body) return url;
+    if (!url) return body;
+    if (body.includes(url)) return body;
+    return body + " " + url;
   }
 
   function copyInviteText(text) {
@@ -451,10 +566,12 @@
   }
 
   async function shareInviteLink(share, btn) {
+    const message = buildInviteMessage(share);
+
     if (typeof navigator.share === "function") {
       const attempts = [
+        { title: share.title, text: message },
         { title: share.title, text: share.text, url: share.url },
-        { title: share.title, text: share.text + "\n" + share.url },
         { url: share.url },
       ];
       for (let i = 0; i < attempts.length; i++) {
@@ -469,10 +586,9 @@
       }
     }
 
-    const copyLine = share.text ? share.text + " " + share.url : share.url;
     try {
-      await copyInviteText(copyLine);
-      shareFeedback(btn, "Link copied!");
+      await copyInviteText(message);
+      shareFeedback(btn, "Message copied!");
       return;
     } catch (e) {
       console.warn("Share copy failed", e);
@@ -542,9 +658,7 @@
             '" aria-label="' +
             escapeHtml(person.name + " — " + presenceLabel) +
             '">' +
-            '<img class="owner-contributor-photo" src="' +
-            escapeHtml(url) +
-            '" alt="" width="72" height="72" decoding="async">' +
+            contributorPhotoHtml(url, person) +
             '<span class="owner-contributor-name-row">' +
             '<span class="owner-contributor-presence' +
             (last.online ? " is-online" : " is-offline") +
@@ -571,23 +685,73 @@
       await RPP.refreshTeamPhotos().catch(() => {});
     }
     await refreshContributorData();
+    contributorStatsReady = true;
     renderContributors();
+  }
+
+  function pingPresence() {
+    if (!global.RepSession?.getId?.()) return;
+    global.RepSession?.touchOnline?.();
+    if (global.RepStorage?.flushSync) {
+      return global.RepStorage.flushSync().catch(() => {});
+    }
+    return Promise.resolve();
   }
 
   function init() {
     if (document.body.dataset.page !== "contributors") return;
     renderContributors();
-    refreshPhotosAndRender().catch(() => {});
+    const boot = () => {
+      pingPresence()
+        .then(() => refreshPhotosAndRender())
+        .catch(() => refreshPhotosAndRender().catch(() => {}));
+    };
+    if (global.SiteLock?.whenUnlocked) global.SiteLock.whenUnlocked(boot);
+    else boot();
     window.addEventListener("rep-settings-ready", () => {
-      refreshPhotosAndRender().catch(renderContributors);
+      pingPresence()
+        .then(() => refreshPhotosAndRender())
+        .catch(renderContributors);
+    });
+    window.addEventListener("rep-settings-synced", () => {
+      refreshContributorData()
+        .then(() => {
+          contributorStatsReady = true;
+          renderContributors();
+        })
+        .catch(() => {});
     });
     window.addEventListener("rep-profile-photo-changed", renderContributors);
     window.addEventListener("rep-session-changed", () => {
-      refreshPhotosAndRender().catch(renderContributors);
+      pingPresence()
+        .then(() => refreshPhotosAndRender())
+        .catch(renderContributors);
+    });
+    document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") {
+        pingPresence()
+          .then(() =>
+            refreshContributorData().then(() => {
+              contributorStatsReady = true;
+              renderContributors();
+            })
+          )
+          .catch(() => {});
+      }
     });
     setInterval(() => {
-      refreshContributorData().then(renderContributors).catch(() => {});
-    }, 60000);
+        pingPresence()
+          .then(() =>
+            refreshContributorData().then(() => {
+              contributorStatsReady = true;
+              renderContributors();
+            })
+          )
+          .catch(() => refreshContributorData().then(() => {
+            contributorStatsReady = true;
+            renderContributors();
+          }).catch(() => {}));
+    }, 45000);
   }
 
   document.addEventListener("DOMContentLoaded", init);

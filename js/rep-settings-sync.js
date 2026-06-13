@@ -188,7 +188,9 @@
 
   function applySettings(obj) {
     if (isEmptyCloudSettings(obj)) {
-      clearSyncedLocalKeys();
+      if (!global.sessionStorage?.getItem?.("lpc_lead_pick_v1")) {
+        clearSyncedLocalKeys();
+      }
       return;
     }
     SYNC_KEYS.forEach((base) => {
@@ -201,6 +203,41 @@
       if (base === "lpc_lead_pinned_v1") {
         const localRaw = localStorage.getItem(repKey(base));
         localStorage.setItem(repKey(base), mergePinnedJson(obj[base], localRaw));
+        return;
+      }
+      if (base === "lpc_template_builder_v1") {
+        const localRaw = localStorage.getItem(repKey(base));
+        let local = {};
+        try {
+          local = localRaw ? JSON.parse(localRaw) : {};
+        } catch (e) {
+          local = {};
+        }
+        const cloud =
+          obj[base] && typeof obj[base] === "object" ? obj[base] : {};
+        const merged = { ...cloud, ...local };
+        try {
+          const pickRaw = global.sessionStorage?.getItem("lpc_lead_pick_v1");
+          if (pickRaw) {
+            const pick = JSON.parse(pickRaw);
+            if (pick && typeof pick === "object") {
+              if (pick.name) merged.name = String(pick.name).trim();
+              if (pick.phone) merged.phone = String(pick.phone).trim();
+              const maps = String(pick.mapsUrl || pick.maps || "").trim();
+              if (maps) merged.maps = maps;
+              if (pick.price) merged.price = String(pick.price).trim();
+              if (pick.mode) merged.mode = pick.mode;
+            }
+          }
+        } catch (e) {
+          /* ignore */
+        }
+        if (!("phone" in local) && cloud.phone) merged.phone = cloud.phone;
+        if (!("maps" in local) && cloud.maps) merged.maps = cloud.maps;
+        if (!("name" in local) && cloud.name) merged.name = cloud.name;
+        if (!("price" in local) && cloud.price) merged.price = cloud.price;
+        if (!("mode" in local) && cloud.mode) merged.mode = cloud.mode;
+        localStorage.setItem(repKey(base), JSON.stringify(merged));
         return;
       }
       const val =
@@ -238,16 +275,26 @@
     if (!client || !repId) return;
     const settings_json = collectSettings();
     const rep = global.RepSession?.get?.();
+    const repName =
+      String(rep?.name || "").trim() ||
+      String(repId || "")
+        .trim()
+        .replace(/^\w/, (c) => c.toUpperCase());
     const row = {
       rep_id: repId,
+      rep_name: repName || repId,
       settings_json,
       updated_at: new Date().toISOString(),
     };
-    if (rep?.name) row.rep_name = rep.name;
     const { error } = await client
       .from("rep_settings")
       .upsert(row, { onConflict: "rep_id" });
     if (error) throw error;
+    try {
+      global.dispatchEvent(new Event("rep-settings-synced"));
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   function scheduleSync() {
@@ -301,10 +348,10 @@
     repId = global.RepSession?.getId?.() || global.RepSession?.get?.()?.id || null;
     initRepId = repId;
     global.RepSession?.enforceTrackerIdentity?.();
+    migrateLegacyLocalKeys();
 
     if (!repId || !canSync()) {
       client = null;
-      migrateLegacyLocalKeys();
       flushReady();
       return { mode: "local" };
     }
@@ -312,13 +359,17 @@
     try {
       const { url, key } = cfg();
       client = global.supabase.createClient(url, key);
-      await pull();
       flushReady();
+      await pull();
+      try {
+        global.dispatchEvent(new Event("rep-settings-pulled"));
+      } catch (e) {
+        /* ignore */
+      }
       return { mode: "cloud" };
     } catch (e) {
       console.warn("Rep settings: cloud unavailable, using this device", e);
       client = null;
-      migrateLegacyLocalKeys();
       flushReady();
       return { mode: "local", error: true };
     }

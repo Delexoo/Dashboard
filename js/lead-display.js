@@ -211,8 +211,10 @@
     formatPhoneForLeadBuilder,
     buildLeadBuilderPick(lead) {
       const phone = formatPhoneForLeadBuilder(lead?.phone);
-      const mapsUrl = raw(lead?.mapsUrl);
+      const mapsUrl = raw(lead?.mapsUrl || lead?.maps_url);
       return {
+        leadId: raw(lead?.id),
+        name: "",
         phone,
         mapsUrl,
         price: global.LeadDisplay.priceTierFromReviewCount(lead?.reviewCount),
