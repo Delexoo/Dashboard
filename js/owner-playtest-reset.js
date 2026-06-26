@@ -106,12 +106,31 @@
     return String(info.target || "").trim().toLowerCase() === id;
   }
 
+  function seedAffectsCaller(info, caller) {
+    const id = String(caller || "").trim().toLowerCase();
+    if (!id || info?.action !== "seed") return false;
+    if (info.scope === "all_reps") return true;
+    return String(info.target || "").trim().toLowerCase() === id;
+  }
+
   function clearCurrentRepLocalPlaytestData() {
     try {
       global.RepStorage?.clearSyncedLocalKeys?.();
       global.RepStorage?.resetForRep?.();
     } catch (e) {
       console.warn("Playtest reset: could not clear local rep cache", e);
+    }
+  }
+
+  function resetCurrentRepUiPrefs() {
+    try {
+      global.UserPrefs?.resetToDefaults?.();
+      if (global.SiteTheme?.DEVICE_KEY) {
+        localStorage.setItem(global.SiteTheme.DEVICE_KEY, "light");
+      }
+      global.SiteTheme?.apply?.("light", { persistDevice: true });
+    } catch (e) {
+      console.warn("Playtest data: could not reset local UI prefs", e);
     }
   }
 
@@ -457,6 +476,8 @@
       closeDialog();
       if (resetAffectsCaller(info, caller)) {
         clearCurrentRepLocalPlaytestData();
+      } else if (seedAffectsCaller(info, caller)) {
+        resetCurrentRepUiPrefs();
       }
       setStatus(copy.success, false);
 
