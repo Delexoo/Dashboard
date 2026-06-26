@@ -1,6 +1,18 @@
 (function () {
+  (function injectSiteLoading() {
+    if (document.getElementById("site-loading-boot")) return;
+    if (document.documentElement?.dataset?.loginRedirect === "entry") return;
+    const s = document.createElement("script");
+    s.id = "site-loading-boot";
+    s.src = "js/site-loading.js";
+    s.async = true;
+    (document.head || document.documentElement).appendChild(s);
+  })();
+
   const STORAGE_KEY = "lpc_site_unlock";
   const LOCKOUT_KEY = "lpc_lockout_v1";
+  const USERS_URL = "users.txt";
+  const REPS_URL = "data/reps.json";
   const MAX_FAILED = 5;
   const LOCKOUT_MS = 30 * 60 * 1000;
   const PIN_AUTO_SUBMIT_LEN = 4;
@@ -11,11 +23,13 @@
   let loadFailed = false;
   let lockoutTimer = null;
   let lockBuilt = false;
-  let supabaseClient = null;
   let pinVerifying = false;
 
   function isPublicPage() {
-    return document.body?.dataset?.public === "1";
+    return (
+      document.body?.dataset?.public === "1" ||
+      document.body?.dataset?.legalPage === "1"
+    );
   }
 
   function isAuthenticated() {
@@ -39,34 +53,53 @@
     document.body?.classList.add("site-unlocked");
   }
 
+  // Avoid a visible "flash" on refresh: only enter locked UI if truly locked.
+  // (RepSession is loaded before lock.js on all app pages.)
   if (!isPublicPage()) {
     if (isAuthenticated()) applyUnlockedUi();
     else applyLockedUi();
   }
 
   function useServerPinAuth() {
-    const c = window.SITE_CONFIG || {};
-    return !!(
-      String(c.supabaseUrl || "").trim() &&
-      String(c.supabaseAnonKey || "").trim() &&
-      window.supabase?.createClient
-    );
+    return !!global.SiteSupabase?.canUse?.();
   }
 
   function getSupabaseClient() {
-    if (supabaseClient) return supabaseClient;
-    const c = window.SITE_CONFIG || {};
-    supabaseClient = window.supabase.createClient(
-      String(c.supabaseUrl).trim(),
-      String(c.supabaseAnonKey).trim()
-    );
-    return supabaseClient;
+    return window.SiteSupabase?.getClient?.() || null;
   }
 
-  function loadRepsFromConfig() {
-    const list = window.SITE_CONFIG?.reps;
-    return Array.isArray(list)
-      ? list
+  async function verifyPinWithSupabase(entered) {
+    const client = getSupabaseClient();
+    if (!client) throw new Error("Supabase client unavailable");
+    const { data, error } = await client.rpc("verify_rep_pin", {
+      entered_pin: String(entered || "").trim(),
+    });
+    if (error) throw error;
+    if (!data || typeof data !== "object" || !data.id) return null;
+    return { id: String(data.id), name: String(data.name || "").trim() };
+  }
+
+  function parseUsersFile(text) {
+    const list = [];
+    String(text || "")
+      .replace(/^\uFEFF/, "")
+      .split(/\r?\n/)
+      .forEach((line) => {
+        const trimmed = line.trim();
+        if (!trimmed || trimmed.startsWith("#")) return;
+        const parts = trimmed.split(",").map((s) => s.trim());
+        if (parts.length < 3) return;
+        const id = parts[0];
+        const name = parts[1];
+        const pin = parts[2];
+        if (id && name && pin) list.push({ id, name, pin });
+      });
+    return list;
+  }
+
+  function normalizeReps(data) {
+    return Array.isArray(data)
+      ? data
           .map((r) => ({
             id: String(r.id || "").trim(),
             name: String(r.name || "").trim(),
@@ -74,16 +107,6 @@
           }))
           .filter((r) => r.id && r.name && r.pin)
       : [];
-  }
-
-  async function verifyPinWithSupabase(entered) {
-    const client = getSupabaseClient();
-    const { data, error } = await client.rpc("verify_rep_pin", {
-      entered_pin: String(entered || "").trim(),
-    });
-    if (error) throw error;
-    if (!data || typeof data !== "object" || !data.id) return null;
-    return { id: String(data.id), name: String(data.name || "").trim() };
   }
 
   function loadLockout() {
@@ -158,7 +181,7 @@
     if (!pin || !reps?.length) return null;
     const matches = reps.filter((r) => String(r.pin).trim() === pin);
     if (matches.length > 1) {
-      console.warn("Duplicate PIN in rep list — first match wins:", matches.map((r) => r.id));
+      console.warn("Duplicate PIN in users.txt · first match wins:", matches.map((r) => r.id));
     }
     if (matches.length) return { id: matches[0].id, name: matches[0].name };
     return null;
@@ -216,24 +239,14 @@
     }, 1000);
   }
 
-  function initRepAuth() {
-    if (useServerPinAuth()) {
-      reps = [];
-      loadFailed = false;
-      return;
-    }
-    reps = loadRepsFromConfig();
-    if (!reps.length) {
-      loadFailed = true;
-    }
-  }
-
   function ensureLockOverlay() {
     let root = document.getElementById("site-lock");
     if (root) {
       root.classList.remove("site-lock-out");
       root.hidden = false;
       root.style.display = "";
+      root.style.background = "#ffffff";
+      root.style.colorScheme = "light";
       return root;
     }
     if (lockBuilt) return null;
@@ -244,6 +257,8 @@
     root.setAttribute("role", "dialog");
     root.setAttribute("aria-modal", "true");
     root.setAttribute("aria-label", "Enter PIN");
+    root.style.background = "#ffffff";
+    root.style.colorScheme = "light";
     const c = window.SITE_CONFIG || {};
     const logoUrl = String(c.brandLogoUrl || c.telegramTeamAvatar || "").trim();
     const logoName = String(c.companyName || "Sales Team Dashboard").trim();
@@ -266,6 +281,8 @@
       '<a href="privacy.html" class="site-lock-legal-link">Privacy Policy</a>' +
       '<span class="site-lock-legal-sep" aria-hidden="true">·</span>' +
       '<a href="terms.html" class="site-lock-legal-link">Terms of Service</a>' +
+      '<span class="site-lock-legal-sep" aria-hidden="true">·</span>' +
+      '<a href="help.html" class="site-lock-legal-link">Help</a>' +
       "</div>";
 
     document.body.appendChild(root);
@@ -296,14 +313,37 @@
       startLockoutCountdown(inner, input, form);
     }
 
-    initRepAuth();
-    if (loadFailed && !isLockedOut()) {
-      showError(
-        inner,
-        useServerPinAuth()
-          ? "Sign-in database is not ready. Ask your manager to run supabase-rep-pins.sql."
-          : "Sign-in is not configured. For local testing, copy private-config.example.js to private-config.js."
-      );
+    if (useServerPinAuth()) {
+      reps = [];
+      loadFailed = false;
+    } else {
+      fetch(USERS_URL, { cache: "no-store" })
+        .then((r) => (r.ok ? r.text() : Promise.reject()))
+        .then((text) => {
+          reps = parseUsersFile(text);
+        })
+        .catch(() => {
+          reps = [];
+        })
+        .then(() => {
+          if (reps?.length) return;
+          return fetch(REPS_URL, { cache: "no-store" })
+            .then((r) => (r.ok ? r.json() : Promise.reject()))
+            .then((data) => {
+              reps = normalizeReps(data?.reps);
+            })
+            .catch(() => {
+              reps = [];
+            });
+        })
+        .then(() => {
+          if (!reps?.length) {
+            loadFailed = true;
+            if (!isLockedOut()) {
+              showError(inner, "No reps configured · edit users.txt");
+            }
+          }
+        });
     }
 
     return root;
@@ -348,24 +388,8 @@
       window.RepSession.set(rep);
     }
     sessionStorage.setItem(STORAGE_KEY, "1");
-
-    if (window.RepStorage?.init) {
-      try {
-        await window.RepStorage.init();
-      } catch (e) {
-        console.warn("Rep settings init failed", e);
-      }
-    }
     window.RepSession?.enforceTrackerIdentity?.();
     window.RepSession?.touchSessionMeta?.();
-    window.RepSession?.startOnlineHeartbeat?.();
-    if (window.RepStorage?.flushSync) {
-      try {
-        await window.RepStorage.flushSync();
-      } catch (e) {
-        console.warn("Rep settings sync on login failed", e);
-      }
-    }
 
     applyUnlockedUi();
 
@@ -381,15 +405,31 @@
       lockoutTimer = null;
     }
 
+    window.dispatchEvent(new Event("site-unlocked"));
+
     if (window.RepIdentity?.refreshUI) {
-      try {
-        await window.RepIdentity.refreshUI();
-      } catch (e) {
+      void window.RepIdentity.refreshUI().catch((e) => {
         console.warn("Rep identity refresh failed", e);
-      }
+      });
     }
 
-    window.dispatchEvent(new Event("site-unlocked"));
+    void (async () => {
+      if (window.RepStorage?.init) {
+        try {
+          await window.RepStorage.init();
+        } catch (e) {
+          console.warn("Rep settings init failed", e);
+        }
+      }
+      window.RepSession?.startOnlineHeartbeat?.();
+      if (window.RepStorage?.flushSync) {
+        try {
+          await window.RepStorage.flushSync();
+        } catch (e) {
+          console.warn("Rep settings sync on login failed", e);
+        }
+      }
+    })();
   }
 
   async function tryUnlock(input, wrap, form) {
@@ -404,11 +444,12 @@
       showError(wrap, "Enter your PIN");
       return;
     }
-    if (!useServerPinAuth() && loadFailed) {
-      showError(
-        wrap,
-        "Sign-in is not configured. Supabase URL/key missing in js/config.js."
-      );
+    if (!useServerPinAuth() && reps === null && !loadFailed) {
+      showError(wrap, "Loading…");
+      return;
+    }
+    if (!useServerPinAuth() && loadFailed && !reps?.length) {
+      showError(wrap, "Could not load reps. Use a local server.");
       return;
     }
 
@@ -465,8 +506,6 @@
   function onLockReady() {
     if (isPublicPage()) return;
 
-    initRepAuth();
-
     const repId =
       window.RepSession?.getId?.() || window.RepSession?.get?.()?.id;
     if (repId) {
@@ -485,7 +524,10 @@
     applyUnlockedUi();
     window.RepSession.applyToTracker(true);
     startSessionWatch();
-    resumeAuthenticatedSession();
+    void resumeAuthenticatedSession();
+    if (!window.appLaunchStarted && document.getElementById("shell")) {
+      window.dispatchEvent(new Event("site-unlocked"));
+    }
   }
 
   async function resumeAuthenticatedSession() {

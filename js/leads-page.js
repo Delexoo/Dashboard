@@ -3,27 +3,21 @@
   let meta = {};
   let statusMap = {};
   let visible = [];
-  /** @type {'default' | 'complete' | 'pending' | 'not-interested' | 'removed' | 'saved' | 'pinned'} */
+  /** @type {'default' | 'complete' | 'not-interested' | 'removed' | 'saved'} */
   let listView = "default";
 
   const WORKFLOW_VIEWS = [
     { value: "default", label: "Active" },
     { value: "saved", label: "Quick Save" },
-    { value: "pinned", label: "Pinned" },
     { value: "complete", label: "Completed" },
     { value: "not-interested", label: "Not interested" },
-    { value: "pending", label: "Pending" },
     { value: "removed", label: "Removed" },
   ];
   const INITIAL_RENDER_LIMIT = 24;
   const RENDER_INCREMENT = 24;
   const PREFS_KEY = "lpc_lead_finder_prefs_v1";
   const SAVED_KEY = "lpc_lead_saved_v1";
-  const PINNED_KEY = "lpc_lead_pinned_v1";
   let savedIds = new Set();
-  /** @type {string[]} Most recently pinned first */
-  let pinnedOrder = [];
-  let pinnedIds = new Set();
   const DEFAULT_PREFS = {
     websiteFilter: "noweb",
     listView: "default",
@@ -94,9 +88,11 @@
         websiteFilter: WEBSITE_FILTERS.includes(p.websiteFilter)
           ? p.websiteFilter
           : DEFAULT_PREFS.websiteFilter,
-        listView: WORKFLOW_VIEWS.some((w) => w.value === p.listView)
-          ? p.listView
-          : DEFAULT_PREFS.listView,
+        listView: (() => {
+          const v = p.listView;
+          if (v === "pending") return DEFAULT_PREFS.listView;
+          return WORKFLOW_VIEWS.some((w) => w.value === v) ? v : DEFAULT_PREFS.listView;
+        })(),
         priorityCategories: Array.isArray(p.priorityCategories)
           ? p.priorityCategories.map((c) => String(c || "").trim()).filter(Boolean)
           : DEFAULT_PREFS.priorityCategories,
@@ -133,7 +129,7 @@
         b.classList.toggle("active", on);
         b.setAttribute("aria-pressed", on ? "true" : "false");
       });
-    document.querySelectorAll(".lf-reviews-toggle .lf-toggle-btn").forEach((b) => {
+    document.querySelectorAll("#lf-reviews-filter .lf-toggle-btn").forEach((b) => {
       const on = b.dataset.reviewsFilter === prefs.reviewsFilter;
       b.classList.toggle("active", on);
       b.setAttribute("aria-pressed", on ? "true" : "false");
@@ -168,7 +164,7 @@
 
   function getReviewsFilter() {
     const active = document.querySelector(
-      ".lf-reviews-toggle .lf-toggle-btn.active"
+      "#lf-reviews-filter .lf-toggle-btn.active"
     );
     const v = active?.dataset.reviewsFilter || reviewsFilter || "all";
     return REVIEWS_FILTERS.includes(v) ? v : "all";
@@ -176,7 +172,7 @@
 
   function setReviewsFilterUi(value) {
     reviewsFilter = REVIEWS_FILTERS.includes(value) ? value : "all";
-    document.querySelectorAll(".lf-reviews-toggle .lf-toggle-btn").forEach((b) => {
+    document.querySelectorAll("#lf-reviews-filter .lf-toggle-btn").forEach((b) => {
       const on = b.dataset.reviewsFilter === reviewsFilter;
       b.classList.toggle("active", on);
       b.setAttribute("aria-pressed", on ? "true" : "false");
@@ -192,17 +188,28 @@
     applyFilters();
   }
 
-  function scrollToLeadGrid() {
-    const grid = $("lf-grid");
-    if (!grid) return;
-    requestAnimationFrame(() => {
-      grid.scrollIntoView({ behavior: "smooth", block: "start" });
-    });
+  function buildFilteredLeads(includeCategoryFilter) {
+    const f = getFilters();
+    const browsable = getBrowsableLeads(f.websiteFilter);
+    let leads;
+    if (listView === "complete") {
+      leads = browsable.filter((lead) => matchesReviewsFilter(lead, f.reviewsFilter));
+    } else if (listView === "not-interested") {
+      leads = browsable.filter((lead) => matchesReviewsFilter(lead, f.reviewsFilter));
+    } else {
+      leads = allLeads.filter((lead) =>
+        matchesLeadListFilters(lead, f.websiteFilter, f.reviewsFilter)
+      );
+    }
+    if (includeCategoryFilter) leads = sortLeadsDisplayOrder(leads);
+    const valid = leads.filter(isLeadFormatValid);
+    const invalid = leads.filter((lead) => !isLeadFormatValid(lead));
+    return [...valid, ...invalid];
   }
 
   function collectCategoryCounts(leads) {
     const counts = new Map();
-    leads.forEach((lead) => {
+    leads.filter(isLeadFormatValid).forEach((lead) => {
       const cat = getBasicCategory(lead);
       counts.set(cat, (counts.get(cat) || 0) + 1);
     });
@@ -215,13 +222,13 @@
     });
   }
 
-  function renderCategoryFilters(browsableLeads) {
+  function renderCategoryFilters(filteredLeads) {
     const extra = $("lf-toolbar-extra");
     const wrap = $("lf-category-chips");
     const available = $("lf-category-available");
     if (!extra || !wrap) return;
 
-    const pairs = collectCategoryCounts(browsableLeads);
+    const pairs = collectCategoryCounts(filteredLeads);
     const totalAvailable = pairs.reduce((sum, [, count]) => sum + count, 0);
     const enabledAvailable = pairs.reduce((sum, [cat, count]) => {
       return priorityCategories.has(cat) ? sum + count : sum;
@@ -354,100 +361,12 @@
     else localStorage.setItem(repScopedKey(key), json);
   }
 
-  function loadPinnedOrder() {
-    try {
-      const raw = global.RepStorage?.loadItem
-        ? global.RepStorage.loadItem(PINNED_KEY)
-        : localStorage.getItem(repScopedKey(PINNED_KEY));
-      const parsed = JSON.parse(raw || "null");
-      if (Array.isArray(parsed)) {
-        return parsed.map(normalizeLeadId).filter(Boolean);
-      }
-      if (parsed && typeof parsed === "object") {
-        return Object.keys(parsed)
-          .filter((id) => parsed[id])
-          .map(normalizeLeadId)
-          .filter(Boolean);
-      }
-      return [];
-    } catch (e) {
-      return [];
-    }
-  }
-
-  function savePinnedOrder() {
-    const json = JSON.stringify(pinnedOrder);
-    if (global.RepStorage?.saveItem) global.RepStorage.saveItem(PINNED_KEY, json);
-    else localStorage.setItem(repScopedKey(PINNED_KEY), json);
-  }
-
-  function syncPinnedLookup() {
-    pinnedIds = new Set(pinnedOrder.map(normalizeLeadId));
-  }
-
-  function pinLeadToTop(leadId) {
-    const id = normalizeLeadId(leadId);
-    if (!id) return;
-    pinnedOrder = pinnedOrder.filter((x) => normalizeLeadId(x) !== id);
-    pinnedOrder.unshift(id);
-    syncPinnedLookup();
-    savePinnedOrder();
-  }
-
-  function unpinLead(leadId) {
-    const id = normalizeLeadId(leadId);
-    if (!id) return;
-    pinnedOrder = pinnedOrder.filter((x) => x !== id);
-    syncPinnedLookup();
-    savePinnedOrder();
-  }
-
   function reloadPersonalMarks() {
     savedIds = loadIdSet(SAVED_KEY);
-    pinnedOrder = loadPinnedOrder();
-    try {
-      const pendingPin = sessionStorage.getItem("lpc_build_lead_pin_v1");
-      if (pendingPin) {
-        const pid = normalizeLeadId(pendingPin);
-        if (pid) pinLeadToTop(pid);
-        sessionStorage.removeItem("lpc_build_lead_pin_v1");
-      }
-    } catch (e) {
-      /* ignore */
-    }
-    syncPinnedLookup();
-  }
-
-  function syncPinUiForLeadId(leadId) {
-    const id = normalizeLeadId(leadId);
-    if (!id) return;
-    document.querySelectorAll('[data-lead-pin="' + CSS.escape(id) + '"]').forEach((btn) => {
-      syncPinButtonUi(btn, isPinnedLeadId(id));
-    });
   }
 
   function isSaved(lead) {
     return savedIds.has(normalizeLeadId(lead.id));
-  }
-
-  function isPinnedLeadId(leadId) {
-    const id = normalizeLeadId(leadId);
-    if (!id) return false;
-    return pinnedOrder.some((p) => normalizeLeadId(p) === id);
-  }
-
-  function isPinned(lead) {
-    return isPinnedLeadId(lead?.id);
-  }
-
-  function syncPinButtonUi(btn, pinned) {
-    if (!btn) return;
-    btn.classList.toggle("is-on", pinned);
-    btn.setAttribute("aria-pressed", pinned ? "true" : "false");
-    btn.setAttribute("aria-label", pinned ? "Unpin lead" : "Pin lead");
-    btn.title = pinned ? "Unpin" : "Pin";
-    const card = btn.closest(".lead-card");
-    if (card) card.classList.toggle("lead-card--pinned", pinned);
   }
 
   function syncSaveButtonUi(btn, saved) {
@@ -477,57 +396,31 @@
     setListView("default", { save: true, filter: false });
   }
 
-  function togglePinned(leadId) {
-    const id = normalizeLeadId(leadId);
-    if (!id) return false;
-    const wasPinned = isPinnedLeadId(id);
-    if (wasPinned) {
-      unpinLead(id);
-    } else {
-      pinLeadToTop(id);
-      switchToActiveView();
-    }
-    allLeads = sortLeadsPinnedFirst(allLeads);
-    return !wasPinned;
-  }
-
-  async function pinLeadForBuilder(leadId) {
-    const id = normalizeLeadId(leadId);
-    if (!id) return;
-    pinLeadToTop(id);
-    allLeads = sortLeadsPinnedFirst(allLeads);
-    syncPinUiForLeadId(id);
-    try {
-      sessionStorage.setItem("lpc_build_lead_pin_v1", id);
-    } catch (e) {
-      /* ignore */
-    }
-    if (global.RepStorage?.flushSync) {
-      try {
-        await global.RepStorage.flushSync();
-      } catch (e) {
-        console.warn("Could not sync pin to cloud", e);
-      }
-    }
-  }
-
   async function handleBuildLeadClick(leadId) {
     const id = normalizeLeadId(leadId);
     const lead = allLeads.find((l) => normalizeLeadId(l.id) === id);
     if (!id || !lead || !canEditLeadStatus(lead)) return;
-
-    try {
-      await pinLeadForBuilder(id);
-      await applyLeadWorkflow(id, "pending", { restoreView: false });
-      setListView("pending", { save: true });
-      if (typeof global.forwardLeadToBuilder === "function") {
-        global.forwardLeadToBuilder(lead);
-      }
-      invalidateGridRender();
-      applyFilters();
-    } catch (err) {
-      console.warn("Build Lead: pin/pending sync failed", err);
+    if (typeof global.forwardLeadToBuilder === "function") {
+      const ok = await global.forwardLeadToBuilder(lead);
+      if (!ok) return;
     }
+  }
+
+  function telHref(phone) {
+    const digits = String(phone || "").replace(/\D/g, "");
+    if (digits.length === 10) return "tel:+1" + digits;
+    if (digits.length === 11 && digits[0] === "1") return "tel:+" + digits;
+    return digits.length >= 7 ? "tel:+" + digits : "";
+  }
+
+  function leadById(leadId) {
+    const id = normalizeLeadId(leadId);
+    if (!id) return null;
+    const found = allLeads.find((l) => normalizeLeadId(l.id) === id);
+    if (found) return found;
+    const entry = statusEntry(id);
+    if (!entry) return null;
+    return leadFromStatusEntry(id, entry, "Pending");
   }
 
   function getLeadWorkflow(lead) {
@@ -588,7 +481,6 @@
   function renderLeadMenuPanel(lead, workflow) {
     const id = escapeHtml(lead.id);
     const saved = isSaved(lead);
-    const pinned = isPinned(lead);
     const completeByMe = workflow === "complete" && isCompletedByMe(lead);
     const pendingByMe = workflow === "pending" && isPendingByMe(lead);
     const notInterestedByMe = workflow === "not-interested" && isNotInterestedByMe(lead);
@@ -606,13 +498,6 @@
       id +
       '">' +
       (saved ? "Unlike" : "Like") +
-      "</button>" +
-      '<button type="button" class="lf-menu-item' +
-      (pinned ? " is-active" : "") +
-      '" role="menuitem" data-lf-workflow="pin" data-lead-id="' +
-      id +
-      '">' +
-      (pinned ? "Unpin" : "Pin") +
       "</button>" +
       '<button type="button" class="lf-menu-item' +
       (completeByMe ? " is-active" : "") +
@@ -646,11 +531,11 @@
     );
   }
 
-  /** Clicking an active status again clears it (same idea as Pin / Like). */
+  /** Clicking an active status again clears it (same idea as Like). */
   function resolveMenuWorkflowAction(leadId, action) {
     const act = String(action || "").trim();
     if (act === "restore") return "active";
-    if (act === "save" || act === "pin") return act;
+    if (act === "save") return act;
     const lead = allLeads.find((l) => normalizeLeadId(l.id) === normalizeLeadId(leadId));
     if (!lead) return act;
     const w = getLeadWorkflow(lead);
@@ -686,7 +571,38 @@
     return isOwnerMatch(s?.calledById, s?.calledBy);
   }
 
-  /** Pending by a teammate — hidden from this rep's callable lists. */
+  function buildingOwnerName(lead) {
+    const s = statusEntry(lead.id);
+    return String(s?.buildingBy || s?.calledBy || "").trim();
+  }
+
+  function isBuildingByMe(lead) {
+    if (getLeadWorkflow(lead) !== "building") return false;
+    const s = statusEntry(lead.id);
+    return isOwnerMatch(s?.buildingById || s?.calledById, buildingOwnerName(lead));
+  }
+
+  /** Building in Lead Builder by a teammate · hidden from this rep's Active list. */
+  function isBuildingByOther(lead) {
+    if (getLeadWorkflow(lead) !== "building") return false;
+    return !isBuildingByMe(lead);
+  }
+
+  function isMyBuildingById(leadId) {
+    const s = statusEntry(leadId);
+    if (!s || s.workflow !== "building") return false;
+    return isOwnerMatch(s.buildingById || s.calledById, s.buildingBy || s.calledBy);
+  }
+
+  function isLockedByOther(lead) {
+    return isPendingByOther(lead) || isBuildingByOther(lead);
+  }
+
+  function isWorkingByMe(lead) {
+    return isPendingByMe(lead) || isBuildingByMe(lead);
+  }
+
+  /** Pending by a teammate · hidden from this rep's callable lists. */
   function isPendingByOther(lead) {
     if (getLeadWorkflow(lead) !== "pending") return false;
     return !isPendingByMe(lead);
@@ -703,8 +619,16 @@
     return "";
   }
 
+  function isLeadFormatValid(lead) {
+    if (global.LeadCsvFormat?.isValidLead) {
+      return global.LeadCsvFormat.isValidLead(lead);
+    }
+    return lead?.formatValid !== false;
+  }
+
   /** Only the rep who set Pending / Complete / Not interested can change that status. */
   function canEditLeadStatus(lead) {
+    if (!isLeadFormatValid(lead)) return false;
     const w = getLeadWorkflow(lead);
     if (!w) return true;
     if (w === "removed") return true;
@@ -712,17 +636,24 @@
     if (w === "pending") {
       return isOwnerMatch(s?.pendingById || s?.calledById, pendingOwnerName(lead));
     }
+    if (w === "building") {
+      return isOwnerMatch(s?.buildingById || s?.calledById, buildingOwnerName(lead));
+    }
     return isOwnerMatch(s?.calledById, s?.calledBy);
   }
 
   function canEditLeadStatusById(leadId) {
     const lead = allLeads.find((l) => String(l.id) === String(leadId));
+    if (lead && !isLeadFormatValid(lead)) return false;
     if (lead) return canEditLeadStatus(lead);
     const s = statusEntry(leadId);
     const w = s?.workflow || (s?.called ? "complete" : "");
     if (!w || w === "removed") return true;
     if (w === "pending") {
       return isOwnerMatch(s?.pendingById || s?.calledById, s?.pendingBy || s?.calledBy);
+    }
+    if (w === "building") {
+      return isOwnerMatch(s?.buildingById || s?.calledById, s?.buildingBy || s?.calledBy);
     }
     return isOwnerMatch(s?.calledById, s?.calledBy);
   }
@@ -814,17 +745,18 @@
       });
     }
 
-    return sortLeadsPinnedFirst(
-      out.slice().sort((a, b) => {
+    return out
+      .slice()
+      .sort((a, b) => {
         const atA = String(statusEntry(a.id)?.pendingAt || statusEntry(a.id)?.calledAt || "");
         const atB = String(statusEntry(b.id)?.pendingAt || statusEntry(b.id)?.calledAt || "");
         if (atA !== atB) return atB.localeCompare(atA);
         return String(a.name || "").localeCompare(String(b.name || ""));
       })
-    );
+      .filter((lead) => isPendingByMe(lead));
   }
 
-  /** Team-wide — every rep sees businesses marked not interested. */
+  /** Team-wide · every rep sees businesses marked not interested. */
   function getNotInterestedLeadsPool() {
     const byId = new Map(allLeads.map((l) => [String(l.id), l]));
     const out = [];
@@ -899,46 +831,37 @@
   }
 
   function matchesWorkflowView(lead) {
-    if (isPendingByOther(lead) && listView !== "complete" && listView !== "not-interested") {
+    if (isWorkingByMe(lead) && (listView === "default" || listView === "saved")) {
+      return false;
+    }
+    if (isLockedByOther(lead) && listView !== "complete" && listView !== "not-interested") {
       return false;
     }
     if (listView === "saved") {
-      return isSaved(lead) && !isPendingByOther(lead) && getLeadWorkflow(lead) !== "not-interested";
-    }
-    if (listView === "pinned") {
-      return (
-        isPinned(lead) &&
-        !isPendingByMe(lead) &&
-        !isPendingByOther(lead) &&
-        getLeadWorkflow(lead) !== "not-interested"
-      );
+      return isSaved(lead) && !isLockedByOther(lead) && getLeadWorkflow(lead) !== "not-interested";
     }
     const workflow = getLeadWorkflow(lead);
     if (listView === "default") {
       return isActiveLead(lead);
     }
     if (listView === "removed") return workflow === "removed";
-    if (listView === "pending") return isPendingByMe(lead);
     return workflow === listView;
   }
 
   function countWorkflowView(view) {
-    if (view === "complete") return getCompleteLeadsPool().length;
-    if (view === "not-interested") return getNotInterestedLeadsPool().length;
-    if (view === "pending") return getMyPendingLeadsPool().length;
-    const f = getWebsiteFilter();
+    const f = getFilters();
+    if (view === "complete") {
+      return getCompleteLeadsPool().filter((lead) => matchesReviewsFilter(lead, f.reviewsFilter)).length;
+    }
+    if (view === "not-interested") {
+      return getNotInterestedLeadsPool().filter((lead) => matchesReviewsFilter(lead, f.reviewsFilter)).length;
+    }
     return allLeads.filter((lead) => {
-      if (!matchesWebsiteFilter(lead, f)) return false;
+      if (!matchesWebsiteFilter(lead, f.websiteFilter)) return false;
+      if (!matchesReviewsFilter(lead, f.reviewsFilter)) return false;
+      if (isWorkingByMe(lead) && (view === "default" || view === "saved")) return false;
       if (view === "saved") {
-        return isSaved(lead) && !isPendingByOther(lead) && getLeadWorkflow(lead) !== "not-interested";
-      }
-      if (view === "pinned") {
-        return (
-          isPinned(lead) &&
-          !isPendingByMe(lead) &&
-          !isPendingByOther(lead) &&
-          getLeadWorkflow(lead) !== "not-interested"
-        );
+        return isSaved(lead) && !isLockedByOther(lead) && getLeadWorkflow(lead) !== "not-interested";
       }
       if (view === "default") return isActiveLead(lead);
       if (view === "removed") return getLeadWorkflow(lead) === "removed";
@@ -962,11 +885,7 @@
   }
 
   function personalMarksSig() {
-    return (
-      Array.from(savedIds).sort().join(",") +
-      "|" +
-      pinnedOrder.join(",")
-    );
+    return Array.from(savedIds).sort().join(",");
   }
 
   function escapeHtml(s) {
@@ -991,28 +910,17 @@
 
   function matchesLeadListFilters(lead, websiteFilter, reviews) {
     if (!matchesWorkflowView(lead)) return false;
-    if (
-      isPinned(lead) &&
-      (listView === "default" || listView === "saved" || listView === "pinned")
-    ) {
-      return matchesReviewsFilter(lead, reviews);
-    }
     if (!matchesWebsiteFilter(lead, websiteFilter)) return false;
     return matchesReviewsFilter(lead, reviews);
   }
 
   function shuffleLeads(leads) {
-    const byId = new Map(leads.map((l) => [normalizeLeadId(l.id), l]));
-    const pinned = [];
-    pinnedOrder.forEach((id) => {
-      if (byId.has(id)) pinned.push(byId.get(id));
-    });
-    const rest = leads.filter((lead) => !pinnedIds.has(normalizeLeadId(lead.id)));
+    const rest = leads.slice();
     for (let i = rest.length - 1; i > 0; i--) {
       const j = Math.floor(Math.random() * (i + 1));
       [rest[i], rest[j]] = [rest[j], rest[i]];
     }
-    return pinned.concat(rest);
+    return rest;
   }
 
   function getWebsiteFilter() {
@@ -1031,25 +939,20 @@
 
   function getBrowsableLeads(websiteFilter) {
     if (listView === "complete") return getCompleteLeadsPool();
-    if (listView === "pending") return getMyPendingLeadsPool();
     if (listView === "not-interested") return getNotInterestedLeadsPool();
+    const hasPhone = global.LeadDisplay?.hasCallablePhone || global.LeadsLoader?.hasCallablePhone;
     return allLeads.filter((lead) => {
       if (!matchesWorkflowView(lead)) return false;
-      if (
-        isPinned(lead) &&
-        (listView === "default" || listView === "saved" || listView === "pinned")
-      ) {
-        return true;
-      }
-      return matchesWebsiteFilter(lead, websiteFilter);
+      if (!matchesWebsiteFilter(lead, websiteFilter)) return false;
+      if (hasPhone && !hasPhone(lead)) return false;
+      return true;
     });
   }
 
   function sortLeadsDisplayOrder(leads) {
-    let ordered = sortLeadsPinnedFirst(leads);
-    if (!priorityCategories.size) return ordered;
+    if (!priorityCategories.size) return leads;
 
-    return ordered.filter((lead) => priorityCategories.has(getBasicCategory(lead)));
+    return leads.filter((lead) => priorityCategories.has(getBasicCategory(lead)));
   }
 
   function matchesWebsiteFilter(lead, websiteFilter) {
@@ -1062,24 +965,6 @@
     return getCompleteLeadsPool().filter((lead) => isCompletedByMe(lead)).length;
   }
 
-  function sortLeadsPinnedFirst(leads) {
-    if (!pinnedOrder.length) return leads;
-    const byId = new Map(leads.map((l) => [normalizeLeadId(l.id), l]));
-    const ordered = [];
-    const placed = new Set();
-    pinnedOrder.forEach((id) => {
-      if (byId.has(id) && !placed.has(id)) {
-        ordered.push(byId.get(id));
-        placed.add(id);
-      }
-    });
-    leads.forEach((lead) => {
-      const id = normalizeLeadId(lead.id);
-      if (!placed.has(id)) ordered.push(lead);
-    });
-    return ordered;
-  }
-
   function applyFilters() {
     const viewFilterSig = listView + "|" + filtersSig();
     if (viewFilterSig !== lastViewFilterSig) {
@@ -1087,26 +972,12 @@
       lastViewFilterSig = viewFilterSig;
     }
 
-    const f = getFilters();
-    const browsable = getBrowsableLeads(f.websiteFilter);
-
-    if (listView === "complete") {
-      visible = browsable.filter((lead) => matchesReviewsFilter(lead, f.reviewsFilter));
-    } else if (listView === "pending") {
-      visible = browsable.filter((lead) => matchesReviewsFilter(lead, f.reviewsFilter));
-    } else if (listView === "not-interested") {
-      visible = browsable.filter((lead) => matchesReviewsFilter(lead, f.reviewsFilter));
-    } else {
-      visible = allLeads.filter((lead) =>
-        matchesLeadListFilters(lead, f.websiteFilter, f.reviewsFilter)
-      );
-    }
-
-    visible = sortLeadsDisplayOrder(visible);
+    const filterBase = buildFilteredLeads(false);
+    visible = buildFilteredLeads(true);
 
     const grid = $("lf-grid");
     if (grid) delete grid.dataset.renderSig;
-    renderCategoryFilters(browsable);
+    renderCategoryFilters(filterBase);
     updateViewUi();
     renderGrid();
     updateStats();
@@ -1119,7 +990,12 @@
     WORKFLOW_VIEWS.forEach(({ value, label }) => {
       const opt = sel.querySelector('option[value="' + value + '"]');
       if (!opt) return;
-      const n = leadsPageReady ? countWorkflowView(value) : 0;
+      const n =
+        leadsPageReady && value === listView
+          ? visible.length
+          : leadsPageReady
+            ? countWorkflowView(value)
+            : 0;
       opt.textContent = n > 0 ? label + " (" + n + ")" : label;
     });
     syncWorkflowSelectFromListView();
@@ -1133,12 +1009,30 @@
     });
   }
 
+  function getAvailableCount() {
+    if (!leadsPageReady) return null;
+    return allLeads.filter(isLeadFormatValid).length;
+  }
+
+  function publishNavCount() {
+    const count = getAvailableCount();
+    if (count == null) return;
+    try {
+      sessionStorage.setItem(
+        "lpc_lead_finder_nav_count_v1",
+        JSON.stringify({ count, at: Date.now() })
+      );
+    } catch (_) {}
+    window.dispatchEvent(new CustomEvent("lead-finder-count-changed", { detail: { count } }));
+  }
+
   function updateStats() {
     if (!leadsPageReady) return;
     if ($("lf-stat-total")) {
-      $("lf-stat-total").textContent = String(countWorkflowView("default"));
+      $("lf-stat-total").textContent = String(visible.length);
     }
     if ($("lf-stat-done")) $("lf-stat-done").textContent = String(countCompleted());
+    publishNavCount();
   }
 
   function valueClass(text) {
@@ -1161,7 +1055,11 @@
     const w = String(lead?.website || "").trim();
     if (!w.startsWith("http://") && !w.startsWith("https://")) return "";
     const low = w.toLowerCase();
-    if (low.includes("google.com/maps") || low.includes("gstatic.com") || low.includes("google.com/aclk")) {
+    if (
+      low.includes("google.com/maps") ||
+      low.includes("google.com/aclk") ||
+      low.includes("gstatic.com")
+    ) {
       return "";
     }
     return w;
@@ -1171,13 +1069,64 @@
     try {
       const u = new URL(url);
       const host = u.hostname.replace(/^www\./i, "");
-      const path = u.pathname && u.pathname !== "/" ? u.pathname : "";
-      const label = host + path;
-      return label.length > 48 ? label.slice(0, 45) + "…" : label;
+      return host.length > 32 ? host.slice(0, 29) + "…" : host;
     } catch (e) {
-      const s = String(url).replace(/^https?:\/\//i, "").trim();
-      return s.length > 48 ? s.slice(0, 45) + "…" : s;
+      const s = String(url).replace(/^https?:\/\//i, "").replace(/^www\./i, "").split("/")[0] || "";
+      return s.length > 32 ? s.slice(0, 29) + "…" : s;
     }
+  }
+
+  function looksLikeReviewQuote(text) {
+    const t = String(text || "").trim();
+    if (t.length < 24) return false;
+    if (/^["“']/.test(t)) return true;
+    return t.split(/\s+/).length >= 6;
+  }
+
+  function renderLeadAvatar(lead, extraClass) {
+    const d = display();
+    const avatarText = d.initials ? d.initials(lead) : "?";
+    const avatarStyle = d.avatarStyle ? d.avatarStyle(lead) : "";
+    const mod = extraClass ? " " + extraClass : "";
+    return (
+      '<div class="lf-avatar' +
+      mod +
+      '" style="' +
+      avatarStyle +
+      '" aria-hidden="true">' +
+      escapeHtml(avatarText) +
+      "</div>"
+    );
+  }
+
+  function renderWebsiteCell(websiteUrl) {
+    if (!websiteUrl) {
+      return '<span class="lf-website-badge lf-website-badge--none">No website</span>';
+    }
+    const label = formatWebsiteLabel(websiteUrl);
+    return (
+      '<a class="lf-website-badge lf-website-badge--yes" href="' +
+      escapeHtml(websiteUrl) +
+      '" target="_blank" rel="noopener noreferrer" title="' +
+      escapeHtml(websiteUrl) +
+      '">' +
+      escapeHtml(label) +
+      "</a>"
+    );
+  }
+
+  function renderInfoRow(label, icon, valueHtml) {
+    return (
+      '<li class="lf-info-item" aria-label="' +
+      escapeHtml(label) +
+      '">' +
+      '<span class="lf-info-icon" aria-hidden="true"><span data-icon="' +
+      icon +
+      '" data-icon-class="lf-info-ico"></span></span>' +
+      '<div class="lf-info-value">' +
+      valueHtml +
+      "</div></li>"
+    );
   }
 
   function formatTimeAgo(iso) {
@@ -1270,12 +1219,54 @@
     );
   }
 
+  function renderFormatErrorCard(lead) {
+    const leadId = normalizeLeadId(lead.id);
+    const bizName = String(lead.name || lead["qBF1Pd"] || "").trim() || "Unknown lead";
+    const formatError = String(lead.formatError || global.LeadCsvFormat?.FORMAT_ERROR || "Format error");
+    const avatarHtml = renderLeadAvatar({ ...lead, name: bizName }, "lf-avatar--error");
+
+    return `
+      <article class="lead-card card lead-card--format-error" data-id="${escapeHtml(leadId)}" aria-disabled="true">
+        <header class="lf-card-top">
+          <div class="lf-card-identity">
+            ${avatarHtml}
+            <div class="lf-card-titles">
+              <h3 class="lead-card-name">${escapeHtml(bizName)}</h3>
+              <p class="lf-card-subline lf-card-subline--error">${escapeHtml(formatError)}</p>
+            </div>
+          </div>
+          <div class="lf-card-top-actions">
+            <span class="lf-status-chip lf-status-chip-format-error">${escapeHtml(formatError)}</span>
+          </div>
+        </header>
+
+        <section class="lf-card-body" aria-label="Lead status">
+          <p class="lf-format-error-copy">This row does not match the Google Maps CSV format. Fix the import or remove the row from the leads table.</p>
+        </section>
+
+        <footer class="lf-card-actions lf-card-actions--two">
+          <span class="lf-action-btn lf-action-maps is-disabled" aria-disabled="true">
+            <span data-icon="map-pin" data-icon-class="lf-action-ico"></span>
+            Maps
+          </span>
+          <span class="lf-action-btn lf-action-builder is-disabled" aria-disabled="true">
+            <span data-icon="hammer" data-icon-class="lf-action-ico"></span>
+            Build Lead
+          </span>
+        </footer>
+      </article>
+    `;
+  }
+
   function renderCard(lead, opts) {
+    if (!isLeadFormatValid(lead)) {
+      return renderFormatErrorCard(lead);
+    }
+
     opts = opts || {};
     const leadId = normalizeLeadId(lead.id);
     const workflow = getLeadWorkflow(lead);
     const saved = isSaved(lead);
-    const pinned = isPinned(lead);
     let cardMod =
       workflow === "complete"
         ? " lead-card--complete"
@@ -1285,7 +1276,6 @@
             ? " lead-card--not-interested"
             : "";
     if (saved) cardMod += " lead-card--saved";
-    if (pinned) cardMod += " lead-card--pinned";
     const d = display();
     const phoneDisplay = d.formatPhone ? d.formatPhone(lead) : lead.phone || "Phone not listed";
     const addr = d.formatAddress ? d.formatAddress(lead) : lead.address || "Address not listed";
@@ -1295,9 +1285,9 @@
     const bizName = d.formatName ? d.formatName(lead) : lead.name || "Business name not listed";
     const bizCat = d.formatCategory ? d.formatCategory(lead) : lead.category || lead.categoryGroup || "Category not listed";
     const { rating, reviews, line, hasData } = formatRatingParts(lead);
-    const avatarText = d.initials ? d.initials(lead) : "?";
-    const avatarStyle = d.avatarStyle ? d.avatarStyle(lead) : "";
-    const mapsUrl = lead.mapsUrl || "#";
+    const avatarHtml = renderLeadAvatar(lead);
+    const reviewQuote = String(lead.reviewQuote || lead["Cw1rxd 2"] || lead["W4Efsd 6"] || "").trim();
+    const showQuote = looksLikeReviewQuote(reviewQuote);
     const websiteUrl = visitWebsiteUrl(lead);
     const phoneRaw = String(lead.phone || "").trim();
     const tel =
@@ -1312,14 +1302,43 @@
 
     const canEditStatus = canEditLeadStatus(lead);
 
-    const reviewsHtml = hasData
-      ? `<span class="lf-reviews-line" title="Google Maps rating">${escapeHtml(line)}</span>`
-      : `<span class="lf-info-text lf-info-text--muted lf-detail-val-missing">No reviews</span>`;
+    const phoneStripHtml = tel
+      ? `<a class="lf-card-phone" href="tel:${escapeHtml(tel)}"><span data-icon="phone" data-icon-class="lf-card-phone-ico" aria-hidden="true"></span><span class="lf-card-phone-text">${escapeHtml(phoneDisplay)}</span></a>`
+      : `<span class="lf-card-phone lf-card-phone--empty"><span data-icon="phone" data-icon-class="lf-card-phone-ico" aria-hidden="true"></span><span class="lf-card-phone-text">${escapeHtml(phoneDisplay)}</span></span>`;
 
-    const websiteLabel = websiteUrl ? formatWebsiteLabel(websiteUrl) : "";
-    const websiteHtml = websiteUrl
-      ? `<a class="lf-info-text lf-info-link lf-website-link" href="${escapeHtml(websiteUrl)}" target="_blank" rel="noopener noreferrer">${escapeHtml(websiteLabel)}</a>`
-      : `<span class="lf-info-text lf-info-text--muted lf-website-none">No Website</span>`;
+    const infoRows = [
+      renderInfoRow("Website", "globe", renderWebsiteCell(websiteUrl)),
+      renderInfoRow(
+        "Address",
+        "map-pin",
+        `<span class="lf-info-text lf-info-text--compact${valueClass(addr)}">${escapeHtml(addr)}</span>`
+      ),
+      renderInfoRow(
+        "Reviews",
+        "star",
+        hasData
+          ? `<span class="lf-info-text lf-info-rating">${escapeHtml(line)}</span>`
+          : `<span class="lf-info-text lf-info-text--muted">No reviews</span>`
+      ),
+    ];
+    if (showHours) {
+      infoRows.push(
+        renderInfoRow(
+          "Hours",
+          "clock",
+          `<span class="lf-info-text lf-info-text--muted${valueClass(hours)}">${escapeHtml(hours)}</span>`
+        )
+      );
+    }
+    if (showQuote) {
+      infoRows.push(
+        renderInfoRow(
+          "Review",
+          "message-square",
+          `<span class="lf-info-text lf-info-text--muted lf-info-quote">${escapeHtml(reviewQuote)}</span>`
+        )
+      );
+    }
 
     const sublineParts = [escapeHtml(bizCat)];
     if (opts.showTeamCompletedBy) {
@@ -1338,8 +1357,8 @@
     return `
       <article class="lead-card card${cardMod}" data-id="${escapeHtml(leadId)}">
         <header class="lf-card-top">
-          <div class="lf-card-identity">
-            <div class="lf-avatar" style="${avatarStyle}" aria-hidden="true">${escapeHtml(avatarText)}</div>
+            <div class="lf-card-identity">
+            ${avatarHtml}
             <div class="lf-card-titles">
               <h3 class="lead-card-name">${escapeHtml(bizName)}</h3>
               <p class="lf-card-subline">${sublineParts.join('<span class="lf-meta-dot" aria-hidden="true">·</span>')}</p>
@@ -1349,9 +1368,6 @@
             <div class="lf-card-marks" aria-label="Your shortcuts">
               <button type="button" class="lf-mark-btn lf-mark-save${saved ? " is-on" : ""}" data-lead-save="${escapeHtml(leadId)}" aria-label="${saved ? "Remove from Quick Save" : "Quick Save"}" aria-pressed="${saved ? "true" : "false"}" title="Quick Save">
                 <span data-icon="heart" data-icon-class="lf-mark-ico"></span>
-              </button>
-              <button type="button" class="lf-mark-btn lf-mark-pin${pinned ? " is-on" : ""}" data-lead-pin="${escapeHtml(leadId)}" aria-label="${pinned ? "Unpin lead" : "Pin lead"}" aria-pressed="${pinned ? "true" : "false"}" title="${pinned ? "Unpin" : "Pin"}">
-                <span data-icon="pin" data-icon-class="lf-mark-ico"></span>
               </button>
             </div>
             ${statusChip}
@@ -1368,45 +1384,18 @@
           </div>
         </header>
 
+        ${phoneStripHtml}
+
         <section class="lf-card-body" aria-label="Contact details">
           <ul class="lf-info-list">
-            <li class="lf-info-item" aria-label="Phone">
-              <span class="lf-info-icon" aria-hidden="true"><span data-icon="phone" data-icon-class="lf-info-ico"></span></span>
-              <div class="lf-info-content lf-info-content--phone">
-                ${
-                  tel
-                    ? `<a class="lf-info-text lf-info-link${valueClass(phoneDisplay)}" href="tel:${escapeHtml(tel)}">${escapeHtml(phoneDisplay)}</a>`
-                    : `<span class="lf-info-text${valueClass(phoneDisplay)}">${escapeHtml(phoneDisplay)}</span>`
-                }
-              </div>
-            </li>
-            <li class="lf-info-item" aria-label="Reviews">
-              <span class="lf-info-icon" aria-hidden="true"><span data-icon="star" data-icon-class="lf-info-ico"></span></span>
-              <div class="lf-info-content">${reviewsHtml}</div>
-            </li>
-            <li class="lf-info-item" aria-label="Website">
-              <span class="lf-info-icon" aria-hidden="true"><span data-icon="globe" data-icon-class="lf-info-ico"></span></span>
-              <div class="lf-info-content">${websiteHtml}</div>
-            </li>
-            <li class="lf-info-item" aria-label="Address">
-              <span class="lf-info-icon" aria-hidden="true"><span data-icon="map-pin" data-icon-class="lf-info-ico"></span></span>
-              <span class="lf-info-text${valueClass(addr)}">${escapeHtml(addr)}</span>
-            </li>
-            ${
-              showHours
-                ? `<li class="lf-info-item" aria-label="Hours">
-              <span class="lf-info-icon" aria-hidden="true"><span data-icon="clock" data-icon-class="lf-info-ico"></span></span>
-              <span class="lf-info-text lf-info-text--muted${valueClass(hours)}">${escapeHtml(hours)}</span>
-            </li>`
-                : ""
-            }
+            ${infoRows.join("")}
           </ul>
         </section>
 
         <footer class="lf-card-actions lf-card-actions--two">
           ${
-            mapsUrl && mapsUrl !== "#"
-              ? `<a class="lf-action-btn lf-action-maps" href="${escapeHtml(mapsUrl)}" target="_blank" rel="noopener noreferrer">
+            lead.mapsUrl && lead.mapsUrl !== "#"
+              ? `<a class="lf-action-btn lf-action-maps" href="${escapeHtml(lead.mapsUrl)}" target="_blank" rel="noopener noreferrer">
             <span data-icon="map-pin" data-icon-class="lf-action-ico"></span>
             Maps
           </a>`
@@ -1421,15 +1410,105 @@
     `;
   }
 
-  function renderCompletePane(title, leads, paneClass, cardOpts) {
-    const renderFn =
-      cardOpts?.renderCard ||
-      ((l) => renderCard(l, cardOpts));
-    const cards = leads.length > 0 ? leads.map((l) => renderFn(l)).join("") : "";
-    const live =
-      window.LeadSync?.isConfigured?.() ?
-        '<span class="lf-complete-live" aria-live="polite">Live</span>'
+  function renderCompactCompletedCard(lead, opts) {
+    opts = opts || {};
+    const entry = statusEntry(lead.id) || {};
+    const whenIso = String(entry.calledAt || entry.pendingAt || "").trim();
+    const when = formatTimeAgo(whenIso);
+    const d = display();
+    const bizName = businessDisplayName(lead);
+    const bizCat = d.formatCategory ? d.formatCategory(lead) : lead.category || lead.categoryGroup || "";
+    const workflow = getLeadWorkflow(lead);
+    const canEdit = canEditLeadStatus(lead);
+    const leadId = normalizeLeadId(lead.id);
+    const tel = telHref(String(lead.phone || "").trim());
+    const mapsUrl = lead.mapsUrl && lead.mapsUrl !== "#" ? String(lead.mapsUrl).trim() : "";
+
+    const menuHtml = canEdit
+      ? '<div class="lf-card-menu-wrap">' +
+        '<button type="button" class="lf-menu-btn lf-complete-icon-btn lf-complete-menu-btn" data-lead-id="' +
+        escapeHtml(lead.id) +
+        '" aria-label="Lead options" aria-haspopup="true" aria-expanded="false">' +
+        '<span data-icon="circle-menu" data-icon-class="lf-complete-ico"></span>' +
+        "</button>" +
+        renderLeadMenuPanel(lead, workflow) +
+        "</div>"
       : "";
+
+    const metaParts = [];
+    let avatarHtml;
+    if (opts.team) {
+      const repName = String(entry.calledBy || entry.pendingBy || "").trim() || "Rep";
+      avatarHtml =
+        '<div class="lf-rep-avatar lf-complete-row-rep-avatar" aria-hidden="true">' +
+        repAvatarHtml(repName) +
+        "</div>";
+      metaParts.push("<span>" + escapeHtml(repName) + "</span>");
+    } else {
+      avatarHtml = renderLeadAvatar(lead, "lf-avatar--compact");
+      if (bizCat && bizCat !== "Category not listed") {
+        metaParts.push("<span>" + escapeHtml(bizCat) + "</span>");
+      }
+    }
+    if (when) {
+      metaParts.push(
+        '<time class="lf-complete-row-time" datetime="' +
+          escapeHtml(whenIso) +
+          '">' +
+          escapeHtml(when) +
+          "</time>"
+      );
+    }
+
+    const rowMod = opts.team ? " lf-complete-row--team" : " lf-complete-row--mine";
+
+    return (
+      '<article class="lf-complete-row' +
+      rowMod +
+      '" data-id="' +
+      escapeHtml(leadId) +
+      '">' +
+      '<div class="lf-complete-row-avatar">' +
+      avatarHtml +
+      "</div>" +
+      '<div class="lf-complete-row-body">' +
+      '<h3 class="lf-complete-row-name">' +
+      escapeHtml(bizName) +
+      "</h3>" +
+      (metaParts.length
+        ? '<p class="lf-complete-row-meta">' +
+          metaParts.join('<span class="lf-meta-dot" aria-hidden="true">·</span>') +
+          "</p>"
+        : "") +
+      "</div>" +
+      '<div class="lf-complete-row-actions">' +
+      (tel
+        ? '<a class="lf-complete-icon-btn" href="' +
+          escapeHtml(tel) +
+          '" title="Call" aria-label="Call"><span data-icon="phone" data-icon-class="lf-complete-ico"></span></a>'
+        : "") +
+      (mapsUrl
+        ? '<a class="lf-complete-icon-btn" href="' +
+          escapeHtml(mapsUrl) +
+          '" target="_blank" rel="noopener noreferrer" title="Maps" aria-label="Open in Maps"><span data-icon="map-pin" data-icon-class="lf-complete-ico"></span></a>'
+        : "") +
+      menuHtml +
+      "</div>" +
+      "</article>"
+    );
+  }
+
+  function renderCompletePane(title, leads, paneClass, cardOpts) {
+    cardOpts = cardOpts || {};
+    const renderFn =
+      cardOpts.renderCard ||
+      ((l) => renderCompactCompletedCard(l, cardOpts));
+    const emptyMsg = cardOpts.emptyMessage || "No completed leads yet.";
+    const desc = cardOpts.paneDesc || "";
+    const cards =
+      leads.length > 0
+        ? leads.map((l) => renderFn(l)).join("")
+        : '<p class="lf-complete-empty">' + escapeHtml(emptyMsg) + "</p>";
     return (
       '<section class="lf-complete-pane ' +
       paneClass +
@@ -1437,16 +1516,19 @@
       escapeHtml(title) +
       '">' +
       '<header class="lf-complete-pane-head">' +
+      '<div class="lf-complete-pane-head-copy">' +
       "<h2 class=\"lf-complete-pane-title\">" +
       escapeHtml(title) +
       "</h2>" +
-      '<span class="lf-complete-pane-meta">' +
-      live +
-      '<span class="lf-complete-count">' +
+      (desc ? '<p class="lf-complete-pane-desc">' + escapeHtml(desc) + "</p>" : "") +
+      "</div>" +
+      '<span class="lf-complete-count" aria-label="' +
+      leads.length +
+      ' leads">' +
       String(leads.length) +
-      "</span></span>" +
+      "</span>" +
       "</header>" +
-      '<div class="lf-complete-pane-grid leads-grid">' +
+      '<div class="lf-complete-pane-grid">' +
       cards +
       "</div>" +
       "</section>"
@@ -1461,13 +1543,20 @@
         "Your completed",
         mine,
         "lf-complete-pane--mine",
-        { completedByLine: "You completed" }
+        {
+          paneDesc: "Leads you marked complete",
+          emptyMessage: "You haven't completed any leads yet.",
+        }
       ) +
       renderCompletePane(
         "Team completed",
         team,
         "lf-complete-pane--team",
-        { renderCard: (l) => renderAnonymousTeamCard(l, "Completed") }
+        {
+          team: true,
+          paneDesc: "Completed by teammates",
+          emptyMessage: "No team completions yet.",
+        }
       ) +
       "</div>"
     );
@@ -1560,13 +1649,52 @@
     syncLoadMoreObserver(grid);
   }
 
+  function clearLfMenuPosition(panel) {
+    if (!panel) return;
+    panel.classList.remove("lf-menu-panel--fixed");
+    panel.style.removeProperty("top");
+    panel.style.removeProperty("left");
+    panel.style.removeProperty("right");
+    panel.style.removeProperty("min-width");
+  }
+
+  function positionLfMenu(wrap) {
+    const btn = wrap?.querySelector(".lf-menu-btn");
+    const panel = wrap?.querySelector(".lf-menu-panel");
+    if (!btn || !panel || panel.hidden) return;
+
+    panel.classList.add("lf-menu-panel--fixed");
+    const rect = btn.getBoundingClientRect();
+    const panelRect = panel.getBoundingClientRect();
+    const panelW = panelRect.width || 148;
+    const panelH = panelRect.height || 120;
+    const gap = 4;
+    const pad = 8;
+
+    let top = rect.bottom + gap;
+    let left = rect.right - panelW;
+
+    if (top + panelH > window.innerHeight - pad) {
+      top = Math.max(pad, rect.top - gap - panelH);
+    }
+    left = Math.max(pad, Math.min(left, window.innerWidth - panelW - pad));
+
+    panel.style.top = top + "px";
+    panel.style.left = left + "px";
+    panel.style.right = "auto";
+    panel.style.minWidth = Math.max(148, rect.width) + "px";
+  }
+
   function closeAllMenus() {
     document.querySelectorAll(".lf-card-menu-wrap.is-open").forEach((wrap) => {
       wrap.classList.remove("is-open");
       const btn = wrap.querySelector(".lf-menu-btn");
       const panel = wrap.querySelector(".lf-menu-panel");
       if (btn) btn.setAttribute("aria-expanded", "false");
-      if (panel) panel.hidden = true;
+      if (panel) {
+        panel.hidden = true;
+        clearLfMenuPosition(panel);
+      }
     });
   }
 
@@ -1583,6 +1711,14 @@
         pendingBy: getRepName(),
         pendingById: getRepId(),
         pendingAt: new Date().toISOString(),
+      };
+    } else if (w === "building") {
+      next[key] = {
+        workflow: "building",
+        called: false,
+        buildingBy: getRepName(),
+        buildingById: getRepId(),
+        buildingAt: new Date().toISOString(),
       };
     } else if (w === "complete") {
       next[key] = {
@@ -1620,7 +1756,7 @@
           syncApi = api;
           if (api?.mode === "local" && window.LeadSync?.isConfigured?.()) {
             console.warn(
-              "Lead Finder: team sync unavailable — completed/pending are only on this device until Supabase connects."
+              "Lead Finder: team sync unavailable · completed/pending are only on this device until Supabase connects."
             );
           }
           return api;
@@ -1643,6 +1779,16 @@
     return ensureSyncReady();
   }
 
+  function consumeForceTeamRefresh() {
+    try {
+      if (!sessionStorage.getItem("lpc_lf_force_team_refresh_v1")) return Promise.resolve(null);
+      sessionStorage.removeItem("lpc_lf_force_team_refresh_v1");
+      return retryTeamSync();
+    } catch (e) {
+      return Promise.resolve(null);
+    }
+  }
+
   async function applyLeadWorkflow(leadId, workflow, options) {
     options = options || {};
     const viewBefore = listView;
@@ -1651,7 +1797,8 @@
     const w = String(workflow || "").trim();
     const inMyPending =
       w === "active" &&
-      getMyPendingLeadsPool().some((l) => normalizeLeadId(l.id) === normalizeLeadId(leadId));
+      (getMyPendingLeadsPool().some((l) => normalizeLeadId(l.id) === normalizeLeadId(leadId)) ||
+        isMyBuildingById(leadId));
     if (!canEditLeadStatusById(leadId) && !inMyPending) {
       alert(
         "You can only change status on leads you marked Pending, Complete, or Not interested."
@@ -1668,11 +1815,24 @@
       global.LeadSync?.savePendingLocalSnapshot?.(leadId, lead?.name);
     } else if (w === "active" || !w) {
       global.LeadSync?.clearPendingLocalSnapshot?.(leadId);
+      global.LeadSync?.clearBuildingLocalSnapshot?.(leadId);
+      global.PendingLeadBuilder?.clear?.(normalizeLeadId(leadId));
+    } else if (w === "not-interested") {
+      global.PendingLeadBuilder?.clear?.(normalizeLeadId(leadId));
     }
     applyFilters();
     try {
       if (syncApi?.setWorkflow) {
-        await syncApi.setWorkflow(leadId, workflow, lead?.name);
+        const niDetails =
+          w === "not-interested"
+            ? {
+                phone: String(lead?.phone || "").trim(),
+                googleMaps: String(lead?.mapsUrl || "").trim(),
+                category: String(lead?.categoryGroup || lead?.category || "").trim(),
+                address: String(lead?.address || "").trim(),
+              }
+            : undefined;
+        await syncApi.setWorkflow(leadId, workflow, lead?.name, niDetails);
       }
       if (switchToActive) {
         switchToActiveView();
@@ -1681,6 +1841,15 @@
         syncWorkflowSelectFromListView();
       }
       applyFilters();
+      if (w === "complete") {
+        const key = normalizeLeadId(leadId);
+        const biz =
+          String(lead?.name || "").trim() ||
+          String(statusMap[key]?.businessName || before[key]?.businessName || "").trim();
+        if (global.PendingLeadBuilder?.get?.(key)) {
+          global.logSaleFromPendingComplete?.(key, biz);
+        }
+      }
     } catch (e) {
       statusMap = before;
       if (w === "pending") {
@@ -1711,12 +1880,6 @@
       applyFilters();
       return;
     }
-    if (resolved === "pin") {
-      togglePinned(leadId);
-      invalidateGridRender();
-      applyFilters();
-      return;
-    }
     const workflow = resolved === "restore" ? "active" : resolved;
     await applyLeadWorkflow(leadId, workflow, {
       restoreView: true,
@@ -1733,7 +1896,7 @@
     grid.addEventListener(
       "mousedown",
       (e) => {
-        if (e.target.closest(".lf-menu-item[data-lf-workflow], .lf-menu-item[data-action='pin']")) {
+        if (e.target.closest(".lf-menu-item[data-lf-workflow]")) {
           e.preventDefault();
           e.stopPropagation();
         }
@@ -1756,13 +1919,12 @@
           wrap.classList.add("is-open");
           panel.hidden = false;
           menuBtn.setAttribute("aria-expanded", "true");
+          requestAnimationFrame(() => positionLfMenu(wrap));
         }
         return;
       }
 
-      const menuItem = e.target.closest(
-        ".lf-menu-item[data-lf-workflow], .lf-menu-item[data-action='pin']"
-      );
+      const menuItem = e.target.closest(".lf-menu-item[data-lf-workflow]");
       if (menuItem) {
         e.preventDefault();
         e.stopPropagation();
@@ -1773,26 +1935,6 @@
         return;
       }
 
-      const pinBtn = e.target.closest("[data-lead-pin]");
-      if (pinBtn) {
-        e.preventDefault();
-        e.stopPropagation();
-        const id = pinBtn.getAttribute("data-lead-pin");
-        if (!id) return;
-        const nowPinned = togglePinned(id);
-        syncPinButtonUi(pinBtn, nowPinned);
-        invalidateGridRender();
-        applyFilters();
-        if (nowPinned) {
-          requestAnimationFrame(() => {
-            const card = document.querySelector(
-              '.lead-card[data-id="' + CSS.escape(normalizeLeadId(id)) + '"]'
-            );
-            card?.scrollIntoView({ behavior: "smooth", block: "nearest" });
-          });
-        }
-        return;
-      }
       const saveBtn = e.target.closest("[data-lead-save]");
       if (saveBtn) {
         e.preventDefault();
@@ -1816,7 +1958,7 @@
         }
         const id = builderBtn.getAttribute("data-lead-builder");
         if (!id) return;
-        handleBuildLeadClick(id);
+        void handleBuildLeadClick(id);
       }
     });
   }
@@ -1831,6 +1973,20 @@
     document.addEventListener("keydown", (e) => {
       if (e.key === "Escape") closeAllMenus();
     });
+    window.addEventListener(
+      "resize",
+      () => {
+        document.querySelectorAll(".lf-card-menu-wrap.is-open").forEach(positionLfMenu);
+      },
+      { passive: true }
+    );
+    document.addEventListener(
+      "scroll",
+      () => {
+        if (document.querySelector(".lf-card-menu-wrap.is-open")) closeAllMenus();
+      },
+      { passive: true, capture: true }
+    );
   }
 
   let syncFilterTimer = null;
@@ -1860,7 +2016,7 @@
       window.LeadSync?.refreshTeam?.().catch((e) => {
         console.warn("Team status refresh failed", e);
       });
-    }, 20000);
+    }, 8000);
     if (!completePollBound) {
       completePollBound = true;
       document.addEventListener("visibilitychange", () => {
@@ -1906,6 +2062,7 @@
     if (refreshBusy) return;
     setRefreshBusy(true);
     try {
+      global.LeadsLoader?.clearCache?.();
       await retryTeamSync();
       await loadLeads();
     } catch (err) {
@@ -1921,31 +2078,48 @@
     statusMap = map || statusMap;
     if (!leadsPageReady) return;
     clearTimeout(syncFilterTimer);
-    const delay = listView === "complete" || listView === "not-interested" ? 120 : 300;
+    const delay = listView === "complete" || listView === "not-interested" ? 60 : 150;
     syncFilterTimer = setTimeout(applyFilters, delay);
   }
 
   async function loadLeads() {
-    leadsPageReady = false;
-    setMetricsLoading(true);
-    const grid = $("lf-grid");
-    if (grid) {
-      grid.innerHTML =
-        '<div class="leads-loading" role="status" aria-live="polite">' +
-        '<span class="leads-loading-orb" aria-hidden="true"></span>' +
-        '<span class="sr-only">Loading leads</span>' +
-        "</div>";
-    }
     const loader = window.LeadsLoader;
     if (!loader?.load) throw new Error("LeadsLoader missing");
 
+    const cached = loader.peekCache?.();
+    const showCachedFirst = !!(cached?.leads?.length);
+
+    if (!showCachedFirst) {
+      leadsPageReady = false;
+      setMetricsLoading(true);
+      const grid = $("lf-grid");
+      if (grid) {
+        grid.innerHTML =
+          '<div class="leads-loading" role="status" aria-live="polite">' +
+          '<span class="leads-loading-orb" aria-hidden="true"></span>' +
+          '<span class="sr-only">Loading leads</span>' +
+          "</div>";
+      }
+    } else {
+      meta = cached.meta || {};
+      allLeads = shuffleLeads(cached.leads);
+      leadsPageReady = true;
+      clearTimeout(syncFilterTimer);
+      syncFilterTimer = null;
+      lastViewFilterSig = "";
+      applyFilters();
+      setMetricsLoading(false);
+    }
+
     const [data] = await Promise.all([
-      loader.load(),
+      loader.load(showCachedFirst && cached?.fresh ? { force: false } : {}),
       ensureSyncReady().catch((e) => {
         console.warn("Lead sync unavailable, using this device only", e);
         return null;
       }),
     ]);
+
+    await consumeForceTeamRefresh();
 
     meta = data.meta || {};
     allLeads = shuffleLeads(data.leads || []);
@@ -1966,6 +2140,9 @@
     lastViewFilterSig = "";
     applyFilters();
     refreshTeamProfilePhotos().catch(() => {});
+    if ((location.hash || "").replace(/^#/, "").trim() === "pending") {
+      global.DashboardPending?.openToggle?.(true);
+    }
   }
 
   let pageReady = false;
@@ -1977,9 +2154,9 @@
     bindGridMarkActions();
     reloadPersonalMarks();
     applyPrefsToUi();
-    const hashView = (location.hash || "").replace(/^#/, "").trim();
-    if (WORKFLOW_VIEWS.some((w) => w.value === hashView)) {
-      listView = hashView;
+    const hashViewInit = (location.hash || "").replace(/^#/, "").trim();
+    if (WORKFLOW_VIEWS.some((w) => w.value === hashViewInit)) {
+      listView = hashViewInit;
       syncWorkflowSelectFromListView();
     }
 
@@ -2009,7 +2186,6 @@
       const chip = e.target.closest(".leads-chip[data-category]");
       if (!chip) return;
       togglePriorityCategory(chip.dataset.category);
-      scrollToLeadGrid();
     });
 
     $("lf-workflow-view")?.addEventListener("change", (e) => {
@@ -2033,15 +2209,24 @@
       reloadPersonalMarks();
       applyPrefsToUi();
       if (allLeads.length) {
-        allLeads = sortLeadsPinnedFirst(allLeads);
         applyFilters();
       }
+    });
+
+    window.addEventListener("leads-cache-refreshed", (e) => {
+      if (document.body.dataset.page !== "leads") return;
+      const payload = e.detail;
+      if (!payload?.leads?.length) return;
+      meta = payload.meta || {};
+      allLeads = shuffleLeads(payload.leads);
+      leadsPageReady = true;
+      setMetricsLoading(false);
+      applyFilters();
     });
 
     window.addEventListener("rep-session-changed", () => {
       if (document.body.dataset.page !== "leads") return;
       reloadPersonalMarks();
-      allLeads = sortLeadsPinnedFirst(allLeads);
       window.LeadSync?.refreshTeam?.().catch(() => {});
       if (leadsPageReady) applyFilters();
     });
@@ -2052,7 +2237,7 @@
       setMetricsLoading(false);
       ["lf-stat-total", "lf-stat-done"].forEach((id) => {
         const el = $(id);
-        if (el) el.textContent = "—";
+        if (el) el.textContent = "-";
       });
       const grid = $("lf-grid");
       const msg = escapeHtml(err?.message || String(err));
@@ -2084,6 +2269,6 @@
     loadLeads,
     applyFilters,
     refreshLeads,
-    pinLeadForBuilder,
+    getAvailableCount,
   };
 })(window);

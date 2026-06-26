@@ -41,30 +41,32 @@
 
   /** Longest labels first when matching transcript text */
   const CHANNEL_LINKS = [
-    { label: "Interested Businesses", hrefKey: "interestedBusinessesUrl", external: true, phrase: true },
-    { label: "Meet the Owner", href: "owner.html", phrase: true },
+    { label: "Pending businesses", href: "dashboard.html", phrase: true },
+    { label: "Send lead", href: "template.html", phrase: true },
+    { label: "About Us", href: "about.html", phrase: true },
+    { label: "About us", href: "about.html", phrase: true },
+    { label: "Meet the Owner", href: "about.html#owner", phrase: true },
+    { label: "Contributors", href: "about.html#team", phrase: true },
     { label: "How you get paid", href: "faq.html#how-you-get-paid", phrase: true },
     { label: "Website Agency", hrefKey: "telegramTeam", external: true, phrase: true },
     { label: "Team Telegram", hrefKey: "telegramTeam", external: true, phrase: true },
     { label: "Setup Accounts", href: "course-module.html?m=setup-accounts", phrase: true },
-    { label: "Setup checklist", href: "checklist.html", phrase: true },
     { label: "Everyday Tasks", href: "course-module.html?m=everyday-tasks", phrase: true },
     { label: "Platform Tour", href: "course-module.html?m=dashboard", phrase: true },
     { label: "Lead Finder", href: "leads.html", phrase: true },
     { label: "Lead Builder", href: "template.html", phrase: true },
     { label: "Call Scripts", href: "scripts.html", phrase: true },
-    { label: "Call scripts", href: "scripts.html", phrase: true },
-    { label: "Text & Email", href: "outreach.html", phrase: true },
-    { label: "Text & email", href: "outreach.html", phrase: true },
-    { label: "Contributors", href: "contributors.html", phrase: true },
-    { label: "Setup Checklist", href: "checklist.html", phrase: true },
+    { label: "Text & Email", href: "scripts.html#text-email-templates", phrase: true },
+    { label: "Text & email", href: "scripts.html#text-email-templates", phrase: true },
     { label: "Bug Bounty", href: "bug-bounty.html", phrase: true },
+    { label: "All Links", href: "resources.html", phrase: true },
     { label: "All links", href: "resources.html", phrase: true },
     { label: "Dashboard", href: "dashboard.html" },
     { label: "Settings", href: "settings.html" },
     { label: "Feedback", href: "feedback.html" },
     { label: "FAQ", href: "faq.html" },
-    { label: "owner", href: "owner.html", word: true },
+    { label: "Telegram", hrefKey: "telegramTeam", external: true },
+    { label: "owner", href: "about.html#owner", word: true },
   ];
 
   function escapeRegex(s) {
@@ -197,7 +199,7 @@
     const tags = [];
     (mod.chapters || []).forEach((ch) => {
       tags.push(
-        '<button type="button" class="course-panel-tag" role="tab" data-panel-view="' +
+        '<button type="button" class="btn secondary course-panel-tag" role="tab" data-panel-view="' +
           esc(ch.id) +
           '" aria-controls="course-module-aside" aria-selected="false">' +
           esc(ch.label) +
@@ -284,14 +286,22 @@
     return (
       '<aside class="course-module-aside course-module-aside--survey" id="course-module-aside" aria-label="Everyday Tasks steps">' +
       '<div class="course-side-panel course-side-panel--survey course-side-panel--everyday" id="course-side-panel">' +
-      '<div class="course-everyday-embed">' +
-      '<p class="course-everyday-embed-title">Your daily loop</p>' +
-      '<p class="course-everyday-embed-lead muted">Six steps — top to bottom each workday.</p>' +
-      '<div class="everyday-tasks-table-wrap course-everyday-table-wrap">' +
-      '<table class="everyday-tasks-table course-everyday-table">' +
-      "<thead><tr><th scope=\"col\">#</th><th scope=\"col\">Do this</th><th scope=\"col\"></th></tr></thead>" +
-      '<tbody id="course-everyday-tasks-body"></tbody>' +
-      "</table></div></div></div></aside>"
+      '<div class="course-everyday-embed" id="course-everyday-embed">' +
+      '<p class="course-everyday-embed-title">Daily loop</p>' +
+      '<p class="course-everyday-embed-lead muted">Six steps for each workday.</p>' +
+      '<div class="course-everyday-steps" id="course-everyday-table-wrap">' +
+      '<ol class="everyday-tasks-list course-everyday-list" id="course-everyday-tasks-body"></ol>' +
+      "</div>" +
+      '<div class="course-everyday-checklist-footer" id="course-everyday-checklist-footer">' +
+      '<button type="button" class="course-everyday-checklist-btn" id="course-everyday-checklist-btn">Checklist</button>' +
+      "</div>" +
+      '<div class="course-everyday-checklist-wrap" id="course-everyday-checklist-wrap" hidden>' +
+      '<div class="daily-loop-toolbar">' +
+      '<button type="button" class="daily-loop-toolbar-btn" id="course-everyday-steps-back">Steps</button>' +
+      '<button type="button" class="daily-loop-toolbar-btn daily-loop-toolbar-btn--reset" id="course-everyday-checklist-reset">Reset</button>' +
+      "</div>" +
+      '<div id="daily-loop-checklist" class="checklist-compact-root course-daily-loop-checklist"></div>' +
+      "</div></div></div></aside>"
     );
   }
 
@@ -339,15 +349,39 @@
     );
   }
 
+  function panelChannelRailHtml(mod, activeId) {
+    const chapters = mod.chapters || [];
+    if (!chapters.length) return "";
+    return chapters
+      .map((ch) => {
+        const isActive = ch.id === activeId;
+        return (
+          '<button type="button" class="course-panel-rail-btn' +
+          (isActive ? " is-active" : "") +
+          '" role="tab" data-panel-view="' +
+          esc(ch.id) +
+          '" aria-selected="' +
+          (isActive ? "true" : "false") +
+          '">' +
+          esc(ch.label) +
+          "</button>"
+        );
+      })
+      .join("");
+  }
+
   function sidePanelBlock() {
     return (
       '<aside class="course-module-aside" id="course-module-aside" aria-hidden="true">' +
       '<div class="course-side-panel" id="course-side-panel">' +
+      '<div class="course-side-panel-inner">' +
+      '<nav class="course-panel-channel-rail" id="course-panel-channel-rail" aria-label="Channels" hidden></nav>' +
+      '<div class="course-side-panel-main">' +
       '<button type="button" class="course-panel-close" id="course-panel-close" ' +
       'aria-label="Close chapter" title="Close" hidden>&times;</button>' +
       '<div class="course-panel-scroll course-panel-body" id="course-panel-body" aria-live="polite"></div>' +
       '<nav class="course-chapter-nav survey-choices--proceed" id="course-chapter-nav" aria-label="Chapter navigation" hidden></nav>' +
-      "</div>" +
+      "</div></div></div>" +
       "</aside>"
     );
   }
@@ -362,26 +396,26 @@
     const prevDisabled = !prev;
 
     const prevBtn =
-      '<button type="button" class="survey-choice-btn survey-proceed-btn course-chapter-nav-prev' +
+      '<button type="button" class="btn secondary course-chapter-nav-prev' +
       (prevDisabled ? " is-disabled" : "") +
       '"' +
       (prev ? ' data-chapter-nav="' + esc(prev.id) + '"' : "") +
       (prevDisabled ? ' disabled aria-disabled="true"' : "") +
       ">" +
-      '<span class="survey-proceed-arrow" aria-hidden="true">←</span>' +
-      '<span class="survey-proceed-label">Previous</span>' +
+      '<span class="course-chapter-nav-arrow" aria-hidden="true">←</span>' +
+      '<span class="course-chapter-nav-label">Previous</span>' +
       "</button>";
 
     const nextBtn = next
-      ? '<button type="button" class="survey-choice-btn survey-proceed-btn course-chapter-nav-next" data-chapter-nav="' +
+      ? '<button type="button" class="btn course-chapter-nav-next" data-chapter-nav="' +
         esc(next.id) +
         '">' +
-        '<span class="survey-proceed-label">Next</span>' +
-        '<span class="survey-proceed-arrow" aria-hidden="true">→</span>' +
+        '<span class="course-chapter-nav-label">Next</span>' +
+        '<span class="course-chapter-nav-arrow" aria-hidden="true">→</span>' +
         "</button>"
-      : '<button type="button" class="survey-choice-btn survey-proceed-btn course-chapter-nav-next course-chapter-nav-done" data-chapter-done>' +
-        '<span class="survey-proceed-label">Done!</span>' +
-        '<span class="survey-proceed-arrow" aria-hidden="true">✓</span>' +
+      : '<button type="button" class="btn course-chapter-nav-next course-chapter-nav-done" data-chapter-done>' +
+        '<span class="course-chapter-nav-label">Done!</span>' +
+        '<span class="course-chapter-nav-arrow" aria-hidden="true">✓</span>' +
         "</button>";
 
     return prevBtn + nextBtn;
@@ -402,7 +436,7 @@
     if (qa) return { type: "qa", q: qa[1], a: qa[2] };
     const step = trimmed.match(/^(\d+)\.\s+(.+)$/);
     if (step) return { type: "step", num: step[1], text: step[2] };
-    const row = trimmed.match(/^([^—–-]+)\s*[—–]\s*(.+)$/);
+    const row = trimmed.match(/^([^·–\-]+)\s*[·–\-]\s*(.+)$/);
     if (row && row[1].length < 52) {
       return { type: "row", label: row[1].trim(), text: row[2].trim() };
     }
@@ -600,7 +634,28 @@
       btn.classList.toggle("is-active", isActive);
       btn.setAttribute("aria-expanded", isActive ? "true" : "false");
       btn.setAttribute("aria-selected", isActive ? "true" : "false");
+      if (isActive) {
+        btn.scrollIntoView({ behavior: "smooth", block: "nearest", inline: "nearest" });
+      }
     });
+    syncCoursePanelToolbarScroll();
+    updatePanelChannelRail();
+  }
+
+  function syncCoursePanelToolbarScroll() {
+    const toolbar = document.querySelector(".course-panel-toolbar");
+    if (!toolbar) return;
+    const canScroll = toolbar.scrollWidth > toolbar.clientWidth + 2;
+    toolbar.classList.toggle("is-scrollable", canScroll);
+    const atEnd = toolbar.scrollLeft + toolbar.clientWidth >= toolbar.scrollWidth - 4;
+    toolbar.classList.toggle("is-at-end", !canScroll || atEnd);
+  }
+
+  function updatePanelChannelRail() {
+    const rail = document.getElementById("course-panel-channel-rail");
+    if (!rail) return;
+    rail.innerHTML = "";
+    rail.hidden = true;
   }
 
   function renderCoursePanelContent(view) {
@@ -624,7 +679,7 @@
       btn.addEventListener("click", () => {
         if (btn.disabled) return;
         const target = btn.getAttribute("data-chapter-nav");
-        if (target) setCourseChapterPanelOpen(true, target);
+        if (target) openCourseChapterPanel(target);
       });
     });
   }
@@ -653,10 +708,26 @@
         panelContent.classList.add("is-entering");
       }
       bodyEl.scrollTop = 0;
+      if (global.matchMedia("(max-width: 900px)").matches) {
+        requestAnimationFrame(() => {
+          aside?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+        });
+      }
     } else {
+      bodyEl.innerHTML = "";
       navEl.hidden = true;
       navEl.innerHTML = "";
+      updatePanelChannelRail();
     }
+  }
+
+  function openCourseChapterPanel(view) {
+    if (!view) return;
+    if (courseChapterPanel.open && courseChapterPanel.activeView === view) {
+      setCourseChapterPanelOpen(false, null);
+      return;
+    }
+    setCourseChapterPanelOpen(true, view);
   }
 
   function ensureCoursePanelClick() {
@@ -664,15 +735,10 @@
     courseChapterPanel.clickBound = true;
     document.addEventListener("click", (e) => {
       const tag = e.target.closest(".course-panel-tag");
-      const { layout } = coursePanelEls();
-      if (tag && layout?.contains(tag) && courseChapterPanel.mod) {
+      if (tag && tag.closest("#course-module-layout") && courseChapterPanel.mod) {
         const view = tag.getAttribute("data-panel-view");
         if (!view) return;
-        if (courseChapterPanel.open && courseChapterPanel.activeView === view) {
-          setCourseChapterPanelOpen(false, null);
-          return;
-        }
-        setCourseChapterPanelOpen(true, view);
+        openCourseChapterPanel(view);
         return;
       }
       if (e.target.closest("#course-panel-close")) {
@@ -693,6 +759,19 @@
     aside.setAttribute("aria-hidden", "true");
     updateCoursePanelTags();
     ensureCoursePanelClick();
+    bindCoursePanelToolbarScroll();
+  }
+
+  function bindCoursePanelToolbarScroll() {
+    const toolbar = document.querySelector(".course-panel-toolbar");
+    if (!toolbar || toolbar.dataset.scrollBound === "1") return;
+    toolbar.dataset.scrollBound = "1";
+    toolbar.addEventListener("scroll", syncCoursePanelToolbarScroll, { passive: true });
+    if (!global.__coursePanelToolbarResizeBound) {
+      global.__coursePanelToolbarResizeBound = true;
+      global.addEventListener("resize", syncCoursePanelToolbarScroll, { passive: true });
+    }
+    requestAnimationFrame(syncCoursePanelToolbarScroll);
   }
 
   function render() {
@@ -746,9 +825,8 @@
       }
     }
     if (hasEmbedEverydayTasks(mod) && global.EverydayTasks?.renderInto) {
-      global.EverydayTasks.renderInto(
-        document.getElementById("course-everyday-tasks-body")
-      );
+      global.EverydayTasks.renderInto(document.getElementById("course-everyday-tasks-body"));
+      global.DailyLoopChecklist?.init?.();
       global.LpcOnboarding?.touchProgressKeys?.(["everyday_tasks"]);
     }
     if (global.SiteIcons) global.SiteIcons.initIcons();

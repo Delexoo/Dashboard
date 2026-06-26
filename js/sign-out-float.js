@@ -1,5 +1,5 @@
 /**
- * Floating Sign out control — fixed top-right, does not affect page layout.
+ * Floating Sign out control · fixed top-right, does not affect page layout.
  */
 (function (global) {
   const UNLOCK_KEY = "lpc_site_unlock";

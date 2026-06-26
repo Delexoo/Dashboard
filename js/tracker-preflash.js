@@ -1,11 +1,11 @@
 /**
- * Apply saved tracker stats before app.js runs (avoids flashing $2,000 defaults).
+ * Apply saved tracker stats before app.js runs (avoids flashing defaults).
  */
 (function () {
   const TRACKER_KEY = "lpc_sales_tracker_v2";
   const SESSION_KEY = "lpc_rep_session_v1";
-  const DEFAULT_GOAL = 2000;
-  const GOAL_RING_R = 42;
+  const DEFAULT_GOAL = 1000;
+  const GOAL_RING_R = 118;
   const GOAL_RING_C = 2 * Math.PI * GOAL_RING_R;
 
   function currentRepId() {
@@ -27,7 +27,7 @@
   }
 
   function applyGoalRingProgress(pct) {
-    const ring = document.getElementById("goal-ring-progress");
+    const ring = document.getElementById("progressRing");
     if (!ring) return;
     const p = Math.min(100, Math.max(0, pct));
     ring.style.strokeDasharray = GOAL_RING_C + " " + GOAL_RING_C;
@@ -57,32 +57,29 @@
     const { goal, earned, closes } = snap;
     const pct = Math.min(100, (earned / goal) * 100);
     const pctRound = Math.round(pct);
+    const remaining = Math.max(goal - earned, 0);
 
-    const goalDisplay = document.getElementById("goal-display-value");
-    if (goalDisplay) goalDisplay.textContent = formatMoney(goal);
+    const goalInput = document.getElementById("goalInput");
+    if (goalInput) goalInput.value = String(goal);
 
-    const input = document.getElementById("tracker-goal");
-    if (input) input.placeholder = String(goal);
-
-    const earnedEl = document.getElementById("tracker-earned");
+    const earnedEl = document.getElementById("totalRevenue");
     if (earnedEl) earnedEl.textContent = "$" + formatMoney(earned);
 
-    const closesEl = document.getElementById("tracker-closes");
+    const closesEl = document.getElementById("salesCount");
     if (closesEl) closesEl.textContent = String(closes);
+
+    const salesCountBadge = document.getElementById("dash-sales-count");
+    if (salesCountBadge) {
+      salesCountBadge.textContent = closes === 1 ? "1 sale" : closes + " sales";
+    }
+
+    const averageEl = document.getElementById("averageSale");
+    if (averageEl) averageEl.textContent = "$" + formatMoney(closes ? earned / closes : 0);
 
     applyGoalRingProgress(pct);
 
-    const pctBadge = document.getElementById("goal-pct-badge");
+    const pctBadge = document.getElementById("completionPercent");
     if (pctBadge) pctBadge.textContent = pctRound + "%";
-
-    const gl = document.getElementById("goal-pct-label");
-    if (gl) gl.textContent = "$" + formatMoney(earned) + " of $" + formatMoney(goal);
-
-    const rem = document.getElementById("tracker-remaining");
-    if (rem) {
-      rem.textContent =
-        earned >= goal ? "Goal reached" : "$" + formatMoney(goal - earned) + " to go";
-    }
   }
 
   apply();

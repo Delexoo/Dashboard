@@ -1,9 +1,7 @@
 /**
- * Help → Feedback — simple message to owner via Supabase.
+ * Help → Feedback · simple message to owner via Supabase.
  */
 (function (global) {
-  let client = null;
-
   function cfg() {
     const c = global.SITE_CONFIG || {};
     return {
@@ -14,16 +12,12 @@
   }
 
   function canSubmit() {
-    const { url, key, enabled } = cfg();
-    return enabled && !!(url && key && global.supabase?.createClient);
+    const { enabled } = cfg();
+    return enabled && !!global.SiteSupabase?.canUse?.();
   }
 
   function getClient() {
-    if (client) return client;
-    if (!canSubmit()) return null;
-    const { url, key } = cfg();
-    client = global.supabase.createClient(url, key);
-    return client;
+    return canSubmit() ? global.SiteSupabase?.getClient?.() || null : null;
   }
 
   function rep() {
@@ -53,7 +47,7 @@
     if (!canSubmit()) {
       showStatus(
         statusEl,
-        "Feedback needs Supabase — run supabase-feedback-setup.sql in your project.",
+        "Feedback needs Supabase · run supabase-feedback-setup.sql in your project.",
         "warn"
       );
       form?.querySelectorAll("input:not([readonly]), textarea, button[type=submit]").forEach((el) => {
@@ -112,7 +106,7 @@
         if (error) throw error;
 
         form.reset();
-        showStatus(statusEl, "Sent — thanks!", "ok");
+        showStatus(statusEl, "Sent · thanks!", "ok");
       } catch (err) {
         console.warn(err);
         showStatus(statusEl, String(err.message || "Could not send. Try again."), "err");

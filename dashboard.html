@@ -10,193 +10,141 @@
 <body data-page="home">
   <div id="shell"></div>
   <div id="page-body" class="dashboard-redesign">
-    <div class="dash-header">
-      <div class="dash-top-row">
-        <div class="page-hero dash-page-hero">
-          <h1>Your sales dashboard</h1>
-          <p class="lead dash-page-lead">Track your goal, log every sale, and jump into your daily tools from one place.</p>
-        </div>
-      </div>
-    </div>
+    <h1 id="dashboardTitle">Dashboard</h1>
+    <p class="lead">Log closes and track commission toward your target.</p>
 
-    <div class="dash-hub">
-      <section class="card dash-board" id="sales-tracker">
-        <div class="dash-board-performance">
-          <div class="dash-goal-panel-head">
-            <div class="dash-goal-heading">
-              <p class="dash-goal-eyebrow">Goal progress</p>
-              <h2 class="dash-goal-title">Income tracker</h2>
-              <p class="dash-goal-subtitle">Track sales, commission, and your goal in one place.</p>
+    <header class="dash-header">
+      <div class="dash-tracker-stack" id="sales-tracker">
+        <section class="dash-goal-tracker-card" aria-label="Goal progress">
+          <div class="dash-progress-panel">
+            <div class="dash-goal-controls">
+              <div class="dash-goal-metrics">
+                <label class="dash-goal-stat dash-goal-editor" for="goalInput">
+                  <span class="dash-tracker-label">Goal</span>
+                  <input id="goalInput" type="number" min="1" step="100" value="1000" inputmode="numeric" aria-label="Monthly goal amount">
+                </label>
+                <div class="dash-goal-stats-right">
+                  <div class="dash-goal-stat dash-earned-stat" aria-live="polite">
+                    <span class="dash-tracker-label">Commission earned</span>
+                    <strong class="dash-stat-value dash-earned-value" id="totalRevenue">$0</strong>
+                  </div>
+                  <div class="dash-goal-stat dash-closes-stat" aria-live="polite">
+                    <span class="dash-tracker-label">Sales</span>
+                    <strong class="dash-stat-value" id="salesCount">0</strong>
+                  </div>
+                </div>
+              </div>
             </div>
-            <nav class="dash-quicklinks" aria-label="Quick links">
-              <a class="dash-quicklink" href="settings.html" data-icon="settings">
-                <span class="dash-quicklink-text">Settings</span>
-              </a>
-              <a class="dash-quicklink" href="faq.html" data-icon="help-circle">
-                <span class="dash-quicklink-text">FAQ</span>
-              </a>
-              <a class="dash-quicklink" href="resources.html" data-icon="external-link">
-                <span class="dash-quicklink-text">All links</span>
-              </a>
-              <a class="dash-quicklink" href="template.html" data-icon="file-plus">
-                <span class="dash-quicklink-text">Lead Builder</span>
-              </a>
-              <a class="dash-quicklink" href="owner.html" data-icon="message-square">
-                <span class="dash-quicklink-text">Meet the Owner</span>
-              </a>
-            </nav>
-          </div>
-          <div class="dash-goal-panel-body">
+
             <div class="dash-goal-ring-card">
-              <div
-                class="dash-goal-ring"
-                role="img"
-                aria-label="Income goal progress"
-              >
-                <svg class="dash-goal-ring-svg" viewBox="0 0 100 100" aria-hidden="true">
-                  <circle class="dash-goal-ring-track" cx="50" cy="50" r="42" fill="none" />
-                  <circle
-                    class="dash-goal-ring-fill"
-                    id="goal-ring-progress"
-                    cx="50"
-                    cy="50"
-                    r="42"
-                    fill="none"
-                    transform="rotate(-90 50 50)"
-                  />
+              <div class="dash-goal-ring" id="progressOrbit">
+                <svg class="dash-goal-ring-svg" viewBox="0 0 280 280" role="img" aria-labelledby="progressLabel">
+                  <title id="progressLabel">Income goal completion progress</title>
+                  <circle class="dash-goal-ring-track" cx="140" cy="140" r="118" fill="none"></circle>
+                  <circle class="dash-goal-ring-fill" id="progressRing" cx="140" cy="140" r="118" fill="none"></circle>
                 </svg>
                 <div class="dash-goal-ring-center">
-                  <span class="dash-goal-ring-pct" id="goal-pct-badge">0%</span>
-                  <span class="dash-goal-ring-status" id="goal-pct-label">0 sales</span>
-                  <span class="dash-goal-ring-remaining" id="tracker-remaining">$2,000 remaining</span>
+                  <span class="dash-goal-ring-pct" id="completionPercent">0%</span>
                 </div>
               </div>
             </div>
-            <div class="dash-goal-copy">
-              <div class="dash-goal-editor-block">
-                <span class="dash-tracker-label">Goal target</span>
-                <div class="dash-goal-editor" id="dash-goal-editor">
-                  <button type="button" class="dash-goal-btn" id="goal-display-btn" aria-label="Edit income goal">
-                    $<span id="goal-display-value">2,000</span>
-                  </button>
-                  <label class="dash-goal-edit">
-                    $<input type="text" id="tracker-goal" inputmode="numeric" pattern="[0-9]*" autocomplete="off" aria-label="Income goal amount" placeholder="2000">
+          </div>
+        </section>
+
+        <section class="dash-work-panels-card" aria-label="Sales">
+          <div class="dash-sales-work-stack">
+            <section class="dash-sales-log-section" id="dash-sales-log-section" aria-labelledby="dash-sales-log-heading">
+              <h3 class="dash-sales-log-heading" id="dash-sales-log-heading">Log a sale</h3>
+              <form class="dash-income-form dash-income-form--static" id="incomeForm" method="dialog">
+                <div class="dash-income-form-grid">
+                  <label class="dash-income-field">
+                    <span class="dash-income-field-label">Sale amount</span>
+                    <span class="dash-income-amount-wrap">
+                      <span class="dash-income-currency" aria-hidden="true">$</span>
+                      <input id="saleAmount" type="number" min="1" step="0.01" placeholder="1250" inputmode="decimal" required>
+                    </span>
+                  </label>
+
+                  <label class="dash-income-field">
+                    <span class="dash-income-field-label">Business name <span class="dash-income-field-optional">(optional)</span></span>
+                    <input id="businessName" type="text" placeholder="Bobby's Burgerr">
                   </label>
                 </div>
-                <span class="dash-goal-edit-note">Click the amount to edit your target.</span>
-              </div>
-              <div class="dash-stat-chip dash-stat-chip--earn">
-                <span class="dash-tracker-stat-val" id="tracker-earned">$0</span>
-                <span class="dash-tracker-stat-lbl">Commission earned</span>
-              </div>
-            </div>
-          </div>
-        </div>
 
-        <div class="dash-board-work">
-          <details class="dash-board-log dash-sales-panel" id="log-close-section">
-            <summary class="dash-sales-toggle dash-sales-toggle--primary">
-              <span class="dash-sales-toggle-title" data-icon="plus-circle">Sales</span>
-              <span class="dash-sales-toggle-copy">Open sale form</span>
-              <span class="dash-sales-toggle-action" aria-hidden="true"></span>
-            </summary>
-            <div class="dash-sales-panel-body">
-              <header class="dash-board-work-head">
-                <div class="dash-board-work-copy">
-                  <p class="dash-board-work-desc">Add a sale here. Saved sales show up in Recent sales.</p>
-                </div>
-              </header>
-              <form id="close-form" class="close-form dash-sale-form" autocomplete="off">
-                <div class="dash-sale-fields">
-                  <div class="dash-sale-field dash-sale-field--amount">
-                    <div class="dash-sale-label-row">
-                      <label class="dash-sale-label" for="close-price">Sale amount</label>
-                      <details class="dash-sale-tip">
-                        <summary aria-label="Show sale amount help">
-                          <span data-icon="info" aria-hidden="true"></span>
-                        </summary>
-                        <p class="dash-sale-tooltip" id="close-price-help">Use the amount you earned on this sale.</p>
-                      </details>
-                    </div>
-                    <div class="dash-sale-money">
-                      <span class="dash-sale-money-symbol" aria-hidden="true">$</span>
-                      <input
-                        type="text"
-                        class="dash-sale-money-input"
-                        id="close-price"
-                        inputmode="decimal"
-                        pattern="[0-9.]*"
-                        placeholder="600"
-                        aria-describedby="close-price-help"
-                        required
-                      >
-                    </div>
-                  </div>
-                  <div class="dash-sale-field dash-sale-field--business">
-                    <div class="dash-sale-label-row">
-                      <label class="dash-sale-label" for="close-business">Business name</label>
-                      <details class="dash-sale-tip">
-                        <summary aria-label="Show business name help">
-                          <span data-icon="info" aria-hidden="true"></span>
-                        </summary>
-                        <p class="dash-sale-tooltip" id="close-business-help">This makes the sale easier to recognize later.</p>
-                      </details>
-                    </div>
-                    <input
-                      type="text"
-                      class="dash-sale-input"
-                      id="close-business"
-                      placeholder="Optional, like Acme Plumbing"
-                      autocomplete="organization"
-                      aria-describedby="close-business-help"
-                    >
-                  </div>
-                </div>
-                <button type="submit" class="btn dash-close-submit dash-sale-submit" data-icon="plus-circle" data-icon-class="ico-btn">Save sale</button>
+                <button class="btn dash-income-submit" type="submit">Save sale</button>
               </form>
-            </div>
-          </details>
+            </section>
 
-          <details class="dash-board-history dash-deals-panel dash-sales-history" id="deals-section">
-            <summary class="dash-sales-toggle">
-              <span class="dash-sales-toggle-title" data-icon="layers">Recent sales</span>
-              <span class="deals-count" id="deals-count-label">0 sales</span>
-              <span class="dash-sales-toggle-action" aria-hidden="true"></span>
-            </summary>
-            <div class="dash-sales-history-body">
-              <div class="dash-empty" id="deals-empty">
-                <p class="dash-empty-title">No sales yet</p>
-                <p class="dash-empty-desc">Log your first sale — commission updates automatically.</p>
+            <section class="dash-sales-history-section" aria-labelledby="dash-sales-history-heading">
+              <header class="dash-sales-history-head">
+                <h3 class="dash-sales-history-heading" id="dash-sales-history-heading">Sales</h3>
+                <span class="dash-sales-count-badge" id="dash-sales-count">0 sales</span>
+              </header>
+
+              <div class="dash-sales-list-wrap">
+                <div class="sales-list dash-sales-list" id="salesList" aria-live="polite"></div>
               </div>
-              <ul class="deals-list" id="deals-list"></ul>
-            </div>
-          </details>
-        </div>
-      </section>
-
-      <section class="card dash-pending-island dash-pending-section dash-pending-section--empty" id="dash-pending-section" aria-labelledby="dash-pending-title">
-        <header class="dash-pending-head">
-          <div class="dash-pending-head-copy">
-            <h2 class="dash-board-work-title" id="dash-pending-title" data-icon="clock">Pending businesses</h2>
-            <p class="dash-pending-desc">Keep active leads here until they are ready to close.</p>
+            </section>
           </div>
-          <span class="dash-pending-count" id="dash-pending-count">0 pending</span>
-        </header>
-        <div class="dash-empty dash-pending-empty" id="dash-pending-empty">
-          <p class="dash-empty-title">No leads waiting</p>
-          <p class="dash-empty-desc">When you start working a business, save it as pending so it appears here.</p>
+        </section>
+
+        <section class="dash-pending-island-card dash-pending-island" aria-label="Pending businesses">
+          <div
+            class="dash-toggle-card dash-pending-section dash-pending-section--empty dash-pending-loading"
+            id="dash-pending-section"
+            data-dash-toggle="pending"
+          >
+            <button
+              type="button"
+              class="dash-toggle-btn"
+              id="dash-pending-toggle"
+              aria-expanded="false"
+              aria-controls="dash-pending-panel"
+            >
+              <span class="dash-toggle-main">
+                <span class="dash-toggle-title">Pending businesses</span>
+              </span>
+              <span class="dash-toggle-meta">
+                <span class="dash-pending-load" id="dash-pending-load" role="status" aria-label="Loading pending businesses">
+                  <span class="dash-pending-load-spinner" aria-hidden="true"></span>
+                </span>
+                <span class="dash-toggle-count" id="dash-pending-count">0 pending</span>
+              </span>
+            </button>
+
+            <div class="dash-toggle-panel" id="dash-pending-panel" aria-hidden="true">
+              <div class="dash-toggle-panel-inner">
+                <div class="dash-empty dash-pending-empty" id="dash-pending-empty">
+                  <p class="dash-empty-title">No pending leads</p>
+                  <p class="dash-empty-desc">Send a lead from <strong>Lead Builder</strong> to add a business here.</p>
+                </div>
+
+                <ul class="dash-pending-list dash-toggle-pending-list" id="dash-pending-list" hidden></ul>
+              </div>
+            </div>
+          </div>
+        </section>
+      </div>
+    </header>
+
+    <dialog class="owner-console-dialog" id="owner-confirmed-sale-dialog" aria-labelledby="owner-confirmed-sale-title">
+      <div class="owner-console-dialog-panel">
+        <h2 class="owner-console-dialog-title" id="owner-confirmed-sale-title">Owner confirmed sale</h2>
+        <dl class="owner-console-dialog-details" id="owner-confirmed-sale-details"></dl>
+        <div class="owner-console-dialog-actions">
+          <button type="button" class="btn" id="owner-confirmed-sale-close">Close</button>
         </div>
-        <ul class="dash-pending-list" id="dash-pending-list"></ul>
-        <footer class="dash-pending-foot">
-          <a class="btn secondary dash-pending-view-all" id="dash-pending-view-all" href="leads.html#pending" data-icon="search" data-icon-class="ico-btn">View all in Lead Finder</a>
-        </footer>
-      </section>
-    </div>
+      </div>
+    </dialog>
+
     <script src="js/tracker-preflash.js"></script>
   </div>
   <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
   <script src="js/image-preload.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
   <script src="js/icons.js"></script>
   <script src="js/rep-session.js"></script>
   <script src="js/rep-settings-sync.js"></script>
@@ -204,11 +152,15 @@
   <script src="js/theme.js"></script>
   <script src="js/lock.js"></script>
   <script src="js/layout-fix.js"></script>
-  <script src="js/course-modules.js"></script>
+  <script src="js/lead-csv-format.js"></script>
   <script src="js/leads-loader.js"></script>
   <script src="js/lead-sync.js"></script>
   <script src="js/lead-display.js"></script>
+  <script src="js/pending-lead-builder.js"></script>
   <script src="js/dashboard-pending.js"></script>
+  <script src="js/goal-celebration.js"></script>
+  <script src="js/course-modules.js"></script>
+  <script src="js/owner-confirmed-sale-details.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

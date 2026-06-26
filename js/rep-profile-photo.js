@@ -1,5 +1,5 @@
 /**
- * Rep profile photo — Supabase Storage (rep-avatars) + synced settings_json key.
+ * Rep profile photo · Supabase Storage (rep-avatars) + synced settings_json key.
  */
 (function (global) {
   const KEY = "lpc_rep_profile_photo_v1";
@@ -18,13 +18,11 @@
   }
 
   function canUseCloud() {
-    const { url, key } = cfg();
-    return !!(url && key && global.supabase?.createClient);
+    return !!global.SiteSupabase?.canUse?.();
   }
 
   function getClient() {
-    const { url, key } = cfg();
-    return global.supabase.createClient(url, key);
+    return global.SiteSupabase?.getClient?.() || null;
   }
 
   function loadStored() {

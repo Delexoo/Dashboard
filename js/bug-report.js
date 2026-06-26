@@ -1,12 +1,11 @@
 /**
- * Bug Bounty report form — saves to Supabase + optional file uploads.
+ * Bug Bounty report form · saves to Supabase + optional file uploads.
  */
 (function (global) {
   const BUCKET = "bug-reports";
   const MAX_FILES = 6;
   const MAX_BYTES = 8 * 1024 * 1024;
 
-  let client = null;
   let pickedFiles = [];
 
   function cfg() {
@@ -19,16 +18,12 @@
   }
 
   function canSubmit() {
-    const { url, key, enabled } = cfg();
-    return enabled && !!(url && key && global.supabase?.createClient);
+    const { enabled } = cfg();
+    return enabled && !!global.SiteSupabase?.canUse?.();
   }
 
   function getClient() {
-    if (client) return client;
-    if (!canSubmit()) return null;
-    const { url, key } = cfg();
-    client = global.supabase.createClient(url, key);
-    return client;
+    return canSubmit() ? global.SiteSupabase?.getClient?.() || null : null;
   }
 
   function rep() {
@@ -130,8 +125,8 @@
       page_url: detectPage(),
       device: detectDevice(),
       steps: description,
-      expected: "—",
-      actual: "—",
+      expected: "-",
+      actual: "-",
       notes: null,
     };
   }
@@ -151,7 +146,7 @@
     if (!canSubmit()) {
       showStatus(
         statusEl,
-        "Report form needs Supabase — run supabase-bug-reports-setup.sql.",
+        "Report form needs Supabase · run supabase-bug-reports-setup.sql.",
         "warn"
       );
       form?.querySelectorAll("textarea, button[type=submit]").forEach((el) => {
@@ -227,7 +222,7 @@
         renderPreviews(previewEl);
         form.reset();
 
-        showStatus(statusEl, "Sent — thanks!", "ok");
+        showStatus(statusEl, "Sent · thanks!", "ok");
       } catch (err) {
         console.warn(err);
         const msg = String(err.message || "");

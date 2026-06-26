@@ -1,7 +1,7 @@
 /**
- * Team lead workflow — Complete is shared with all reps; Pending locks a lead
- * out of everyone else's Active list until the owner sets Active or Complete.
- * Per-rep overlay: Removed only. Quick Save + Pin live in leads-page (RepStorage).
+ * Team lead workflow · Complete is shared with all reps; Building locks a lead
+ * for one rep in Lead Builder; Pending locks after Send lead.
+ * Per-rep overlay: Removed only. Quick Save lives in leads-page (RepStorage).
  */
 (function (global) {
   const STATUS_KEY = "lpc_leads_status_v1";
@@ -63,6 +63,29 @@
     saveWorkflowOverlay(overlay);
   }
 
+  function saveBuildingLocalSnapshot(leadId, businessName) {
+    const id = String(leadId || "").trim();
+    if (!id) return;
+    const overlay = loadWorkflowOverlay();
+    overlay[id] = {
+      workflow: "building",
+      called: false,
+      buildingAt: new Date().toISOString(),
+      businessName: String(businessName || "").trim(),
+    };
+    saveWorkflowOverlay(overlay);
+  }
+
+  function clearBuildingLocalSnapshot(leadId) {
+    const id = String(leadId || "").trim();
+    if (!id) return;
+    const overlay = loadWorkflowOverlay();
+    if (overlay[id]?.workflow === "building") {
+      delete overlay[id];
+      saveWorkflowOverlay(overlay);
+    }
+  }
+
   /** Immediate local backup so Pending survives navigation before team sync finishes. */
   function savePendingLocalSnapshot(leadId, businessName) {
     const id = String(leadId || "").trim();
@@ -101,6 +124,14 @@
         pendingById: getRepId(),
         pendingAt: new Date().toISOString(),
       };
+    } else if (w === "building") {
+      next[leadId] = {
+        workflow: "building",
+        called: false,
+        buildingBy: getRepName(),
+        buildingById: getRepId(),
+        buildingAt: new Date().toISOString(),
+      };
     } else if (w === "not-interested") {
       next[leadId] = {
         workflow: "not-interested",
@@ -126,7 +157,7 @@
     return next;
   }
 
-  /** Only per-rep "removed" — not team Complete/Pending. */
+  /** Only per-rep "removed" · not team Complete/Pending. */
   function mergePersonalOverlay(map) {
     const overlay = loadWorkflowOverlay();
     Object.keys(overlay).forEach((id) => {
@@ -160,7 +191,13 @@
         ":" +
         (s.pendingById || "") +
         ":" +
-        (s.pendingAt || "")
+        (s.pendingAt || "") +
+        ":" +
+        (s.buildingBy || "") +
+        ":" +
+        (s.buildingById || "") +
+        ":" +
+        (s.buildingAt || "")
       );
     });
     return parts.join("|");
@@ -209,8 +246,12 @@
   }
 
   function canUseTeam() {
-    const { url, key } = cfg();
-    return !!(url && key && global.supabase?.createClient);
+    return !!global.SiteSupabase?.canUse?.();
+  }
+
+  function teamClient() {
+    if (!client) client = global.SiteSupabase?.getClient?.() || null;
+    return client;
   }
 
   function getRepId() {
@@ -247,6 +288,7 @@
 
   function rowWorkflow(row) {
     const w = String(row?.workflow || "").trim();
+    if (w === "building") return "building";
     if (w === "pending") return "pending";
     if (w === "not-interested") return "not-interested";
     if (w === "complete" || row?.called) return "complete";
@@ -268,6 +310,9 @@
         pendingBy: workflow === "pending" ? row.called_by || "" : "",
         pendingById: workflow === "pending" ? row.called_by_id || "" : "",
         pendingAt: workflow === "pending" ? row.called_at || "" : "",
+        buildingBy: workflow === "building" ? row.called_by || "" : "",
+        buildingById: workflow === "building" ? row.called_by_id || "" : "",
+        buildingAt: workflow === "building" ? row.called_at || "" : "",
         businessName: row.business_name || "",
       });
     });
@@ -308,17 +353,30 @@
     return rowsToMap(data);
   }
 
-  async function upsertTeam(leadId, workflow, businessName) {
+  async function upsertTeam(leadId, workflow, businessName, details) {
     const w = String(workflow || "").trim();
     const row = {
       lead_id: leadId,
       called: w === "complete",
       called_by:
-        w === "complete" || w === "pending" || w === "not-interested" ? getRepName() : null,
+        w === "complete" ||
+        w === "pending" ||
+        w === "building" ||
+        w === "not-interested"
+          ? getRepName()
+          : null,
       called_by_id:
-        w === "complete" || w === "pending" || w === "not-interested" ? getRepId() || null : null,
+        w === "complete" ||
+        w === "pending" ||
+        w === "building" ||
+        w === "not-interested"
+          ? getRepId() || null
+          : null,
       called_at:
-        w === "complete" || w === "pending" || w === "not-interested"
+        w === "complete" ||
+        w === "pending" ||
+        w === "building" ||
+        w === "not-interested"
           ? new Date().toISOString()
           : null,
       updated_at: new Date().toISOString(),
@@ -326,6 +384,13 @@
     if (hasWorkflowColumn !== false) row.workflow = w || null;
     const name = String(businessName || "").trim();
     if (name) row.business_name = name;
+    const extra = normalizeNotInterestedDetails(details);
+    if (w === "not-interested") {
+      if (extra.phone) row.phone = extra.phone;
+      if (extra.googleMaps) row.google_maps = extra.googleMaps;
+      if (extra.category) row.category = extra.category;
+      if (extra.address) row.address = extra.address;
+    }
     let { error } = await client.from("lead_status").upsert(row, { onConflict: "lead_id" });
     if (
       error &&
@@ -343,7 +408,29 @@
       delete row.called_by_id;
       ({ error } = await client.from("lead_status").upsert(row, { onConflict: "lead_id" }));
     }
+    if (
+      error &&
+      /phone|google_maps|category|address|column.*does not exist/i.test(String(error.message || error))
+    ) {
+      delete row.phone;
+      delete row.google_maps;
+      delete row.category;
+      delete row.address;
+      ({ error } = await client.from("lead_status").upsert(row, { onConflict: "lead_id" }));
+    }
     if (error) throw error;
+  }
+
+  async function verifyNotInterestedRow(leadId) {
+    const id = String(leadId || "").trim();
+    if (!id || !client) return false;
+    const { data, error } = await client
+      .from("lead_status")
+      .select("lead_id, workflow")
+      .eq("lead_id", id)
+      .maybeSingle();
+    if (error) throw error;
+    return String(data?.workflow || "").trim() === "not-interested";
   }
 
   async function clearTeamStatus(leadId, businessName) {
@@ -376,6 +463,32 @@
       ({ error } = await client.from("lead_status").upsert(row, { onConflict: "lead_id" }));
     }
     if (error) throw error;
+  }
+
+  async function claimLeadBuilding(leadId, businessName) {
+    const id = String(leadId || "").trim();
+    if (!id) throw new Error("Lead id required");
+    if (!client) throw new Error("Lead sync not configured");
+    const me = getRepId();
+    const { data, error } = await client
+      .from("lead_status")
+      .select("lead_id, workflow, called_by_id, called")
+      .eq("lead_id", id)
+      .maybeSingle();
+    if (error) throw error;
+    if (data) {
+      const w = String(data.workflow || "").trim();
+      if (w === "complete" || w === "not-interested") {
+        throw new Error("This lead is no longer in the Active list.");
+      }
+      if (w === "pending" && data.called_by_id && me && data.called_by_id !== me) {
+        throw new Error("Another rep already has this lead in Pending.");
+      }
+      if (w === "building" && data.called_by_id && me && data.called_by_id !== me) {
+        throw new Error("Another rep is already building this lead.");
+      }
+    }
+    await upsertTeam(id, "building", businessName);
   }
 
   async function deleteTeamStatus(leadId) {
@@ -422,7 +535,7 @@
             } catch (e) {
               console.warn("Lead sync realtime refresh failed", e);
             }
-          }, 800);
+          }, 250);
         }
       )
       .subscribe();
@@ -438,6 +551,7 @@
           if (
             n.workflow === "complete" ||
             n.workflow === "pending" ||
+            n.workflow === "building" ||
             n.workflow === "not-interested"
           )
             map[id] = n;
@@ -453,6 +567,7 @@
           if (
             entry.workflow === "complete" ||
             entry.workflow === "pending" ||
+            entry.workflow === "building" ||
             entry.workflow === "not-interested"
           )
             persist[id] = entry;
@@ -477,6 +592,7 @@
         if (
           n.workflow === "complete" ||
           n.workflow === "pending" ||
+          n.workflow === "building" ||
           n.workflow === "not-interested"
         )
           map[id] = n;
@@ -486,8 +602,8 @@
     }
 
     try {
-      const { url, key } = cfg();
-      client = global.supabase.createClient(url, key);
+      client = teamClient();
+      if (!client) throw new Error("Lead sync not configured");
       mode = "team";
 
       await migrateLocalToTeam();
@@ -497,21 +613,45 @@
 
       return {
         mode: "team",
-        async setWorkflow(leadId, workflow, businessName) {
+        async setWorkflow(leadId, workflow, businessName, details) {
           const w = String(workflow || "").trim();
           if (w === "removed") {
             saveWorkflowOverlayEntry(leadId, "removed");
           } else {
             saveWorkflowOverlayEntry(leadId, "");
             if (!w || w === "active") {
-              await clearTeamStatus(leadId, businessName);
+              let released = false;
               try {
                 await deleteTeamStatus(leadId);
+                released = true;
               } catch (e) {
-                /* delete optional — upsert clear is enough; needs delete RLS policy */
+                /* fall through to upsert clear */
               }
-            } else if (w === "complete" || w === "pending" || w === "not-interested") {
-              await upsertTeam(leadId, w, businessName);
+              if (!released) {
+                await clearTeamStatus(leadId, businessName);
+              }
+              try {
+                const { data: leftover } = await client
+                  .from("lead_status")
+                  .select("lead_id, workflow")
+                  .eq("lead_id", leadId)
+                  .maybeSingle();
+                if (leftover && String(leftover.workflow || "").trim()) {
+                  await deleteTeamStatus(leadId).catch(() =>
+                    clearTeamStatus(leadId, businessName)
+                  );
+                }
+              } catch (e) {
+                /* verify optional */
+              }
+            } else if (w === "complete" || w === "pending" || w === "building" || w === "not-interested") {
+              if (w === "not-interested") {
+                await markNotInterested(leadId, businessName, details);
+              } else if (w === "building") {
+                await claimLeadBuilding(leadId, businessName);
+              } else {
+                await upsertTeam(leadId, w, businessName);
+              }
             }
           }
           const next = await fetchTeam();
@@ -544,6 +684,141 @@
     return canUseTeam();
   }
 
+  async function ensureTeamClient() {
+    if (!canUseTeam()) return null;
+    if (!client) {
+      client = teamClient();
+      mode = "team";
+    }
+    return client;
+  }
+
+  function normalizeNotInterestedDetails(details) {
+    const d = details && typeof details === "object" ? details : {};
+    return {
+      phone: String(d.phone || "").trim(),
+      googleMaps: String(d.googleMaps || d.google_maps || "").trim(),
+      category: String(d.category || "").trim(),
+      address: String(d.address || "").trim(),
+    };
+  }
+
+  async function markNotInterested(leadId, businessName, details) {
+    const id = String(leadId || "").trim();
+    if (!id) throw new Error("Lead id required");
+
+    const name = String(businessName || "").trim();
+    const extra = normalizeNotInterestedDetails(details);
+    clearPendingLocalSnapshot(id);
+    clearBuildingLocalSnapshot(id);
+
+    const sb = await ensureTeamClient();
+    if (!sb) throw new Error("Lead sync not configured");
+
+    const repId = getRepId() || null;
+    const repName = getRepName() || null;
+
+    let saved = false;
+    let lastError = null;
+
+    const { data: rpcData, error: rpcError } = await sb.rpc("mark_lead_not_interested", {
+      p_lead_id: id,
+      p_business_name: name || null,
+      p_rep_id: repId,
+      p_rep_name: repName,
+      p_phone: extra.phone || null,
+      p_google_maps: extra.googleMaps || null,
+      p_category: extra.category || null,
+      p_address: extra.address || null,
+    });
+
+    if (!rpcError) {
+      const workflow = String(rpcData?.workflow || "").trim();
+      if (workflow === "not-interested") {
+        saved = true;
+      } else {
+        try {
+          saved = await verifyNotInterestedRow(id);
+        } catch (e) {
+          lastError = e;
+        }
+      }
+    } else {
+      lastError = rpcError;
+      const rpcMsg = String(rpcError.message || rpcError);
+      if (!/mark_lead_not_interested|function.*does not exist|42883/i.test(rpcMsg)) {
+        console.warn("LeadSync: RPC mark_lead_not_interested failed, using upsert", rpcError);
+      }
+    }
+
+    if (!saved) {
+      try {
+        await upsertTeam(id, "not-interested", name, extra);
+        saved = await verifyNotInterestedRow(id);
+      } catch (e) {
+        lastError = e;
+      }
+    }
+
+    if (!saved) {
+      const msg =
+        lastError?.message && String(lastError.message).trim()
+          ? String(lastError.message).trim()
+          : "Could not save not-interested status.";
+      throw new Error(msg);
+    }
+
+    try {
+      const map = await fetchTeam();
+      emitUpdate(map, { mode: "team", source: "not-interested" });
+      subscribeTeam();
+    } catch (e) {
+      console.warn("LeadSync: refresh after not interested failed", e);
+    }
+    return { leadId: id, workflow: "not-interested" };
+  }
+
+  async function markLeadBuilding(leadId, businessName) {
+    const id = String(leadId || "").trim();
+    if (!id) return;
+    saveBuildingLocalSnapshot(id, businessName);
+    try {
+      const api = await init(() => {});
+      await api.setWorkflow(id, "building", businessName);
+    } catch (e) {
+      clearBuildingLocalSnapshot(id);
+      throw e;
+    }
+  }
+
+  async function releaseLeadBuilding(leadId, businessName) {
+    const id = String(leadId || "").trim();
+    if (!id) return;
+    clearBuildingLocalSnapshot(id);
+    clearPendingLocalSnapshot(id);
+    try {
+      const api = await init(() => {});
+      await api.setWorkflow(id, "active", businessName);
+      await refreshTeam();
+    } catch (e) {
+      console.warn("LeadSync: releaseLeadBuilding failed", e);
+      throw e;
+    }
+  }
+
+  async function markLeadPending(leadId, businessName) {
+    const id = String(leadId || "").trim();
+    if (!id) return;
+    clearBuildingLocalSnapshot(id);
+    savePendingLocalSnapshot(id, businessName);
+    try {
+      const api = await init(() => {});
+      await api.setWorkflow(id, "pending", businessName);
+    } catch (e) {
+      console.warn("LeadSync: markLeadPending deferred", e);
+    }
+  }
+
   global.LeadSync = {
     init,
     getMode,
@@ -552,5 +827,11 @@
     addUpdateListener,
     savePendingLocalSnapshot,
     clearPendingLocalSnapshot,
+    saveBuildingLocalSnapshot,
+    clearBuildingLocalSnapshot,
+    markLeadBuilding,
+    releaseLeadBuilding,
+    markLeadPending,
+    markNotInterested,
   };
 })(window);

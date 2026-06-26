@@ -9,19 +9,51 @@
 </head>
 <body data-page="resources">
   <div id="shell"></div>
-  <div id="page-body" class="resources-page">
-    <h1>Find every link</h1>
-    <p class="lead links-lead">Access every page and team URL in one place — internal links stay here, and external links open separately.</p>
+  <div id="page-body" class="resources-page resources-redesign">
+    <h1>All links</h1>
+    <p class="lead links-lead">Every page, course module, and team URL in one place · search or browse by category.</p>
+
+    <section class="card links-hub-toolbar" aria-label="Search and filter links">
+      <div class="links-hub-toolbar-head">
+        <div class="links-hub-metrics" aria-live="polite">
+          <span class="links-metric"><strong id="links-stat-total">-</strong> links</span>
+          <span class="links-metric-sep" aria-hidden="true">·</span>
+          <span class="links-metric links-metric-visible"><strong id="links-stat-visible">-</strong> showing</span>
+        </div>
+      </div>
+
+      <label class="links-hub-search-wrap" for="links-search">
+        <span class="links-hub-search-icon" data-icon="search" data-icon-class="links-hub-search-ico" aria-hidden="true"></span>
+        <input
+          type="search"
+          id="links-search"
+          class="links-hub-search"
+          placeholder="Search by name or URL…"
+          autocomplete="off"
+          spellcheck="false"
+        >
+      </label>
+
+      <div class="links-hub-filters" role="group" aria-label="Filter links">
+        <button type="button" class="links-hub-filter is-active" data-links-filter="all" aria-pressed="true">All</button>
+        <button type="button" class="links-hub-filter" data-links-filter="internal" aria-pressed="false">Internal</button>
+        <button type="button" class="links-hub-filter" data-links-filter="external" aria-pressed="false">External</button>
+        <button type="button" class="links-hub-filter" data-links-filter="course" aria-pressed="false">Course</button>
+      </div>
+    </section>
 
     <div id="resources-links-root" class="resources-links-root" aria-live="polite"></div>
   </div>
   <script>
-    if (location.hash === "#setup-checklist") location.replace("checklist.html");
+    if (location.hash === "#setup-checklist") location.replace("dashboard.html");
     if (location.hash === "#how-you-get-paid") location.replace("faq.html#how-you-get-paid");
   </script>
   <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
   <script src="js/image-preload.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
   <script src="js/icons.js"></script>
   <script src="js/rep-session.js"></script>
   <script src="js/rep-settings-sync.js"></script>

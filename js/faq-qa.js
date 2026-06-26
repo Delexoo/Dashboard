@@ -1,8 +1,7 @@
 /**
- * FAQ — team Q&A below official FAQ (Supabase faq_questions / faq_answers).
+ * FAQ · team Q&A below official FAQ (Supabase faq_questions / faq_answers).
  */
 (function (global) {
-  let client = null;
   let channel = null;
   let currentRepId = null;
 
@@ -16,16 +15,12 @@
   }
 
   function canUse() {
-    const { url, key, enabled } = cfg();
-    return enabled && !!(url && key && global.supabase?.createClient);
+    const { enabled } = cfg();
+    return enabled && !!global.SiteSupabase?.canUse?.();
   }
 
   function getClient() {
-    if (client) return client;
-    if (!canUse()) return null;
-    const { url, key } = cfg();
-    client = global.supabase.createClient(url, key);
-    return client;
+    return canUse() ? global.SiteSupabase?.getClient?.() || null : null;
   }
 
   function rep() {
@@ -286,7 +281,7 @@
       const msg = String(e.message || "");
       alert(
         /policy|permission|denied|42501/i.test(msg)
-          ? "Could not save — run supabase-faq-qa-policies-only.sql in Supabase SQL Editor."
+          ? "Could not save · run supabase-faq-qa-policies-only.sql in Supabase SQL Editor."
           : msg || "Could not save changes."
       );
     } finally {
@@ -328,7 +323,7 @@
       const msg = String(e.message || "");
       alert(
         /policy|permission|denied|42501/i.test(msg)
-          ? "Could not remove — run supabase-faq-qa-policies-only.sql in Supabase SQL Editor."
+          ? "Could not remove · run supabase-faq-qa-policies-only.sql in Supabase SQL Editor."
           : msg || "Could not remove."
       );
       if (btn) btn.disabled = false;
@@ -564,7 +559,7 @@
     if (!canUse()) {
       showStatus(
         document.getElementById("faq-qa-ask-status"),
-        "Team Q&A needs Supabase — run supabase-faq-qa-setup.sql in your project.",
+        "Team Q&A needs Supabase · run supabase-faq-qa-setup.sql in your project.",
         "warn"
       );
       askForm?.querySelectorAll("textarea, button").forEach((el) => {

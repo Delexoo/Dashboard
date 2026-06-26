@@ -5,6 +5,8 @@
   let lastOnlineByName = {};
   let repProfiles = {};
   let repStatsByKey = {};
+  /** Active reps from Supabase rep_settings (not hardcoded in config). */
+  let repContributorsList = [];
 
   function escapeHtml(s) {
     return String(s || "")
@@ -37,26 +39,13 @@
   }
 
   function contributorList() {
-    const raw = global.SITE_CONFIG?.contributors;
-    if (!Array.isArray(raw)) return [];
-    return raw
+    return repContributorsList
       .map((entry) => {
-        if (typeof entry === "string") {
-          const token = entry.trim();
-          const hit = repProfiles[token.toLowerCase()];
-          return hit || { id: token.toLowerCase(), name: token };
-        }
-        if (entry && typeof entry === "object") {
-          const token = String(entry.id || entry.name || "").trim();
-          const hit = repProfiles[token.toLowerCase()];
-          return (
-            hit || {
-              id: String(entry.id || entry.name || "").trim().toLowerCase(),
-              name: String(entry.name || entry.id || "").trim(),
-            }
-          );
-        }
-        return null;
+        const id = String(entry?.id || "").trim().toLowerCase();
+        const name = String(entry?.name || "").trim();
+        if (!id || !name) return null;
+        const hit = repProfiles[id] || repProfiles[name.toLowerCase()];
+        return hit || { id, name };
       })
       .filter((entry) => entry && entry.name);
   }
@@ -186,6 +175,25 @@
         ].filter(Boolean)
       ),
     ];
+  }
+
+  function contributorSortRank(person) {
+    const pinned = global.SITE_CONFIG?.contributorsPinnedFirst;
+    if (!Array.isArray(pinned)) return 999;
+    const keys = personKeys(person);
+    for (let i = 0; i < pinned.length; i++) {
+      const token = String(pinned[i] || "").trim().toLowerCase();
+      if (token && keys.includes(token)) return i;
+    }
+    return pinned.length;
+  }
+
+  function sortContributors(list) {
+    return list.slice().sort((a, b) => {
+      const rankDiff = contributorSortRank(a) - contributorSortRank(b);
+      if (rankDiff !== 0) return rankDiff;
+      return a.name.localeCompare(b.name, undefined, { sensitivity: "base" });
+    });
   }
 
   function liveStatsForCurrentRep(person) {
@@ -322,13 +330,10 @@
   }
 
   async function refreshContributorData() {
-    const c = global.SITE_CONFIG || {};
-    const url = String(c.supabaseUrl || "").trim();
-    const key = String(c.supabaseAnonKey || "").trim();
-    if (!url || !key || !global.supabase?.createClient) return;
+    const client = global.SiteSupabase?.getClient?.() || null;
+    if (!client) return;
 
     try {
-      const client = global.supabase.createClient(url, key);
       const { data, error } = await client
         .from("rep_settings")
         .select("rep_id, rep_name, settings_json");
@@ -344,9 +349,18 @@
         return nextStats[key];
       }
 
+      const contributorSeen = new Set();
+      const nextContributors = [];
+
       (data || []).forEach((row) => {
         const id = String(row.rep_id || "").trim();
         const name = String(row.rep_name || "").trim();
+        const idKey = id.toLowerCase();
+        if (idKey && name && !contributorSeen.has(idKey)) {
+          contributorSeen.add(idKey);
+          nextContributors.push({ id: idKey, name });
+        }
+
         const meta = metaFromSettings(row.settings_json || {});
         const iso = String(meta?.lastOnlineAt || meta?.lastLoginAt || "").trim();
         const activeMs = activeMsFromMeta(meta);
@@ -370,6 +384,8 @@
         });
       });
 
+      repContributorsList = sortContributors(nextContributors);
+
       lastOnlineByName = nextOnline;
       repProfiles = nextProfiles;
       repStatsByKey = nextStats;
@@ -392,9 +408,6 @@
         value: activityLine,
         online: last.online,
       },
-      { label: "Hours on platform", value: formatLifetimeHours(stats.activeMs) },
-      { label: "Commission", value: "$" + formatMoney(stats.earned) },
-      { label: "Sales", value: saleCountLabel(stats.sales) },
     ];
 
     const tipId = tipIdFor(person);
@@ -617,7 +630,7 @@
       '<button type="button" class="owner-contributor owner-contributor--share" data-contributors-share title="' +
       escapeHtml(share.hint) +
       '" aria-label="' +
-      escapeHtml(share.label + " — " + share.hint) +
+      escapeHtml(share.label + " · " + share.hint) +
       '">' +
       '<span class="owner-contributor-photo owner-contributor-share-photo" data-icon="user-plus" data-icon-class="owner-contributor-share-ico" aria-hidden="true"></span>' +
       '<span class="owner-contributor-name-row owner-contributor-name-row--invite">' +
@@ -639,7 +652,6 @@
 
     if (!people.length && !shareCard) {
       grid.innerHTML = "";
-      renderTeamStats();
       return;
     }
 
@@ -656,7 +668,7 @@
             '<div class="owner-contributor" tabindex="0" aria-describedby="' +
             escapeHtml(tipId) +
             '" aria-label="' +
-            escapeHtml(person.name + " — " + presenceLabel) +
+            escapeHtml(person.name + " · " + presenceLabel) +
             '">' +
             contributorPhotoHtml(url, person) +
             '<span class="owner-contributor-name-row">' +
@@ -676,7 +688,6 @@
 
     if (global.SiteIcons?.initIcons) global.SiteIcons.initIcons(grid);
     bindShareContributor();
-    renderTeamStats();
   }
 
   async function refreshPhotosAndRender() {
@@ -714,7 +725,8 @@
   }
 
   function init() {
-    if (document.body.dataset.page !== "contributors") return;
+    const page = document.body.dataset.page || "";
+    if (page !== "contributors" && page !== "about") return;
     renderContributors();
     const boot = () => bootContributors();
     if (global.SiteLock?.whenUnlocked) global.SiteLock.whenUnlocked(boot);

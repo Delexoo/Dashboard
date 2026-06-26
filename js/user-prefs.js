@@ -1,21 +1,25 @@
 /**
- * Per-rep UI preferences — synced via RepStorage.
+ * Per-rep UI preferences · synced via RepStorage.
  */
 (function (global) {
   const PREFS_KEY = "lpc_user_prefs_v1";
 
   const DEFAULT_PREFS = {
     theme: "light",
-    uiColor: "current",
+    uiColor: "white",
     showCourseFullscreenHint: true,
     showSignOutFloat: true,
+    reduceMotion: false,
+    showGoalCelebration: true,
   };
 
   function loadRaw() {
     try {
       const raw = global.RepStorage?.loadItem?.(PREFS_KEY);
       if (!raw) return { ...DEFAULT_PREFS };
-      return { ...DEFAULT_PREFS, ...JSON.parse(raw) };
+      const merged = { ...DEFAULT_PREFS, ...JSON.parse(raw) };
+      if (merged.uiColor === "current") merged.uiColor = "cream";
+      return merged;
     } catch (e) {
       return { ...DEFAULT_PREFS };
     }
@@ -51,6 +55,14 @@
     return loadRaw().showSignOutFloat !== false;
   }
 
+  function showGoalCelebration() {
+    return loadRaw().showGoalCelebration !== false;
+  }
+
+  function forceReduceMotion() {
+    return loadRaw().reduceMotion === true;
+  }
+
   global.UserPrefs = {
     PREFS_KEY,
     DEFAULT_PREFS,
@@ -59,5 +71,7 @@
     resetToDefaults,
     showCourseFullscreenHint,
     showSignOutFloat,
+    showGoalCelebration,
+    forceReduceMotion,
   };
 })(window);

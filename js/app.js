@@ -1,4 +1,23 @@
 (function () {
+  const global = window;
+  if (!window.SiteOwner) {
+    function isSiteOwner() {
+      const id = String(
+        window.RepSession?.getId?.() || window.RepSession?.get?.()?.id || ""
+      ).toLowerCase();
+      const allowed = (window.SITE_CONFIG?.ownerRepIds || []).map((s) =>
+        String(s).toLowerCase()
+      );
+      return !!id && allowed.includes(id);
+    }
+    function gateOwnerPage(fallback) {
+      if (isSiteOwner()) return true;
+      window.location.replace(fallback || "dashboard.html");
+      return false;
+    }
+    window.SiteOwner = { isSiteOwner, gateOwnerPage };
+  }
+
   const PROGRESS_KEY = "lpc_sales_onboarding_progress_v1";
   const TRACKER_KEY = "lpc_sales_tracker_v2";
   const TRACKER_KEY_LEGACY = "lpc_sales_tracker_v1";
@@ -13,8 +32,8 @@
 
   const NAV_GROUP_PAGES = {
     course: ["course-module", "setup"],
-    tools: ["leads", "scripts", "template", "outreach", "checklist"],
-    help: ["faq", "feedback", "bug-bounty", "settings", "resources", "owner", "contributors", "privacy", "terms"],
+    tools: ["leads", "template", "scripts"],
+    help: ["faq", "feedback", "bug-bounty", "settings", "resources", "about", "privacy", "terms", "help-guide"],
   };
 
   const NAV_CATEGORIES = {
@@ -45,7 +64,7 @@
     { sale: 1500, commission: 600, saleLabel: "$1,500", saleShort: "$1.5K sale" },
   ];
   const EARNINGS_CLOSE_COUNTS = [1, 5, 10, 25, 50, 100];
-  const DEFAULT_GOAL = 2000;
+  const DEFAULT_GOAL = 1000;
 
   function normalizeGoal(value) {
     const n = Number(value);
@@ -103,51 +122,199 @@
     return html;
   }
 
+  const LEAD_FINDER_COUNT_KEY = "lpc_lead_finder_nav_count_v1";
+  let leadFinderNavRefreshPromise = null;
+  let leadFinderNavCountBound = false;
+
+  function readLeadFinderNavCount() {
+    const live = window.LeadsPage?.getAvailableCount?.();
+    if (live != null) return live;
+    try {
+      const raw = JSON.parse(sessionStorage.getItem(LEAD_FINDER_COUNT_KEY) || "null");
+      if (raw && Number.isFinite(raw.count)) return raw.count;
+    } catch (_) {}
+    return null;
+  }
+
+  function cacheLeadFinderNavCount(count) {
+    if (!Number.isFinite(count)) return;
+    try {
+      sessionStorage.setItem(
+        LEAD_FINDER_COUNT_KEY,
+        JSON.stringify({ count, at: Date.now() })
+      );
+    } catch (_) {}
+  }
+
+  function countAllLeadsForNav(leads) {
+    return (leads || []).filter((lead) => {
+      if (window.LeadCsvFormat?.isValidLead) return window.LeadCsvFormat.isValidLead(lead);
+      return lead?.formatValid !== false;
+    }).length;
+  }
+
+  function formatLeadFinderNavCount(count) {
+    const n = Number(count);
+    if (!Number.isFinite(n)) return "…";
+    return String(n);
+  }
+
+  function leadFinderNavCountMarkup(count) {
+    if (count == null) {
+      return '<span class="nav-link-count nav-link-count--pending" aria-hidden="true">…</span>';
+    }
+    const label = formatLeadFinderNavCount(count);
+    return (
+      '<span class="nav-link-count" aria-label="' +
+      count +
+      ' total leads">' +
+      label +
+      "</span>"
+    );
+  }
+
+  function updateLeadFinderNavBadge(count) {
+    const link = document.querySelector(".nav-link--leads");
+    if (!link) return;
+    const existing = link.querySelector(".nav-link-count");
+    const html = leadFinderNavCountMarkup(count);
+    if (existing) existing.outerHTML = html;
+    else {
+      const text = link.querySelector(".nav-link-text");
+      if (text) text.insertAdjacentHTML("afterend", html);
+    }
+  }
+
+  function loadScriptOnce(src) {
+    if (src.includes("lead-csv-format.js") && window.LeadCsvFormat) return Promise.resolve();
+    if (src.includes("lead-display.js") && window.LeadDisplay) return Promise.resolve();
+    if (src.includes("leads-loader.js") && window.LeadsLoader) return Promise.resolve();
+    if (src.includes("lead-sync.js") && window.LeadSync) return Promise.resolve();
+    const existing = document.querySelector('script[src="' + src + '"]');
+    if (existing) {
+      if (existing.dataset.loaded === "1") return Promise.resolve();
+      return new Promise((resolve, reject) => {
+        existing.addEventListener("load", () => resolve(), { once: true });
+        existing.addEventListener("error", () => reject(new Error(src)), { once: true });
+      });
+    }
+    return new Promise((resolve, reject) => {
+      const script = document.createElement("script");
+      script.src = src;
+      script.onload = () => {
+        script.dataset.loaded = "1";
+        resolve();
+      };
+      script.onerror = () => reject(new Error("Could not load " + src));
+      document.body.appendChild(script);
+    });
+  }
+
+  function refreshLeadFinderNavCount() {
+    if (!isSiteUnlocked()) return Promise.resolve(readLeadFinderNavCount());
+    const live = window.LeadsPage?.getAvailableCount?.();
+    if (live != null) {
+      cacheLeadFinderNavCount(live);
+      updateLeadFinderNavBadge(live);
+      return Promise.resolve(live);
+    }
+    if (leadFinderNavRefreshPromise) return leadFinderNavRefreshPromise;
+    leadFinderNavRefreshPromise = (async () => {
+      try {
+        await loadScriptOnce("js/lead-display.js");
+        await loadScriptOnce("js/lead-csv-format.js");
+        await loadScriptOnce("js/leads-loader.js");
+        const loader = window.LeadsLoader;
+        if (!loader?.load) return readLeadFinderNavCount();
+        const { leads } = await loader.load();
+        const count = countAllLeadsForNav(leads);
+        cacheLeadFinderNavCount(count);
+        updateLeadFinderNavBadge(count);
+        window.dispatchEvent(new CustomEvent("lead-finder-count-changed", { detail: { count } }));
+        return count;
+      } catch (e) {
+        console.warn("Lead Finder nav count unavailable", e);
+        return readLeadFinderNavCount();
+      } finally {
+        leadFinderNavRefreshPromise = null;
+      }
+    })();
+    return leadFinderNavRefreshPromise;
+  }
+
+  function initLeadFinderNavCount() {
+    updateLeadFinderNavBadge(readLeadFinderNavCount());
+    refreshLeadFinderNavCount().catch(() => {});
+    if (leadFinderNavCountBound) return;
+    leadFinderNavCountBound = true;
+    window.addEventListener("lead-finder-count-changed", (e) => {
+      const count = e.detail?.count;
+      if (Number.isFinite(count)) updateLeadFinderNavBadge(count);
+    });
+  }
+
   function renderToolsNav(activeId, progress) {
     return TOOL_PAGES.map((p) => {
-      if (p.id === "checklist") {
-        const cls = p.id === activeId ? "nav-link active nav-link--checklist" : "nav-link nav-link--checklist";
-        const pct = checklistProgressPercent(progress);
+      if (p.id === "leads") {
+        const cls =
+          p.id === activeId ? "nav-link active nav-link--leads" : "nav-link nav-link--leads";
+        const count = readLeadFinderNavCount();
         return (
           `<li><a class="${cls}" href="${p.href}">` +
-          `<span class="nav-link-text">${ico("badge-check", "ico-nav")}${p.label}</span>` +
-          `<span class="nav-link-progress" aria-hidden="true">` +
-          `<span class="nav-link-progress-bar" style="width:${pct}%"></span></span></a></li>`
+          `<span class="nav-link-text">${ico("search", "ico-nav")}${p.label}</span>` +
+          leadFinderNavCountMarkup(count) +
+          `</a></li>`
+        );
+      }
+      if (p.external && p.hrefKey) {
+        const url = String(cfg()[p.hrefKey] || "").trim();
+        if (!url) return "";
+        return navQuickLink(
+          "send",
+          p.label,
+          'href="#" data-telegram-url="' +
+            escHtml(url) +
+            '" data-nav-leave-telegram="1" role="button"',
+          true
         );
       }
       const cls = p.id === activeId ? "nav-link active" : "nav-link";
       const ic =
-        p.id === "leads"
-          ? "search"
-          : p.id === "template"
-            ? "file-plus"
-            : p.id === "scripts"
-              ? "phone"
-              : "message-square";
+        p.id === "template"
+          ? "file-plus"
+          : p.id === "scripts"
+            ? "phone"
+            : "message-square";
       return `<li><a class="${cls}" href="${p.href}"><span class="nav-link-text">${ico(ic, "ico-nav")}${p.label}</span></a></li>`;
     }).join("");
   }
 
   function renderHelpNav(activeId) {
     const resourcesActive =
-      activeId === "resources" || activeId === "privacy" || activeId === "terms";
+      activeId === "resources" || activeId === "privacy" || activeId === "terms" || activeId === "help-guide";
+    const aboutActive = activeId === "about" || activeId === "owner" || activeId === "contributors";
     return (
-      `<li><a class="${activeId === "owner" ? "nav-link active" : "nav-link"}" href="owner.html"><span class="nav-link-text">${ico("message-square", "ico-nav")}Meet the Owner</span></a></li>` +
-      `<li><a class="${activeId === "contributors" ? "nav-link active" : "nav-link"}" href="contributors.html"><span class="nav-link-text">${ico("users", "ico-nav")}Contributors</span></a></li>` +
+      `<li><a class="${aboutActive ? "nav-link active" : "nav-link"}" href="about.html"><span class="nav-link-text">${ico("users", "ico-nav")}About us</span></a></li>` +
       `<li><a class="${activeId === "settings" ? "nav-link active" : "nav-link"}" href="settings.html"><span class="nav-link-text">${ico("settings", "ico-nav")}Settings</span></a></li>` +
       `<li><a class="${activeId === "faq" ? "nav-link active" : "nav-link"}" href="faq.html"><span class="nav-link-text">${ico("help-circle", "ico-nav")}FAQ</span></a></li>` +
-      `<li><a class="${resourcesActive ? "nav-link active" : "nav-link"}" href="resources.html"><span class="nav-link-text">${ico("external-link", "ico-nav")}All links</span></a></li>` +
       `<li><a class="${activeId === "feedback" ? "nav-link active" : "nav-link"}" href="feedback.html"><span class="nav-link-text">${ico("message-square", "ico-nav")}Feedback</span></a></li>` +
-      `<li><a class="${activeId === "bug-bounty" ? "nav-link active" : "nav-link"}" href="bug-bounty.html"><span class="nav-link-text">${ico("bug", "ico-nav")}Bug Bounty</span></a></li>`
+      `<li><a class="${activeId === "bug-bounty" ? "nav-link active" : "nav-link"}" href="bug-bounty.html"><span class="nav-link-text">${ico("bug", "ico-nav")}Bug Bounty</span></a></li>` +
+      `<li><a class="${resourcesActive ? "nav-link active" : "nav-link"}" href="resources.html"><span class="nav-link-text">${ico("external-link", "ico-nav")}All links</span></a></li>`
     );
   }
 
   function renderOverviewNav(activeId) {
     const dashCls = activeId === "home" ? "nav-link active" : "nav-link";
-    return (
+    const consoleCls = activeId === "sales-console" ? "nav-link active" : "nav-link";
+    let html =
       `<li><a class="${dashCls}" href="dashboard.html">` +
-      `<span class="nav-link-text">${ico("layout-dashboard", "ico-nav")}Dashboard</span></a></li>`
-    );
+      `<span class="nav-link-text">${ico("layout-dashboard", "ico-nav")}Dashboard</span></a></li>`;
+    if (window.SiteOwner?.isSiteOwner?.()) {
+      html +=
+        `<li><a class="${consoleCls}" href="sales-console.html">` +
+        `<span class="nav-link-text">${ico("badge-check", "ico-nav")}Admin Console</span></a></li>`;
+    }
+    return html;
   }
 
   function refreshCourseNavInSidebar() {
@@ -169,6 +336,7 @@
     [courseList, toolsList].forEach((list) => {
       list?.querySelectorAll(".nav-link").forEach((a) => a.addEventListener("click", close));
     });
+    if (toolsList) bindTelegramNavLeave(toolsList);
   }
 
   function pulseCourseModuleBadge(mod) {
@@ -186,18 +354,15 @@
 
   const TOOL_PAGES = [
     { id: "leads", href: "leads.html", label: "Lead Finder" },
-    { id: "scripts", href: "scripts.html", label: "Call scripts" },
     { id: "template", href: "template.html", label: "Lead Builder" },
-    { id: "outreach", href: "outreach.html", label: "Text & email" },
-    { id: "checklist", href: "checklist.html", label: "Setup checklist" },
+    { id: "scripts", href: "scripts.html", label: "Call Scripts" },
+    { id: "telegram", label: "Telegram", external: true, hrefKey: "telegramTeam" },
   ];
 
   const DAILY_TOOL_PROGRESS = {
     leads: "leads",
     scripts: "script",
     template: "template",
-    outreach: "outreach",
-    checklist: "checklist",
   };
 
   const CHECKLIST_MODULE_MAP = {
@@ -215,6 +380,7 @@
       const mod = window.CourseModules.get(modId);
       if (mod) return window.CourseModules.isComplete(mod, progress);
     }
+    if (id === "telegram") return !!(progress.telegram || progress.telegramSkipped);
     if (progress[id]) return true;
     if (id === "template" && progress["first-lead"]) return true;
     return false;
@@ -222,9 +388,25 @@
 
   function touchDailyToolProgress() {
     const page = document.body.dataset.page || "";
+    if (page === "scripts") {
+      touchProgressKeys(["script", "outreach"]);
+      return;
+    }
     const key = DAILY_TOOL_PROGRESS[page];
     if (!key) return;
     touchProgressKeys([key]);
+  }
+
+  function scrollPageHash() {
+    const id = (location.hash || "").replace(/^#/, "").trim();
+    if (!id) return;
+    const el = document.getElementById(id);
+    if (!el) return;
+    requestAnimationFrame(() => {
+      setTimeout(() => {
+        el.scrollIntoView({ behavior: "smooth", block: "start" });
+      }, 80);
+    });
   }
 
   function cfg() {
@@ -381,7 +563,7 @@
       if (!raw) return defaultTracker();
 
       if (session?.id && raw.repId && raw.repId !== session.id) {
-        console.warn("Tracker data was for another rep — loading a fresh tracker for", session.id);
+        console.warn("Tracker data was for another rep · loading a fresh tracker for", session.id);
         return defaultTracker();
       }
 
@@ -391,6 +573,7 @@
         goal: normalizeGoal(raw.goal),
         leadsPosted: Number(raw.leadsPosted) || 0,
         deals: Array.isArray(raw.deals) ? raw.deals : [],
+        deletedDealIds: Array.isArray(raw.deletedDealIds) ? raw.deletedDealIds : [],
       };
       if (session?.name) out.name = session.name;
       if (session?.id) out.repId = session.id;
@@ -403,7 +586,64 @@
   function saveTracker(data) {
     stampTrackerRep(data);
     lsSet(TRACKER_KEY, JSON.stringify(data));
+    syncLpcTrackerBridge();
   }
+
+  function syncLpcTrackerBridge() {
+    window.LpcTracker = {
+      getDealById(dealId) {
+        const tracker = loadTracker();
+        return (tracker.deals || []).find((d) => String(d.id) === String(dealId));
+      },
+      isOwnerConfirmedDeal(deal) {
+        return !!deal?.fromOwnerConfirm;
+      },
+    };
+  }
+
+  syncLpcTrackerBridge();
+
+  let onPendingSaleLogged = null;
+
+  function logSaleFromPendingComplete(leadId, businessName) {
+    const id = String(leadId || "").trim();
+    if (!id) return false;
+    const snap = window.PendingLeadBuilder?.get?.(id);
+    if (!snap || !(Number(snap.amount) > 0)) return false;
+
+    const data = loadTracker();
+    const duplicate = (data.deals || []).some(
+      (d) =>
+        String(d.leadId || "") === id &&
+        (d.fromPendingComplete || d.fromOwnerConfirm)
+    );
+    if (duplicate) {
+      window.PendingLeadBuilder?.clear?.(id);
+      return false;
+    }
+
+    const earnedBefore = calcEarnedFromDeals(data.deals || []);
+    const saleAmount = Number(snap.amount);
+    const deal = {
+      id: newDealId(),
+      createdAt: new Date().toISOString(),
+      commission: commissionFromDown(saleAmount),
+      saleAmount,
+      businessName: String(businessName || snap.businessName || "").trim(),
+      leadId: id,
+      fromPendingComplete: true,
+    };
+    data.deals = data.deals || [];
+    data.deals.push(deal);
+    const earnedAfter = calcEarnedFromDeals(data.deals);
+    saveTracker(data);
+    window.PendingLeadBuilder?.clear?.(id);
+    if (onPendingSaleLogged) onPendingSaleLogged(earnedBefore, earnedAfter);
+    reloadSalesTracker?.();
+    return true;
+  }
+
+  window.logSaleFromPendingComplete = logSaleFromPendingComplete;
 
   function calcEarnedFromDeals(deals) {
     return deals.reduce((sum, d) => sum + (Number(d.commission) || 0), 0);
@@ -413,6 +653,18 @@
     const preset = COMMISSION_PRESET[down];
     if (preset !== undefined) return preset;
     return Math.round(down * COMMISSION_RATE);
+  }
+
+  function saleAmountFromDeal(d) {
+    if (!d) return 0;
+    const stored = Number(d.saleAmount ?? d.downAmount);
+    if (stored > 0) return stored;
+    const comm = Number(d.commission) || 0;
+    if (!comm) return 0;
+    for (const tier of EARNINGS_TIERS) {
+      if (tier.commission === comm) return tier.sale;
+    }
+    return Math.round(comm / COMMISSION_RATE);
   }
 
   function escHtml(s) {
@@ -449,6 +701,20 @@
     }
   }
 
+  function formatDealDateTime(iso) {
+    try {
+      return new Date(iso).toLocaleString("en-US", {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      return "";
+    }
+  }
+
   function formatMoney(n) {
     return n.toLocaleString("en-US", { maximumFractionDigits: 0 });
   }
@@ -460,6 +726,97 @@
     } catch (e) {
       el.focus();
     }
+  }
+
+  let dashboardIncomeUiReady = false;
+
+  function setDashboardToggleCardOpen(card, open, opts) {
+    opts = opts || {};
+    if (!card) return;
+    const panel =
+      (opts.panelId && document.getElementById(opts.panelId)) ||
+      card.querySelector(".dash-toggle-panel");
+    const btn =
+      (opts.buttonId && document.getElementById(opts.buttonId)) ||
+      card.querySelector(".dash-toggle-btn");
+    const label =
+      (opts.labelId && document.getElementById(opts.labelId)) ||
+      card.querySelector(".dash-toggle-label");
+    if (!panel) return;
+
+    card.classList.toggle("is-open", open);
+    panel.setAttribute("aria-hidden", open ? "false" : "true");
+    btn?.setAttribute("aria-expanded", open ? "true" : "false");
+    if (label) label.textContent = open ? "Hide" : "Show";
+
+    if (open && opts.scroll !== false) {
+      card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+  }
+
+  function focusDashboardIncomeForm(opts) {
+    opts = opts || {};
+    const section =
+      document.getElementById("dash-sales-log-section") ||
+      document.querySelector(".dash-sales-log-section");
+    const priceEl = document.getElementById("saleAmount");
+    const businessEl = document.getElementById("businessName");
+    if (businessEl) businessEl.value = String(opts.businessName || "").trim();
+    if (priceEl) {
+      if (opts.amount != null && opts.amount !== "") {
+        priceEl.value = String(opts.amount);
+      } else if (!opts.businessName) {
+        priceEl.value = "";
+      }
+    }
+
+    if (opts.scroll !== false) {
+      section?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+    }
+    focusNoScroll(
+      opts.focusAmount === false && opts.businessName ? businessEl : priceEl
+    );
+  }
+
+  function openDashboardIncomePanel(opts) {
+    focusDashboardIncomeForm(opts);
+  }
+
+  function closeDashboardIncomePanel() {}
+
+  function toggleDashboardToggleCard(card) {
+    if (!card) return;
+    setDashboardToggleCardOpen(card, !card.classList.contains("is-open"), { scroll: false });
+  }
+
+  function initDashboardToggleCards() {
+    document.querySelectorAll("[data-dash-toggle]").forEach((card) => {
+      const btn = card.querySelector(".dash-toggle-btn");
+      if (!btn || btn.dataset.toggleBound === "1") return;
+      btn.dataset.toggleBound = "1";
+
+      btn.addEventListener("click", (e) => {
+        e.preventDefault();
+        toggleDashboardToggleCard(card);
+      });
+    });
+  }
+
+  window.initDashboardToggleCards = initDashboardToggleCards;
+  window.setDashboardToggleCardOpen = setDashboardToggleCardOpen;
+
+  function ensureDashboardIncomeUi() {
+    window.openSalesIncomeDialog = openDashboardIncomePanel;
+    window.closeSalesIncomeDialog = closeDashboardIncomePanel;
+    initDashboardToggleCards();
+
+    if (dashboardIncomeUiReady) return;
+    dashboardIncomeUiReady = true;
+  }
+
+  function initDashboardIncomeUiEarly() {
+    if (document.body?.dataset?.page !== "home") return;
+    ensureDashboardIncomeUi();
   }
 
   function preserveScroll(fn) {
@@ -495,6 +852,80 @@
     return `<li><a class="nav-link nav-link-out nav-link-important" ${attrs}><span class="nav-link-text">${ico(icon, "ico-nav")}${label}</span><span class="nav-link-trail" aria-hidden="true">${trail}</span></a></li>`;
   }
 
+  function telegramTeamLeaveMessage() {
+    const name = cfg().telegramTeamDisplayName || "Website Agency";
+    const chat = cfg().telegramTeamName || "sales team business chat";
+    return "You're leaving this dashboard to open the " + name + " " + chat + " in Telegram.";
+  }
+
+  function ensureTelegramLeaveDialog() {
+    if (document.getElementById("telegram-leave-dialog")) return;
+    const dialog = document.createElement("dialog");
+    dialog.id = "telegram-leave-dialog";
+    dialog.className = "site-leave-dialog";
+    dialog.setAttribute("aria-labelledby", "telegram-leave-dialog-title");
+    dialog.innerHTML =
+      '<div class="site-leave-dialog-panel">' +
+      '<h2 class="site-leave-dialog-title" id="telegram-leave-dialog-title">Open Telegram?</h2>' +
+      '<p class="site-leave-dialog-text" id="telegram-leave-dialog-text"></p>' +
+      '<div class="site-leave-dialog-actions">' +
+      '<button type="button" class="btn secondary" data-telegram-leave-cancel>Stay here</button>' +
+      '<button type="button" class="btn" data-telegram-leave-continue>Open Telegram</button>' +
+      "</div>" +
+      "</div>";
+    document.body.appendChild(dialog);
+
+    const cancelBtn = dialog.querySelector("[data-telegram-leave-cancel]");
+    const continueBtn = dialog.querySelector("[data-telegram-leave-continue]");
+
+    cancelBtn?.addEventListener("click", () => dialog.close());
+    continueBtn?.addEventListener("click", () => {
+      const url = String(dialog.dataset.pendingUrl || "").trim();
+      dialog.close();
+      if (url) window.open(url, "_blank", "noopener,noreferrer");
+    });
+    dialog.addEventListener("click", (e) => {
+      if (e.target === dialog) dialog.close();
+    });
+    dialog.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      dialog.close();
+    });
+  }
+
+  function openTelegramLeaveDialog(url) {
+    ensureTelegramLeaveDialog();
+    const dialog = document.getElementById("telegram-leave-dialog");
+    const textEl = document.getElementById("telegram-leave-dialog-text");
+    if (!dialog) return;
+    if (textEl) textEl.textContent = telegramTeamLeaveMessage();
+    dialog.dataset.pendingUrl = url;
+    if (typeof dialog.showModal === "function") {
+      dialog.showModal();
+      return;
+    }
+    if (window.confirm(telegramTeamLeaveMessage() + "\n\nContinue?")) {
+      window.open(url, "_blank", "noopener,noreferrer");
+    }
+  }
+
+  function bindTelegramNavLeave(root) {
+    ensureTelegramLeaveDialog();
+    const scope = root || document;
+    scope.querySelectorAll("[data-nav-leave-telegram]").forEach((link) => {
+      if (link.dataset.leaveBound === "1") return;
+      link.dataset.leaveBound = "1";
+      link.addEventListener("click", (e) => {
+        e.preventDefault();
+        const url = String(
+          link.dataset.telegramUrl || link.getAttribute("href") || ""
+        ).trim();
+        if (!url || url === "#") return;
+        openTelegramLeaveDialog(url);
+      });
+    });
+  }
+
   /** Move #page-body into #main-content inside #shell (avoids content below empty 100vh shell). */
   function ensurePageLayout() {
     const shell = document.getElementById("shell");
@@ -525,10 +956,12 @@
 
   function renderSidebarLegal(activeId) {
     return (
-      `<div class="sidebar-legal" aria-label="Legal links">` +
+      `<div class="sidebar-legal" aria-label="Legal and help links">` +
       `<a class="${activeId === "terms" ? "sidebar-legal-link active" : "sidebar-legal-link"}" href="terms.html">Terms</a>` +
       `<span class="sidebar-legal-sep" aria-hidden="true">&middot;</span>` +
       `<a class="${activeId === "privacy" ? "sidebar-legal-link active" : "sidebar-legal-link"}" href="privacy.html">Privacy</a>` +
+      `<span class="sidebar-legal-sep" aria-hidden="true">&middot;</span>` +
+      `<a class="${activeId === "help-guide" ? "sidebar-legal-link active" : "sidebar-legal-link"}" href="help.html">Help</a>` +
       `</div>`
     );
   }
@@ -784,6 +1217,7 @@
     }
     initNavGroups(activeId);
     initConfigLinks();
+    bindTelegramNavLeave(document.getElementById("sidebar"));
     updateBrandSub();
     if (window.SignOutFloat) window.SignOutFloat.update();
     if (window.SiteIcons) window.SiteIcons.initIcons();
@@ -821,52 +1255,45 @@
       step: 1,
       task: "Open Lead Finder",
       detail:
-        "Our leads list — businesses that already do not have a website. Use the No website filter if you want the best fits.",
+        "Our leads list · businesses that already do not have a website. Use the No website filter if you want the best fits.",
       resource: { href: "leads.html", label: "Lead Finder" },
     },
     {
       step: 2,
       taskFlow: ["Pick a business", "Build Lead"],
       detail:
-        "Choose one business from the list, then click Build Lead on its card to send details into Lead Builder (the lead is pinned for you).",
+        "Choose one business from the list, then click Build Lead on its card to open Lead Builder with the details prefilled.",
       buildLeadTag: true,
+      resource: { href: "leads.html", label: "Lead Finder" },
     },
     {
       step: 3,
       taskFlow: ["Call business", "Pitch website"],
       detail:
-        "Dial from the card and use Call scripts to offer the free demo site. Talk to the owner or decision-maker. Not interested? Thank them and go back to step 2 — do not post the lead.",
-      resource: { href: "scripts.html", label: "Call scripts" },
+        "Dial from the card and use Call Scripts to offer the free demo site. Talk to the owner or decision-maker. Not interested? Thank them and go back to step 2 · do not post the lead.",
+      resource: { href: "scripts.html", label: "Call Scripts" },
     },
     {
       step: 4,
-      taskHeading: "If interested:",
-      inlineBullets: ["Fill out the Lead Builder"],
-      detailBullets: [
-        "Price must match what you quoted on the call",
-        "Google Maps link is filled from Build Lead",
-        "Preference: Direct Link or Booking",
-        "Phone and owner name",
-      ],
-      resource: { href: "template.html", label: "Lead Builder", shortLabel: "Builder" },
+      taskFlow: ["If interested", "Fill Lead Builder"],
+      detail:
+        "Build Lead prefills most fields. Match your quoted price, then add phone, owner name, and preference.",
+      resource: { href: "template.html", label: "Lead Builder" },
     },
     {
       step: 5,
-      taskFlow: ["Copy template", "Send it into the Interested Businesses chat"],
+      taskFlow: ["Send lead", "Manager gets the details"],
       detail:
-        "In Lead Builder, click Copy template, then paste the full message into the Interested Businesses chat on Telegram right away.",
-      resource: {
-        hrefKey: "interestedBusinessesUrl",
-        label: "Interested Businesses",
-        external: true,
-      },
+        "Click Send lead when every field is filled · the business moves to Pending businesses and your manager gets the details.",
+      resource: { href: "template.html", label: "Lead Builder" },
     },
     {
       step: 6,
       task: "Mark the business as complete",
       detail:
-        "In Lead Finder, tag the business Complete (team sees it). Use Pending if you need to call back. Quick Save and Pin are only for you. Then start again at step 2.",
+        "In Lead Finder, tag the business Complete (team sees it). Use Pending if you need to call back. Quick Save is only for you. Then start again at step 2.",
       completeTag: true,
+      resource: { href: "leads.html", label: "Lead Finder" },
     },
   ];
 
@@ -886,23 +1313,27 @@
     );
   }
 
-  function everydayTaskToolCell(row) {
+  function everydayTaskToolCell(row, embed) {
+    if (embed) {
+      return row.resource ? everydayTaskOpenButton(row.resource, true) : "";
+    }
     if (row.completeTag) return everydayTaskCompleteTag();
     if (row.buildLeadTag) return everydayTaskBuildLeadTag();
     return everydayTaskOpenButton(row.resource);
   }
 
-  function everydayTaskOpenButton(resource) {
+  function everydayTaskOpenButton(resource, embed) {
     if (!resource) return "";
-    const label = escHtml(resource.label || "Open");
+    const label = escHtml(embed ? everydayTaskEmbedActionLabel(resource) : resource.label || "Open");
+    const linkCls = embed ? "everyday-tasks-embed-btn" : "btn secondary everyday-tasks-open-btn";
     if (resource.href) {
-      return `<a class="btn secondary everyday-tasks-open-btn" href="${escHtml(resource.href)}">${label}</a>`;
+      return `<a class="${linkCls}" href="${escHtml(resource.href)}">${label}</a>`;
     }
     if (resource.hrefKey) {
       const attrs = resource.external
         ? ` data-config="${escHtml(resource.hrefKey)}" href="#" target="_blank" rel="noopener"`
         : ` data-config="${escHtml(resource.hrefKey)}" href="#"`;
-      return `<a class="btn secondary everyday-tasks-open-btn"${attrs}>${label}</a>`;
+      return `<a class="${linkCls}"${attrs}>${label}</a>`;
     }
     return "";
   }
@@ -911,15 +1342,40 @@
     return '<span class="everyday-tasks-flow-arrow" aria-hidden="true">→</span>';
   }
 
-  function everydayTaskLabelHtml(row) {
+  function everydayTaskStepTag(step) {
+    const labels = ["Leads", "Build", "Call", "Builder", "Send", "Done"];
+    const label = labels[step - 1] || String(step);
+    return (
+      '<span class="everyday-tasks-step-tag">' +
+      '<span class="everyday-tasks-step-tag-num" aria-hidden="true">' +
+      step +
+      "</span>" +
+      '<span class="everyday-tasks-step-tag-label">' +
+      escHtml(label) +
+      "</span></span>"
+    );
+  }
+
+  function everydayTaskLabelHtml(row, embed) {
     if (Array.isArray(row.taskFlow) && row.taskFlow.length) {
       const inner = row.taskFlow
         .map((part, i) => {
+          if (embed && row.buildLeadTag && part === "Build Lead") {
+            return (i === 0 ? "" : everydayTaskFlowArrow()) + everydayTaskBuildLeadTag();
+          }
           const text = `<span class="everyday-tasks-task-part">${escHtml(part)}</span>`;
           return i === 0 ? text : everydayTaskFlowArrow() + text;
         })
         .join("");
       return `<span class="everyday-tasks-flow">${inner}</span>`;
+    }
+    if (row.completeTag && embed) {
+      return (
+        `<span class="everyday-tasks-flow">` +
+        `<span class="everyday-tasks-task-part">Mark the business as</span> ` +
+        everydayTaskCompleteTag() +
+        `</span>`
+      );
     }
     if (row.taskHeading) {
       let html = '<span class="everyday-tasks-label-stack">';
@@ -936,20 +1392,351 @@
     return `<strong class="everyday-tasks-task">${escHtml(row.task || "")}</strong>`;
   }
 
-  function renderEverydayTasksInto(tbody) {
-    if (!tbody) return;
-    tbody.innerHTML = EVERYDAY_TASKS.map((row) => {
-      const label = everydayTaskLabelHtml(row);
+  function everydayTaskEmbedCopyHtml(row) {
+    if (row.step === 4) {
+      return (
+        `<div class="everyday-loop-step-copy-stack">` +
+        `<p class="everyday-loop-step-summary">If interested:</p>` +
+        `<ul class="everyday-loop-step-inline-bullets"><li>Fill out the Lead Builder</li></ul>` +
+        `</div>`
+      );
+    }
+    if (Array.isArray(row.taskFlow) && row.taskFlow.length) {
+      const inner = row.taskFlow
+        .map((part, i) => {
+          const text = escHtml(part);
+          return i === 0 ? text : everydayTaskFlowArrow() + text;
+        })
+        .join("");
+      return `<p class="everyday-loop-step-summary">${inner}</p>`;
+    }
+    const summary = row.task || everydayTaskEmbedSummary(row);
+    return `<p class="everyday-loop-step-summary">${escHtml(summary)}</p>`;
+  }
+
+  function everydayTaskEmbedSummary(row) {
+    const summaries = [
+      "Open Lead Finder",
+      "Pick a business, then Build Lead",
+      "Call and pitch the website",
+      "Fill Lead Builder if they're interested",
+      "Send the lead to your manager",
+      "Mark the business complete",
+    ];
+    return summaries[row.step - 1] || row.task || "";
+  }
+
+  function everydayTaskEmbedActionLabel(resource) {
+    if (!resource) return "";
+    if (resource.label === "Call Scripts") return "Call scripts";
+    return resource.shortLabel || resource.label || "Open";
+  }
+
+  function renderEverydayTasksInto(container) {
+    if (!container) return;
+    const embed = !!container.closest?.(".course-everyday-embed");
+    container.innerHTML = EVERYDAY_TASKS.map((row) => {
+      const label = everydayTaskLabelHtml(row, embed);
+      const tool = everydayTaskToolCell(row, embed);
+      if (embed) {
+        return (
+          `<li class="everyday-tasks-item">` +
+          `<div class="everyday-loop-step">` +
+          `<span class="everyday-loop-step-num" aria-hidden="true">${row.step}</span>` +
+          `<div class="everyday-loop-step-copy">${everydayTaskEmbedCopyHtml(row)}</div>` +
+          (tool ? `<div class="everyday-loop-step-action">${tool}</div>` : "") +
+          `</div></li>`
+        );
+      }
       return (
         `<tr class="everyday-tasks-row">` +
         `<td class="everyday-tasks-step"><span class="everyday-tasks-step-num">${row.step}</span></td>` +
         `<td class="everyday-tasks-what">${label}</td>` +
-        `<td class="everyday-tasks-open">${everydayTaskToolCell(row)}</td>` +
+        `<td class="everyday-tasks-open">${tool}</td>` +
         `</tr>`
       );
     }).join("");
     initConfigLinks();
-    if (window.SiteIcons) window.SiteIcons.initIcons(tbody);
+    if (window.SiteIcons) window.SiteIcons.initIcons(container);
+  }
+
+  const DAILY_LOOP_KEY = "lpc_daily_loop_checklist_v1";
+
+  function dailyLoopDateKey() {
+    return new Date().toISOString().slice(0, 10);
+  }
+
+  function loadDailyLoopProgress() {
+    try {
+      const raw = JSON.parse(lsGet(DAILY_LOOP_KEY) || "{}");
+      if (raw.date !== dailyLoopDateKey()) return { date: dailyLoopDateKey(), index: 0 };
+      const index = Number(raw.index);
+      return {
+        date: dailyLoopDateKey(),
+        index: Number.isFinite(index) && index >= 0 ? index : 0,
+      };
+    } catch (e) {
+      return { date: dailyLoopDateKey(), index: 0 };
+    }
+  }
+
+  function saveDailyLoopProgress(data) {
+    lsSet(DAILY_LOOP_KEY, JSON.stringify(data));
+  }
+
+  function saveDailyLoopIndex(index) {
+    saveDailyLoopProgress({ date: dailyLoopDateKey(), index: Math.max(0, index) });
+  }
+
+  function dailyLoopShortLabel(step) {
+    return ["Leads", "Build", "Call", "Builder", "Send", "Done"][step - 1] || String(step);
+  }
+
+  function resetDailyLoopProgress() {
+    saveDailyLoopProgress({ date: dailyLoopDateKey(), index: 0 });
+  }
+
+  function getDailyLoopChecklistItems() {
+    return EVERYDAY_TASKS.map((row) => ({
+      id: "daily_loop_" + row.step,
+      step: row.step,
+      short: dailyLoopShortLabel(row.step),
+      row,
+    }));
+  }
+
+  function dailyLoopStepTitle(row) {
+    if (row.task) return escHtml(row.task);
+    if (row.taskHeading) return escHtml(row.taskHeading);
+    if (Array.isArray(row.taskFlow)) {
+      return row.taskFlow
+        .map((part, i) => {
+          const text = escHtml(part);
+          return i === 0 ? text : `<span class="daily-loop-step-title-sep" aria-hidden="true">→</span>${text}`;
+        })
+        .join("");
+    }
+    return "Step " + row.step;
+  }
+
+  function dailyLoopStepBodyHtml(row) {
+    let html = `<h3 class="daily-loop-step-title">${everydayTaskLabelHtml(row, true)}</h3>`;
+    if (row.detail) {
+      html += `<p class="daily-loop-step-detail">${escHtml(row.detail)}</p>`;
+    }
+    if (Array.isArray(row.detailBullets) && row.detailBullets.length) {
+      html +=
+        '<ul class="daily-loop-step-bullets">' +
+        row.detailBullets.map((item) => `<li>${escHtml(item)}</li>`).join("") +
+        "</ul>";
+    }
+    const tool = everydayTaskToolCell(row, true);
+    if (tool) {
+      html += `<div class="daily-loop-step-tool">${tool}</div>`;
+    }
+    return html;
+  }
+
+  function setDailyLoopView(mode) {
+    const embed = document.getElementById("course-everyday-embed");
+    const tableWrap = document.getElementById("course-everyday-table-wrap");
+    const checklistFooter = document.getElementById("course-everyday-checklist-footer");
+    const checklistWrap = document.getElementById("course-everyday-checklist-wrap");
+    if (!embed || !tableWrap || !checklistWrap) return;
+    const isChecklist = mode === "checklist";
+    embed.classList.toggle("is-checklist-view", isChecklist);
+    tableWrap.hidden = isChecklist;
+    if (checklistFooter) checklistFooter.hidden = isChecklist;
+    checklistWrap.hidden = !isChecklist;
+  }
+
+  function initDailyLoopChecklist() {
+    const root = document.getElementById("daily-loop-checklist");
+    if (!root) return;
+
+    let selectedIdx = loadDailyLoopProgress().index;
+    let navDir = 0;
+
+    const checklistBtn = document.getElementById("course-everyday-checklist-btn");
+    const backBtn = document.getElementById("course-everyday-steps-back");
+    const resetBtn = document.getElementById("course-everyday-checklist-reset");
+    if (!root.dataset.toggleBound) {
+      root.dataset.toggleBound = "1";
+      checklistBtn?.addEventListener("click", () => {
+        const items = getDailyLoopChecklistItems();
+        const saved = loadDailyLoopProgress();
+        selectedIdx = Math.min(saved.index, Math.max(0, items.length - 1));
+        navDir = 0;
+        setDailyLoopView("checklist");
+        root._dailyLoopRender?.();
+      });
+      backBtn?.addEventListener("click", () => setDailyLoopView("steps"));
+      resetBtn?.addEventListener("click", () => {
+        resetDailyLoopProgress();
+        root._lastFillFrac = 0;
+        selectedIdx = 0;
+        navDir = 0;
+        root._dailyLoopRender?.();
+      });
+      setDailyLoopView("steps");
+    }
+
+    if (root.dataset.checklistBound === "1") {
+      root._dailyLoopRender?.();
+      return;
+    }
+    root.dataset.checklistBound = "1";
+
+    function dailyLoopFillFraction(doneCount, total) {
+      if (!total || doneCount <= 0) return 0;
+      if (doneCount >= total) return 1;
+      const first = 0.5 / total;
+      const last = (total - 0.5) / total;
+      const current = (doneCount - 0.5) / total;
+      return (current - first) / (last - first);
+    }
+
+    function animateDailyLoopFill(railEl, fillFraction) {
+      if (!railEl) return;
+      const target = Math.max(0, Math.min(1, fillFraction));
+      railEl.style.setProperty("--daily-loop-fill", String(target));
+      root._lastFillFrac = target;
+    }
+
+    function dailyLoopIndexFraction(idx, total) {
+      if (!total || total <= 1) return 0;
+      return Math.max(0, Math.min(1, idx / (total - 1)));
+    }
+
+    function renderProgressHtml(items, selected) {
+      return (
+        `<div class="daily-loop-progress-head">` +
+        `<span class="daily-loop-progress-count">${selected + 1} of ${items.length}</span>` +
+        `</div>` +
+        `<div class="daily-loop-progress-rail">` +
+        `<div class="daily-loop-progress-fill" aria-hidden="true"></div>` +
+        `<div class="daily-loop-progress-steps">` +
+        items
+          .map((it, i) => {
+            const isSelected = i === selected;
+            const stepCls = "daily-loop-step" + (isSelected ? " is-selected" : "");
+            return (
+              `<div class="daily-loop-step-wrap">` +
+              `<button type="button" class="${stepCls}" data-idx="${i}" aria-current="${isSelected ? "step" : "false"}" aria-label="${it.short}${isSelected ? ", current step" : ""}">` +
+              `<span class="daily-loop-step-dot" aria-hidden="true">${it.step}</span>` +
+              `<span class="daily-loop-step-label">${it.short}</span>` +
+              `</button></div>`
+            );
+          })
+          .join("") +
+        `</div></div>`
+      );
+    }
+
+    function renderDetail(it, idx, total) {
+      if (!it) return `<p class="daily-loop-complete-banner">All set for today.</p>`;
+
+      const canPrev = idx > 0;
+      const canNext = idx < total - 1;
+
+      return (
+        `<div class="daily-loop-step-card">` +
+        `<p class="daily-loop-step-kicker">Step ${it.step} of ${total}</p>` +
+        dailyLoopStepBodyHtml(it.row) +
+        `</div>` +
+        `<div class="daily-loop-step-nav">` +
+        `<button type="button" class="daily-loop-nav-btn daily-loop-nav-btn--prev" data-action="prev"${canPrev ? "" : " disabled"}>` +
+        `<span class="daily-loop-nav-arrow" aria-hidden="true">←</span><span>Previous</span></button>` +
+        `<button type="button" class="daily-loop-nav-btn daily-loop-nav-btn--next" data-action="next"${canNext ? "" : " disabled"}>` +
+        `<span>Next</span><span class="daily-loop-nav-arrow" aria-hidden="true">→</span></button>` +
+        `</div>`
+      );
+    }
+
+    function updateDetailPane(html, dir) {
+      const viewport = root.querySelector(".daily-loop-detail-viewport");
+      if (!viewport) return;
+      const reduceMotion = window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+      if (!dir || reduceMotion) {
+        viewport.innerHTML = `<div class="daily-loop-detail-pane">${html}</div>`;
+        return;
+      }
+      viewport.innerHTML =
+        `<div class="daily-loop-detail-pane is-entering" data-dir="${dir}">${html}</div>`;
+      requestAnimationFrame(() => {
+        viewport.querySelector(".daily-loop-detail-pane")?.classList.remove("is-entering");
+      });
+    }
+
+    function bindDailyLoopEvents() {
+      if (root.dataset.eventsBound === "1") return;
+      root.dataset.eventsBound = "1";
+      root.addEventListener("click", (e) => {
+        const stepBtn = e.target.closest(".daily-loop-step");
+        if (stepBtn) {
+          preserveScroll(() => {
+            const nextIdx = Number(stepBtn.dataset.idx) || 0;
+            navDir = nextIdx > selectedIdx ? 1 : nextIdx < selectedIdx ? -1 : 0;
+            selectedIdx = nextIdx;
+            render();
+          });
+          return;
+        }
+        const actionBtn = e.target.closest("[data-action]");
+        if (!actionBtn || actionBtn.disabled) return;
+        preserveScroll(() => {
+          const action = actionBtn.dataset.action;
+          const items = getDailyLoopChecklistItems();
+
+          if (action === "prev") {
+            navDir = -1;
+            selectedIdx = Math.max(0, selectedIdx - 1);
+          } else if (action === "next") {
+            navDir = 1;
+            selectedIdx = Math.min(items.length - 1, selectedIdx + 1);
+          }
+          render();
+        });
+      });
+    }
+
+    function render() {
+      const items = getDailyLoopChecklistItems();
+      if (!items.length) {
+        root.innerHTML = "";
+        return;
+      }
+
+      if (selectedIdx >= items.length) selectedIdx = items.length - 1;
+      if (selectedIdx < 0) selectedIdx = 0;
+
+      const fillFrac = dailyLoopIndexFraction(selectedIdx, items.length);
+      const current = items[selectedIdx];
+      const progressHtml = renderProgressHtml(items, selectedIdx);
+      const detailHtml = renderDetail(current, selectedIdx, items.length);
+
+      if (!root.querySelector(".daily-loop-shell")) {
+        root.innerHTML =
+          `<div class="daily-loop-shell">` +
+          `<div class="daily-loop-progress-zone">${progressHtml}</div>` +
+          `<div class="daily-loop-detail-viewport"><div class="daily-loop-detail-pane">${detailHtml}</div></div>` +
+          `</div>`;
+        bindDailyLoopEvents();
+      } else {
+        root.querySelector(".daily-loop-progress-zone").innerHTML = progressHtml;
+        updateDetailPane(detailHtml, navDir);
+      }
+      navDir = 0;
+
+      const railEl = root.querySelector(".daily-loop-progress-rail");
+      animateDailyLoopFill(railEl, fillFrac);
+      saveDailyLoopIndex(selectedIdx);
+      initConfigLinks();
+      if (window.SiteIcons) window.SiteIcons.initIcons(root);
+    }
+
+    root._dailyLoopRender = render;
+    render();
   }
 
   function initEverydayTasks() {
@@ -957,6 +1744,7 @@
   }
 
   window.EverydayTasks = { renderInto: renderEverydayTasksInto };
+  window.DailyLoopChecklist = { init: initDailyLoopChecklist };
 
   const CHECKLIST_GROUPS = [
     {
@@ -1001,7 +1789,8 @@
       items: [
         {
           id: "telegram",
-          label: "Joined ",
+          label: "Joined team chat (optional)",
+          hint: "For team updates · leads go through Lead Builder",
           link: { hrefKey: "telegramTeam", label: "Website Agency" },
         },
         {
@@ -1014,7 +1803,7 @@
     },
     {
       title: "Before your first call",
-      items: TOOL_PAGES.map((p) => ({
+      items: TOOL_PAGES.filter((p) => !p.external).map((p) => ({
         id: DAILY_TOOL_PROGRESS[p.id] || p.id,
         label: "Opened " + p.label,
         link: { href: p.href, label: p.label },
@@ -1031,12 +1820,6 @@
     if (!items.length) return 0;
     const done = items.filter((it) => isChecklistItemDone(it.id, progress)).length;
     return (done / items.length) * 100;
-  }
-
-  function updateChecklistNavProgress() {
-    const bar = document.querySelector(".nav-link--checklist .nav-link-progress-bar");
-    if (!bar) return;
-    bar.style.width = checklistProgressPercent(loadProgress()) + "%";
   }
 
   function checklistItemLink(link) {
@@ -1150,13 +1933,16 @@
 
   function initSalesTracker() {
     const root = document.getElementById("sales-tracker");
-    const form = document.getElementById("close-form");
+    const form = document.getElementById("incomeForm");
     if (!root && !form) return;
     if (form?.dataset.trackerBound === "1") {
+      ensureDashboardIncomeUi();
       reloadSalesTracker?.();
       root?.classList.add("dash-hydrated");
       return;
     }
+
+    ensureDashboardIncomeUi();
 
     const revealTracker = () => {
       reloadSalesTracker?.();
@@ -1174,38 +1960,134 @@
 
   function bootTracker() {
     const root = document.getElementById("sales-tracker");
-    const form = document.getElementById("close-form");
+    const form = document.getElementById("incomeForm");
     if (!root && !form) return;
 
     let data = loadTracker();
 
-    const GOAL_RING_C = 2 * Math.PI * 42;
-    const SALE_TOOLTIP_AUTO_CLOSE_MS = 2400;
+    const GOAL_RING_R = 118;
+    const GOAL_RING_C = 2 * Math.PI * GOAL_RING_R;
 
-    function initSaleTooltips() {
-      document.querySelectorAll(".dash-sale-tip").forEach((tip) => {
-        if (tip.dataset.autoCloseBound === "1") return;
-        tip.dataset.autoCloseBound = "1";
-
-        let closeTimer = 0;
-
-        tip.addEventListener("toggle", () => {
-          window.clearTimeout(closeTimer);
-          if (!tip.open) return;
-
-          closeTimer = window.setTimeout(() => {
-            tip.open = false;
-          }, SALE_TOOLTIP_AUTO_CLOSE_MS);
-        });
-      });
+    function initIncomeActions() {
+      ensureDashboardIncomeUi();
     }
 
-    function applyGoalRingProgress(pct) {
-      const ring = document.getElementById("goal-ring-progress");
+    function celebrateGoal() {
+      const orbit = document.getElementById("progressOrbit");
+      if (orbit) {
+        orbit.classList.remove("goal-reached");
+        requestAnimationFrame(() => orbit.classList.add("goal-reached"));
+      }
+      window.GoalCelebration?.fireGoalReached?.();
+    }
+
+    function maybeCelebrateGoalFromSale(earnedBefore, earnedAfter) {
+      const goal = normalizeGoal(data.goal);
+      if (earnedBefore < goal && earnedAfter >= goal) {
+        if (window.UserPrefs?.showGoalCelebration?.() !== false) {
+          celebrateGoal();
+        }
+      }
+    }
+
+    let goalRingPctShown = null;
+    let goalRingAnimId = null;
+
+    function prefersReducedMotion() {
+      return window.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
+    }
+
+    function readRingPct() {
+      const ring = document.getElementById("progressRing");
+      if (!ring) return 0;
+      const off = parseFloat(ring.style.strokeDashoffset);
+      if (!Number.isFinite(off)) return 0;
+      return Math.min(100, Math.max(0, (1 - off / GOAL_RING_C) * 100));
+    }
+
+    function easeOutBack(t) {
+      const c1 = 1.70158;
+      const c3 = c1 + 1;
+      return 1 + c3 * Math.pow(t - 1, 3) + c1 * Math.pow(t - 1, 2);
+    }
+
+    function easeOutCubic(t) {
+      return 1 - Math.pow(1 - t, 3);
+    }
+
+    function cancelGoalRingAnim() {
+      if (goalRingAnimId) {
+        cancelAnimationFrame(goalRingAnimId);
+        goalRingAnimId = null;
+      }
+    }
+
+    function syncGoalRingPctFromDom() {
+      goalRingPctShown = readRingPct();
+      return goalRingPctShown;
+    }
+
+    function triggerGoalRingBump() {
+      const orbit = document.getElementById("progressOrbit");
+      if (!orbit || prefersReducedMotion()) return;
+      orbit.classList.remove("goal-progress-bump");
+      void orbit.offsetWidth;
+      orbit.classList.add("goal-progress-bump");
+      const onEnd = () => {
+        orbit.classList.remove("goal-progress-bump");
+        orbit.removeEventListener("animationend", onEnd);
+      };
+      orbit.addEventListener("animationend", onEnd);
+    }
+
+    function applyGoalRingProgress(pct, opts) {
+      const ring = document.getElementById("progressRing");
       if (!ring) return;
-      const p = Math.min(100, Math.max(0, pct));
+      const target = Math.min(100, Math.max(0, pct));
+      const targetOffset = GOAL_RING_C * (1 - target / 100);
       ring.style.strokeDasharray = GOAL_RING_C + " " + GOAL_RING_C;
-      ring.style.strokeDashoffset = String(GOAL_RING_C * (1 - p / 100));
+
+      const instant = opts?.instant || prefersReducedMotion();
+      cancelGoalRingAnim();
+      const prev = syncGoalRingPctFromDom();
+
+      if (instant || Math.abs(target - prev) < 0.05) {
+        ring.style.strokeDashoffset = String(targetOffset);
+        goalRingPctShown = target;
+        return;
+      }
+
+      const fromOffset = GOAL_RING_C * (1 - prev / 100);
+      const decreasing = target < prev - 0.05;
+      const startTime = performance.now();
+      const duration = decreasing
+        ? Math.min(650, 280 + Math.abs(target - prev) * 3)
+        : Math.min(1100, 650 + Math.abs(target - prev) * 4);
+      const pctBadge = document.getElementById("completionPercent");
+      const startRound = Math.round(prev);
+      const targetRound = Math.round(target);
+      const bumpOnFinish = !decreasing && target > prev + 0.05;
+
+      function frame(now) {
+        const t = Math.min(1, (now - startTime) / duration);
+        const eased = decreasing ? easeOutCubic(t) : easeOutBack(t);
+        const offset = fromOffset + (targetOffset - fromOffset) * eased;
+        ring.style.strokeDashoffset = String(offset);
+        if (pctBadge) {
+          const n = Math.round(startRound + (targetRound - startRound) * eased);
+          pctBadge.textContent = Math.min(100, Math.max(0, n)) + "%";
+        }
+        if (t < 1) {
+          goalRingAnimId = requestAnimationFrame(frame);
+        } else {
+          ring.style.strokeDashoffset = String(targetOffset);
+          if (pctBadge) pctBadge.textContent = targetRound + "%";
+          goalRingPctShown = target;
+          goalRingAnimId = null;
+          if (bumpOnFinish) triggerGoalRingBump();
+        }
+      }
+      goalRingAnimId = requestAnimationFrame(frame);
     }
 
     function renderStats() {
@@ -1214,98 +2096,70 @@
       const closes = deals.length;
       const goal = normalizeGoal(data.goal);
       const pct = (earned / goal) * 100;
+      const pctRound = Math.round(Math.min(100, pct));
+      const remaining = Math.max(goal - earned, 0);
 
-      const earnedEl = document.getElementById("tracker-earned");
+      const earnedEl = document.getElementById("totalRevenue");
       if (earnedEl) earnedEl.textContent = "$" + formatMoney(earned);
-      const closesEl = document.getElementById("tracker-closes");
+      const closesEl = document.getElementById("salesCount");
       if (closesEl) closesEl.textContent = String(closes);
-      const gl = document.getElementById("goal-pct-label");
-      const rem = document.getElementById("tracker-remaining");
-      const pctBadge = document.getElementById("goal-pct-badge");
-      const pctRound = Math.round(pct);
-      applyGoalRingProgress(pct);
-      if (pctBadge) pctBadge.textContent = pctRound + "%";
-      if (gl) gl.textContent = closes === 1 ? "1 sale" : closes + " sales";
-      if (rem) {
-        rem.textContent = earned > goal
-          ? "$" + formatMoney(earned - goal) + " over"
-          : earned === goal
-            ? "Goal reached"
-            : "$" + formatMoney(goal - earned) + " remaining";
-      }
-      const goalDisplay = document.getElementById("goal-display-value");
-      if (goalDisplay && !document.getElementById("dash-goal-editor")?.classList.contains("is-editing")) {
-        goalDisplay.textContent = formatMoney(goal);
-      }
+      const averageEl = document.getElementById("averageSale");
+      if (averageEl) averageEl.textContent = "$" + formatMoney(closes ? earned / closes : 0);
+      const pctBadge = document.getElementById("completionPercent");
+      const isFirstRingRender = goalRingPctShown === null;
+      if (pctBadge && isFirstRingRender) pctBadge.textContent = pctRound + "%";
+
+      applyGoalRingProgress(pct, { instant: isFirstRingRender });
     }
 
     function initGoalEditor() {
-      const editor = document.getElementById("dash-goal-editor");
-      const input = document.getElementById("tracker-goal");
-      const displayBtn = document.getElementById("goal-display-btn");
-      const displayVal = document.getElementById("goal-display-value");
-      if (!editor || !input || !displayBtn) return;
+      const input = document.getElementById("goalInput");
+      if (!input || input.dataset.trackerBound === "1") return;
+      input.dataset.trackerBound = "1";
+      input.value = String(normalizeGoal(data.goal));
 
-      let skipCommit = false;
-
-      function showDisplay() {
-        editor.classList.remove("is-editing");
-        if (displayVal) displayVal.textContent = formatMoney(normalizeGoal(data.goal));
+      function previewGoalFromInput() {
+        const v = Number(input.value);
+        if (!Number.isFinite(v) || v <= 0) return;
+        data.goal = v;
+        renderStats();
       }
 
-      function showEdit() {
-        editor.classList.add("is-editing");
-        input.value = String(normalizeGoal(data.goal));
-        focusNoScroll(input);
-        input.select();
-      }
-
-      function commitGoal() {
-        if (skipCommit) {
-          skipCommit = false;
+      function commitGoalFromInput() {
+        const v = Number(input.value);
+        if (!Number.isFinite(v) || v <= 0) {
+          input.value = String(normalizeGoal(data.goal));
           return;
         }
-        const v = parseInt(String(input.value).replace(/\D/g, ""), 10);
-        data.goal = v > 0 ? v : DEFAULT_GOAL;
+        if (v === data.goal) return;
+        data.goal = v;
         saveTracker(data);
-        showDisplay();
         renderAll();
       }
 
-      displayBtn.addEventListener("click", showEdit);
-      input.addEventListener("blur", commitGoal);
-      input.addEventListener("keydown", (e) => {
-        if (e.key === "Enter") {
-          e.preventDefault();
-          input.blur();
-        }
-        if (e.key === "Escape") {
-          skipCommit = true;
-          showDisplay();
-        }
-      });
-
-      showDisplay();
+      input.addEventListener("input", previewGoalFromInput);
+      input.addEventListener("change", commitGoalFromInput);
+      input.addEventListener("blur", commitGoalFromInput);
     }
 
     function renderDealsList() {
-      const list = document.getElementById("deals-list");
-      const empty = document.getElementById("deals-empty");
-      const countLabel = document.getElementById("deals-count-label");
+      const list = document.getElementById("salesList");
       if (!list) return;
 
       const deals = [...(data.deals || [])].sort(
         (a, b) => new Date(b.createdAt) - new Date(a.createdAt)
       );
 
-      if (countLabel) {
-        countLabel.textContent =
+      const salesCountEl = document.getElementById("dash-sales-count");
+      if (salesCountEl) {
+        salesCountEl.textContent =
           deals.length === 1 ? "1 sale" : deals.length + " sales";
       }
-      if (empty) empty.hidden = deals.length > 0;
+      const trackerSalesEl = document.getElementById("salesCount");
+      if (trackerSalesEl) trackerSalesEl.textContent = String(deals.length);
 
       if (!deals.length) {
-        list.innerHTML = "";
+        list.innerHTML = '<div class="empty-state">No sales yet.</div>';
         return;
       }
 
@@ -1313,97 +2167,265 @@
         .map((d) => {
           const amount = Number(d.commission) || 0;
           const title = d.businessName || "Sale logged";
+          const when = formatDealDateTime(d.createdAt);
+          const id = escHtml(d.id);
+          const isOwnerLocked = !!d.fromOwnerConfirm;
+          const ownerBadge = isOwnerLocked
+            ? '<span class="sale-card-owner-badge">Owner Confirmed</span>'
+            : "";
+
+          const actionButtons = isOwnerLocked
+            ? ""
+            : '<div class="sale-card-actions">' +
+              '<button type="button" class="sale-card-edit-btn" data-sale-edit="' +
+              id +
+              '" aria-label="Edit ' +
+              escHtml(title) +
+              '">' +
+              '<span data-icon="pencil" data-icon-class="sale-card-edit-ico" aria-hidden="true"></span>' +
+              "<span>Edit</span>" +
+              "</button>" +
+              '<button type="button" class="sale-card-delete-btn" data-sale-delete="' +
+              id +
+              '" aria-label="Delete ' +
+              escHtml(title) +
+              '">' +
+              '<span data-icon="trash-2" data-icon-class="sale-card-delete-ico" aria-hidden="true"></span>' +
+              "</button>" +
+              "</div>";
+
+          const editForm = isOwnerLocked
+            ? ""
+            : '<form class="sale-card-edit-form" data-sale-edit-form="' +
+              id +
+              '">' +
+              '<div class="sale-card-edit-grid">' +
+              '<label class="sale-card-edit-field">' +
+              "<span>Business name <span class=\"dash-income-field-optional\">(optional)</span></span>" +
+              '<input type="text" name="businessName" value="' +
+              escHtml(d.businessName || "") +
+              '" placeholder="Bobby\'s Burgerr">' +
+              "</label>" +
+              '<label class="sale-card-edit-field">' +
+              "<span>Sale amount</span>" +
+              '<input type="number" name="amount" min="1" step="0.01" value="' +
+              escHtml(String(saleAmountFromDeal(d))) +
+              '" inputmode="decimal" required>' +
+              "</label>" +
+              "</div>" +
+              '<div class="sale-card-edit-actions">' +
+              '<button type="button" class="btn secondary sale-card-cancel-btn" data-sale-cancel="' +
+              id +
+              '">Cancel</button>' +
+              '<button type="submit" class="btn sale-card-save-btn">Save changes</button>' +
+              "</div>" +
+              "</form>";
 
           return (
-            '<li class="deal-card" data-deal-id="' +
-            escHtml(d.id) +
-            '">' +
-            '<div class="deal-card-main">' +
-            '<div class="deal-card-top">' +
-            '<strong class="deal-title">' +
+            '<article class="sale-card' +
+            (isOwnerLocked ? " sale-card--owner-locked sale-card--clickable" : "") +
+            '" data-deal-id="' +
+            id +
+            '"' +
+            (isOwnerLocked
+              ? ' role="button" tabindex="0" aria-label="View owner confirmed sale details for ' +
+                escHtml(title) +
+                '"'
+              : "") +
+            ">" +
+            '<div class="sale-card-view">' +
+            '<div class="sale-card-body">' +
+            '<div class="sale-card-title-row">' +
+            '<strong class="sale-card-title">' +
             escHtml(title) +
             "</strong>" +
-            '<span class="deal-date">' +
-            escHtml(formatDealDate(d.createdAt)) +
-            "</span>" +
+            ownerBadge +
             "</div>" +
-            '<div class="deal-summary">' +
-            '<span class="deal-amount"><span class="deal-amount-label">Amount</span>$' +
+            '<time class="sale-card-date" datetime="' +
+            escHtml(d.createdAt || "") +
+            '">' +
+            escHtml(when) +
+            "</time>" +
+            "</div>" +
+            '<div class="sale-card-side">' +
+            '<span class="sale-amount">$' +
             formatMoney(amount) +
             "</span>" +
+            actionButtons +
             "</div>" +
             "</div>" +
-            '<button type="button" class="deal-delete btn secondary" data-delete-deal="' +
-            escHtml(d.id) +
-            '" aria-label="Delete sale">Delete</button>' +
-            "</li>"
+            editForm +
+            "</article>"
           );
         })
         .join("");
 
-      list.querySelectorAll("[data-delete-deal]").forEach((btn) => {
-        btn.addEventListener("click", () => {
-          const id = btn.getAttribute("data-delete-deal");
-          data.deals = data.deals.filter((d) => d.id !== id);
-          saveTracker(data);
-          renderStats();
-          renderDealsList();
-          if (window.SiteIcons) window.SiteIcons.initIcons();
-        });
+      if (window.SiteIcons) window.SiteIcons.initIcons(list);
+    }
+
+    function closeSaleCardEdit(card) {
+      if (!card) return;
+      card.classList.remove("is-editing");
+    }
+
+    function openSaleCardEdit(dealId) {
+      const list = document.getElementById("salesList");
+      if (!list) return;
+      const deal = (data.deals || []).find((d) => String(d.id) === String(dealId));
+      if (deal?.fromOwnerConfirm) return;
+      list.querySelectorAll(".sale-card.is-editing").forEach((card) => {
+        if (card.dataset.dealId !== dealId) closeSaleCardEdit(card);
+      });
+      const card = list.querySelector('.sale-card[data-deal-id="' + dealId + '"]');
+      if (!card) return;
+      card.classList.add("is-editing");
+      const input = card.querySelector('.sale-card-edit-form input[name="amount"]');
+      focusNoScroll(input);
+    }
+
+    function saveSaleCardEdit(dealId, form) {
+      const deal = (data.deals || []).find((d) => String(d.id) === String(dealId));
+      if (!deal || !form) return;
+      if (deal.fromOwnerConfirm) return;
+
+      const amountEl = form.querySelector('input[name="amount"]');
+      const businessEl = form.querySelector('input[name="businessName"]');
+      const saleAmount = parseSaleAmount(amountEl?.value);
+      if (saleAmount <= 0) {
+        alert("Enter a price greater than $0.");
+        focusNoScroll(amountEl);
+        return;
+      }
+
+      deal.commission = commissionFromDown(saleAmount);
+      deal.saleAmount = saleAmount;
+      deal.businessName = businessEl?.value.trim() || "";
+      saveTracker(data);
+      renderAll();
+    }
+
+    function recordDeletedDealId(dealId) {
+      const id = String(dealId || "").trim();
+      if (!id) return;
+      if (!Array.isArray(data.deletedDealIds)) data.deletedDealIds = [];
+      if (!data.deletedDealIds.includes(id)) data.deletedDealIds.push(id);
+    }
+
+    function deleteSaleCard(dealId) {
+      const deal = (data.deals || []).find((d) => String(d.id) === String(dealId));
+      if (!deal) return;
+      if (deal.fromOwnerConfirm) return;
+
+      recordDeletedDealId(dealId);
+      data.deals = (data.deals || []).filter((d) => String(d.id) !== String(dealId));
+      saveTracker(data);
+      renderAll();
+      void window.RepStorage?.flushSync?.();
+    }
+
+    function bindSalesListActions() {
+      const list = document.getElementById("salesList");
+      if (!list || list.dataset.actionsBound === "1") return;
+      list.dataset.actionsBound = "1";
+
+      list.addEventListener("click", (e) => {
+        const editBtn = e.target.closest("[data-sale-edit]");
+        if (editBtn) {
+          e.preventDefault();
+          openSaleCardEdit(editBtn.getAttribute("data-sale-edit"));
+          return;
+        }
+
+        const cancelBtn = e.target.closest("[data-sale-cancel]");
+        if (cancelBtn) {
+          e.preventDefault();
+          const card = cancelBtn.closest(".sale-card");
+          closeSaleCardEdit(card);
+          return;
+        }
+
+        const deleteBtn = e.target.closest("[data-sale-delete]");
+        if (deleteBtn) {
+          e.preventDefault();
+          deleteSaleCard(deleteBtn.getAttribute("data-sale-delete"));
+        }
       });
 
-      if (window.SiteIcons) window.SiteIcons.initIcons();
+      list.addEventListener("submit", (e) => {
+        const form = e.target.closest("[data-sale-edit-form]");
+        if (!form) return;
+        e.preventDefault();
+        saveSaleCardEdit(form.getAttribute("data-sale-edit-form"), form);
+      });
     }
 
     function renderAll() {
       renderStats();
       renderDealsList();
+      initIncomeActions();
     }
 
     function reloadFromStorage() {
       data = loadTracker();
+      syncLpcTrackerBridge();
       const session = window.RepSession?.get?.();
       if (session?.name) {
         data.name = session.name;
         data.repId = session.id;
       }
       data.goal = normalizeGoal(data.goal);
+      const goalInput = document.getElementById("goalInput");
+      if (goalInput && goalInput.dataset.trackerBound === "1") {
+        if (document.activeElement !== goalInput) {
+          goalInput.value = String(data.goal);
+        } else {
+          data.goal = normalizeGoal(Number(goalInput.value) || data.goal);
+        }
+      }
       renderAll();
     }
 
     reloadSalesTracker = reloadFromStorage;
 
-    function parseClosePrice(raw) {
+    function parseSaleAmount(raw) {
       const n = parseFloat(String(raw).replace(/[^0-9.]/g, ""));
       return Number.isFinite(n) ? Math.round(n) : 0;
     }
 
-    if (form) form.dataset.trackerBound = "1";
-    form?.addEventListener("submit", (e) => {
-      e.preventDefault();
-      const priceEl = document.getElementById("close-price");
-      const businessEl = document.getElementById("close-business");
-      const commission = parseClosePrice(priceEl?.value);
-      if (commission <= 0) {
-        alert("Enter a price greater than $0.");
-        focusNoScroll(priceEl);
-        return;
-      }
+    if (form && form.dataset.trackerSubmitBound !== "1") {
+      form.dataset.trackerSubmitBound = "1";
+      form.addEventListener("submit", (e) => {
+        e.preventDefault();
+        const priceEl = document.getElementById("saleAmount");
+        const businessEl = document.getElementById("businessName");
+        const saleAmount = parseSaleAmount(priceEl?.value);
+        if (saleAmount <= 0) {
+          alert("Enter a price greater than $0.");
+          focusNoScroll(priceEl);
+          return;
+        }
 
-      const deal = {
-        id: newDealId(),
-        createdAt: new Date().toISOString(),
-        commission,
-        businessName: businessEl?.value.trim() || "",
-      };
+        const earnedBefore = calcEarnedFromDeals(data.deals || []);
 
-      data.deals = data.deals || [];
-      data.deals.push(deal);
-      saveTracker(data);
-      if (priceEl) priceEl.value = "";
-      if (businessEl) businessEl.value = "";
-      renderAll();
-    });
+        const deal = {
+          id: newDealId(),
+          createdAt: new Date().toISOString(),
+          commission: commissionFromDown(saleAmount),
+          saleAmount,
+          businessName: businessEl?.value.trim() || "",
+        };
+
+        data.deals = data.deals || [];
+        data.deals.push(deal);
+        const earnedAfter = calcEarnedFromDeals(data.deals);
+        saveTracker(data);
+        form.reset();
+        renderAll();
+        maybeCelebrateGoalFromSale(earnedBefore, earnedAfter);
+        const salesList = document.getElementById("salesList");
+        if (salesList) salesList.scrollTop = 0;
+      });
+    }
 
     const session = window.RepSession?.get?.();
     if (session?.name) {
@@ -1418,9 +2440,17 @@
       saveTracker(data);
     }
     initGoalEditor();
-    initSaleTooltips();
-    if (window.SiteIcons) window.SiteIcons.initIcons();
+    initIncomeActions();
+    bindSalesListActions();
+    window.dashboardRenderDealsList = renderDealsList;
+    onPendingSaleLogged = (earnedBefore, earnedAfter) => {
+      renderAll();
+      maybeCelebrateGoalFromSale(earnedBefore, earnedAfter);
+      const salesList = document.getElementById("salesList");
+      if (salesList) salesList.scrollTop = 0;
+    };
     renderAll();
+    if (form) form.dataset.trackerBound = "1";
   }
 
   function renderStepFooter() {
@@ -2086,8 +3116,16 @@
   }
 
   const TEMPLATE_BUILDER_KEY = "lpc_template_builder_v1";
-  let tplMode = "dl";
-  let tplPrice = "$500";
+  let tplMode = "";
+  let tplPrice = "";
+
+  function tplPriceButtonIds() {
+    return ["btn-p500", "btn-p700", "btn-p1000", "btn-p1500"];
+  }
+
+  function readTplPriceChosenFromDom() {
+    return !!readTplPriceFromDom();
+  }
 
   function loadTemplateBuilder() {
     try {
@@ -2102,43 +3140,87 @@
   }
 
   function persistTemplateBuilder() {
+    const prev = loadTemplateBuilder();
+    const priceChosen = readTplPriceChosenFromDom();
+    const preferenceChosen = !!(
+      document.getElementById("btn-dl")?.classList.contains("active") ||
+      document.getElementById("btn-bk")?.classList.contains("active")
+    );
     saveTemplateBuilder({
       mode: tplMode,
-      price: tplPrice,
+      price: readTplPriceFromDom() || tplPrice || "",
+      priceChosen,
+      preferenceChosen,
+      businessName: document.getElementById("tpl-business")?.value || "",
       name: document.getElementById("tpl-name")?.value || "",
       phone: document.getElementById("tpl-phone")?.value || "",
       maps: document.getElementById("tpl-maps")?.value || "",
+      leadId: String(prev.leadId || "").trim(),
     });
   }
 
   function applyTemplateBuilder() {
     const s = loadTemplateBuilder();
-    if (s.price) setTplPrice(s.price, true);
-    else setTplPrice("$500", true);
-    if (s.mode) setTplMode(s.mode, true);
-    else setTplMode("dl", true);
+    if (s.priceChosen && s.price) setTplPrice(s.price, true, true);
+    else clearTplPrice(true, true);
+    if (s.preferenceChosen && (s.mode === "dl" || s.mode === "bk")) setTplMode(s.mode, true, true);
+    else clearTplMode(true, true);
+    const businessEl = document.getElementById("tpl-business");
     const nameEl = document.getElementById("tpl-name");
     const phoneEl = document.getElementById("tpl-phone");
     const mapsEl = document.getElementById("tpl-maps");
+    if (businessEl) businessEl.value = String(s.businessName ?? "");
     if (nameEl) nameEl.value = String(s.name ?? "");
     if (phoneEl) phoneEl.value = String(s.phone ?? "");
     if (mapsEl) mapsEl.value = String(s.maps ?? "");
     syncTplCallBtn();
+    const hasSavedContent = !!(s.businessName || s.name || s.phone || s.maps);
+    if (!hasSavedContent) {
+      resetTplProgressTouched();
+    }
+    syncTplProgressFilledBaseline();
+    syncTplNotInterestedBtn();
   }
 
-  function setTplMode(mode, skipSave) {
+  function setTplMode(mode, skipSave, skipProgress) {
     tplMode = mode;
     document.getElementById("btn-dl")?.classList.toggle("active", mode === "dl");
     document.getElementById("btn-bk")?.classList.toggle("active", mode === "bk");
+    document.getElementById("btn-dl")?.closest(".tpl-field")?.classList.remove("is-invalid");
     if (!skipSave) persistTemplateBuilder();
+    if (!skipProgress) {
+      tplProgressTouched.preference = true;
+      tickTplSendProgress();
+    }
   }
 
-  function setTplPrice(price, skipSave) {
+  function clearTplMode(skipSave, skipProgress) {
+    tplMode = "";
+    document.getElementById("btn-dl")?.classList.remove("active");
+    document.getElementById("btn-bk")?.classList.remove("active");
+    if (!skipSave) persistTemplateBuilder();
+    if (!skipProgress) {
+      tplProgressTouched.preference = false;
+      tickTplSendProgress();
+    }
+  }
+
+  function clearTplPrice(skipSave, skipProgress) {
+    tplPrice = "";
+    tplPriceButtonIds().forEach((id) => document.getElementById(id)?.classList.remove("active"));
+    document.getElementById("btn-p500")?.closest(".tpl-field")?.classList.remove("is-invalid");
+    if (!skipSave) persistTemplateBuilder();
+    if (!skipProgress) tickTplSendProgress();
+  }
+
+  function setTplPrice(price, skipSave, skipProgress) {
     tplPrice = price;
     const map = { $500: "btn-p500", $700: "btn-p700", "$1,000": "btn-p1000", "$1,500": "btn-p1500" };
-    Object.values(map).forEach((id) => document.getElementById(id)?.classList.remove("active"));
+    tplPriceButtonIds().forEach((id) => document.getElementById(id)?.classList.remove("active"));
     document.getElementById(map[price] || "btn-p500")?.classList.add("active");
+    document.getElementById("btn-p500")?.closest(".tpl-field")?.classList.remove("is-invalid");
     if (!skipSave) persistTemplateBuilder();
+    if (!skipProgress) tickTplSendProgress();
   }
 
   function readTplPriceFromDom() {
@@ -2151,12 +3233,13 @@
     for (const [id, price] of Object.entries(map)) {
       if (document.getElementById(id)?.classList.contains("active")) return price;
     }
-    return tplPrice || "$500";
+    return "";
   }
 
   function readTplModeFromDom() {
     if (document.getElementById("btn-bk")?.classList.contains("active")) return "bk";
-    return tplMode || "dl";
+    if (document.getElementById("btn-dl")?.classList.contains("active")) return "dl";
+    return tplMode || "";
   }
 
   function tplInputValue(id) {
@@ -2165,109 +3248,911 @@
       .trim();
   }
 
-  function formatPhoneForCopy(raw) {
-    const formatted = window.LeadDisplay?.formatPhoneForLeadBuilder?.(raw);
-    if (formatted) return formatted;
-    const t = String(raw || "").trim();
-    return t || "[Phone Number]";
+  function normalizeTplHttpUrl(raw) {
+    const trimmed = String(raw || "").trim();
+    if (!trimmed) return "";
+    return /^https?:\/\//i.test(trimmed) ? trimmed : "https://" + trimmed.replace(/^\/+/, "");
   }
 
-  function copyTextToClipboard(text) {
-    if (navigator.clipboard?.writeText) {
-      return navigator.clipboard.writeText(text).catch(() => {
-        copyTextViaTextarea(text);
-      });
-    }
-    copyTextViaTextarea(text);
-    return Promise.resolve();
-  }
-
-  function copyTextViaTextarea(text) {
-    const ta = document.createElement("textarea");
-    ta.value = text;
-    ta.setAttribute("readonly", "");
-    ta.style.position = "fixed";
-    ta.style.left = "-9999px";
-    document.body.appendChild(ta);
-    ta.focus();
-    ta.select();
-    ta.setSelectionRange(0, text.length);
+  function isTplHttpUrl(raw) {
+    const href = normalizeTplHttpUrl(raw);
+    if (!href) return false;
     try {
-      document.execCommand("copy");
-    } finally {
-      document.body.removeChild(ta);
+      const u = new URL(href);
+      if (u.protocol !== "http:" && u.protocol !== "https:") return false;
+      const host = u.hostname.replace(/^\[|\]$/g, "");
+      if (!host) return false;
+      if (host === "localhost") return true;
+      return host.includes(".") && host.length >= 4;
+    } catch (e) {
+      return false;
     }
   }
 
-  function buildTemplateCopyText() {
+  function buildLeadPayload() {
     const mode = readTplModeFromDom();
-    const pref = mode === "dl" ? "Direct Link" : "Booking";
-    const maps = tplInputValue("tpl-maps") || "[Google Maps link]";
-    const phone = formatPhoneForCopy(tplInputValue("tpl-phone"));
-    const name = tplInputValue("tpl-name") || "[Name]";
-    const price = readTplPriceFromDom();
-    return (
-      "Price: " +
-      price +
-      "\nGoogle Maps: " +
-      maps +
-      "\nPreference: " +
-      pref +
-      "\nPhone Number: " +
-      phone +
-      "\nOwner Name: " +
-      name
+    const pref = mode === "dl" ? "Direct Link" : mode === "bk" ? "Booking" : "";
+    const pick = readStashedLeadPick();
+    const saved = loadTemplateBuilder();
+    const urlLeadId = new URLSearchParams(window.location.search).get("lead") || "";
+    return {
+      lead_id:
+        pick?.leadId ||
+        pick?.lead_id ||
+        saved.leadId ||
+        urlLeadId ||
+        "",
+      business_name: tplInputValue("tpl-business"),
+      price: readTplPriceFromDom(),
+      google_maps: normalizeTplHttpUrl(tplInputValue("tpl-maps")),
+      preference: pref,
+      phone: tplInputValue("tpl-phone"),
+      owner_name: tplInputValue("tpl-name"),
+    };
+  }
+
+  const TPL_REQUIRED_FIELDS = [
+    { id: "tpl-business", row: "tpl-field-business", label: "Business Name" },
+    { id: "tpl-maps", row: "tpl-field-maps", label: "Google Maps", isUrl: true },
+    { id: "tpl-phone", row: "tpl-field-phone", label: "Phone", minDigits: 10 },
+    { id: "tpl-name", row: "tpl-field-name", label: "Owner Name" },
+  ];
+
+  function showTplValidationMsg(msg, options) {
+    const el = document.getElementById("tpl-validation-msg");
+    if (!el) return;
+    el.classList.toggle("is-success", !!(options && options.success));
+    if (!msg) {
+      el.hidden = true;
+      el.textContent = "";
+      el.classList.remove("is-success");
+      return;
+    }
+    el.textContent = msg;
+    el.hidden = false;
+  }
+
+  let tplActionDialogResolver = null;
+
+  function ensureTplActionDialogBound() {
+    const dialog = document.getElementById("tpl-action-dialog");
+    if (!dialog || dialog.dataset.bound === "1") return;
+    dialog.dataset.bound = "1";
+    dialog.addEventListener("click", (e) => {
+      if (e.target === dialog) closeTplActionDialog(false);
+    });
+    dialog.addEventListener("cancel", (e) => {
+      e.preventDefault();
+      closeTplActionDialog(false);
+    });
+  }
+
+  function closeTplActionDialog(result) {
+    const dialog = document.getElementById("tpl-action-dialog");
+    if (dialog) {
+      if (typeof dialog.close === "function") dialog.close();
+      else dialog.removeAttribute("open");
+    }
+    const resolve = tplActionDialogResolver;
+    tplActionDialogResolver = null;
+    if (resolve) resolve(!!result);
+  }
+
+  function openTplActionDialog(options) {
+    options = options || {};
+    ensureTplActionDialogBound();
+    const dialog = document.getElementById("tpl-action-dialog");
+    const panel = document.getElementById("tpl-action-dialog-panel");
+    const titleEl = document.getElementById("tpl-action-dialog-title");
+    const textEl = document.getElementById("tpl-action-dialog-text");
+    const actionsEl = document.getElementById("tpl-action-dialog-actions");
+    if (!dialog || !panel || !titleEl || !textEl || !actionsEl) {
+      return Promise.resolve(false);
+    }
+
+    const kind = String(options.kind || "").trim();
+    const confirmLabel = String(options.confirmLabel || "").trim();
+    const cancelLabel = String(options.cancelLabel || "").trim();
+    const isConfirm = !!(confirmLabel && cancelLabel);
+
+    titleEl.textContent = String(options.title || "").trim();
+    textEl.textContent = String(options.text || "").trim();
+    panel.classList.toggle("tpl-action-dialog-panel--success", kind === "success");
+    panel.classList.toggle("tpl-action-dialog-panel--error", kind === "error");
+
+    actionsEl.innerHTML = "";
+    if (isConfirm) {
+      const cancelBtn = document.createElement("button");
+      cancelBtn.type = "button";
+      cancelBtn.className = "btn secondary";
+      cancelBtn.textContent = cancelLabel;
+      cancelBtn.addEventListener("click", () => closeTplActionDialog(false));
+
+      const confirmBtn = document.createElement("button");
+      confirmBtn.type = "button";
+      confirmBtn.className =
+        "btn" + (kind === "danger" ? " tpl-action-dialog-confirm--danger" : "");
+      confirmBtn.textContent = confirmLabel;
+      confirmBtn.addEventListener("click", () => closeTplActionDialog(true));
+
+      actionsEl.append(cancelBtn, confirmBtn);
+    } else {
+      const okBtn = document.createElement("button");
+      okBtn.type = "button";
+      okBtn.className = "btn";
+      okBtn.textContent = String(options.noticeLabel || "OK").trim() || "OK";
+      okBtn.addEventListener("click", () => closeTplActionDialog(true));
+      actionsEl.append(okBtn);
+    }
+
+    return new Promise((resolve) => {
+      tplActionDialogResolver = resolve;
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+      requestAnimationFrame(() => {
+        const primary =
+          actionsEl.querySelector(".btn:not(.secondary)") || actionsEl.querySelector(".btn");
+        primary?.focus();
+      });
+    });
+  }
+
+  function showTplActionConfirm(options) {
+    return openTplActionDialog(options || {});
+  }
+
+  function showTplToast(message, options) {
+    const msg = String(message || "").trim();
+    if (!msg) return;
+
+    function run() {
+      if (!global.SiteLoading?.showToast) return false;
+      global.SiteLoading.showToast(msg, options);
+      return true;
+    }
+
+    function schedule() {
+      if (run()) return;
+      let tries = 0;
+      const timer = global.setInterval(() => {
+        tries += 1;
+        if (run() || tries >= 40) global.clearInterval(timer);
+      }, 50);
+    }
+
+    global.requestAnimationFrame(() => {
+      global.requestAnimationFrame(schedule);
+    });
+  }
+
+  function pulseTplActionBtn(btn) {
+    if (!btn) return;
+    btn.classList.remove("is-pressed");
+    void btn.offsetWidth;
+    btn.classList.add("is-pressed");
+    global.setTimeout(() => btn.classList.remove("is-pressed"), 440);
+  }
+
+  function setTplActionBtnBusy(btn, busy, label) {
+    if (!btn) return;
+    btn.classList.toggle("is-busy", !!busy);
+    if (busy) {
+      if (!btn.dataset.tplDefaultLabel) {
+        btn.dataset.tplDefaultLabel = btn.textContent || "";
+      }
+      if (label) btn.textContent = label;
+      btn.disabled = true;
+      return;
+    }
+    if (btn.dataset.tplDefaultLabel) {
+      btn.textContent = btn.dataset.tplDefaultLabel;
+      delete btn.dataset.tplDefaultLabel;
+    }
+    if (btn.id === "tpl-not-interested-btn") syncTplNotInterestedBtn();
+    else btn.disabled = false;
+  }
+
+  function tplFormHasContent() {
+    if (
+      ["tpl-business", "tpl-name", "tpl-phone", "tpl-maps"].some((id) =>
+        String(document.getElementById(id)?.value || "").trim()
+      )
+    ) {
+      return true;
+    }
+    if (getTplLinkedLeadId()) return true;
+    if (readTplPriceChosenFromDom()) return true;
+    return !!(
+      document.getElementById("btn-dl")?.classList.contains("active") ||
+      document.getElementById("btn-bk")?.classList.contains("active")
     );
   }
 
-  function copyTpl(btn) {
-    closeTplInfoPanels();
-    const copyBtn = btn || document.getElementById("tpl-copy-btn");
-    const text = buildTemplateCopyText();
-    const ok = () => {
-      if (!copyBtn) return;
-      preserveScroll(() => {
-        copyBtn.textContent = "Copied";
-      });
-      setTimeout(() => {
-        preserveScroll(() => {
-          copyBtn.textContent = "Copy template";
-        });
-      }, 2000);
-      persistTemplateBuilder();
-    };
-    const fail = () => {
-      if (!copyBtn) return;
-      preserveScroll(() => {
-        copyBtn.textContent = "Copy failed";
-      });
-      setTimeout(() => {
-        preserveScroll(() => {
-          copyBtn.textContent = "Copy template";
-        });
-      }, 2000);
-    };
-    copyTextToClipboard(text).then(ok).catch(fail);
+  async function withTplActionLoading(task, label) {
+    global.SiteLoading?.showBusy?.(label || "Loading...", { immediate: true });
+    try {
+      return await task();
+    } finally {
+      global.SiteLoading?.hideBusy?.();
+    }
   }
 
-  function clearTpl() {
+  function getTplLinkedLeadId() {
+    const fromStorage = String(loadTemplateBuilder().leadId || "").trim();
+    if (fromStorage) return fromStorage;
+    const pick = readStashedLeadPick();
+    if (pick?.leadId) return String(pick.leadId).trim();
+    if (pick?.lead_id) return String(pick.lead_id).trim();
+    return String(new URLSearchParams(window.location.search).get("lead") || "").trim();
+  }
+
+  function isTplPhoneFilledOut() {
+    return phoneDigitCount(tplInputValue("tpl-phone")) >= 10;
+  }
+
+  function canMarkTplNotInterested() {
+    return !!getTplLinkedLeadId() && isTplPhoneFilledOut();
+  }
+
+  function syncTplNotInterestedBtn() {
+    const btn = document.getElementById("tpl-not-interested-btn");
+    if (!btn) return;
+    const linked = !!getTplLinkedLeadId();
+    const phoneReady = isTplPhoneFilledOut();
+    const canUse = linked && phoneReady;
+    btn.disabled = !canUse;
+    btn.title = !linked
+      ? "Open this business from Lead Finder (Build Lead) first"
+      : !phoneReady
+        ? "Enter the business phone number first"
+        : "Remove this business from the Active list in Lead Finder";
+  }
+
+  function tplNotInterestedDetails() {
+    const leadId = getTplLinkedLeadId();
+    let category = "";
+    let address = "";
+    const cached = window.LeadsLoader?.peekCache?.();
+    const lead = (cached?.leads || []).find((l) => String(l.id) === String(leadId));
+    if (lead) {
+      category = String(lead.categoryGroup || lead.category || "").trim();
+      address = String(lead.address || "").trim();
+    }
+    return {
+      phone: tplInputValue("tpl-phone"),
+      googleMaps: tplInputValue("tpl-maps"),
+      category,
+      address,
+    };
+  }
+
+  async function markTplNotInterested() {
+    const btn = document.getElementById("tpl-not-interested-btn");
+    pulseTplActionBtn(btn);
+    persistTemplateBuilder();
+    clearTplValidation();
+
+    const leadId = getTplLinkedLeadId();
+    const businessName =
+      String(document.getElementById("tpl-business")?.value || "").trim() || "Business";
+
+    if (!leadId) {
+      showTplToast("Open this business from Lead Finder (Build Lead) first.", { kind: "error" });
+      syncTplNotInterestedBtn();
+      return;
+    }
+
+    if (!isTplPhoneFilledOut()) {
+      const phoneEl = document.getElementById("tpl-phone");
+      phoneEl?.classList.add("is-invalid");
+      phoneEl?.closest(".tpl-field")?.classList.add("is-invalid");
+      showTplToast("Enter the business phone number first.", { kind: "error" });
+      focusNoScroll(phoneEl);
+      syncTplNotInterestedBtn();
+      return;
+    }
+
+    const confirmed = await showTplActionConfirm({
+      title: "Business not interested?",
+      text:
+        'Mark "' +
+        businessName +
+        '" as not interested? They will be removed from the Active list in Lead Finder.',
+      confirmLabel: "Mark not interested",
+      cancelLabel: "Keep editing",
+      kind: "danger",
+    });
+    if (!confirmed) return;
+
+    setTplActionBtnBusy(btn, true, "Saving…");
+
+    try {
+      await withTplActionLoading(async () => {
+        if (window.LeadSync?.init) {
+          await window.LeadSync.init(() => {}).catch(() => null);
+        }
+        window.PendingLeadBuilder?.clear?.(leadId);
+        if (!window.LeadSync?.isConfigured?.()) {
+          throw new Error("Lead sync not configured · check Supabase settings.");
+        }
+        if (!window.LeadSync?.markNotInterested) {
+          throw new Error("Lead sync unavailable");
+        }
+        await window.LeadSync.markNotInterested(leadId, businessName, tplNotInterestedDetails());
+        await window.LeadSync.refreshTeam?.().catch(() => null);
+      }, "Saving…");
+
+      clearTpl({ keepFeedback: true });
+      showTplToast("Marked not interested · removed from Lead Finder.", { kind: "success" });
+      if (global.SiteOwner?.isSiteOwner?.()) {
+        global.setTimeout(() => {
+          global.location.href = "sales-console.html#not-interested";
+        }, 850);
+      }
+    } catch (e) {
+      console.warn(e);
+      showTplToast(
+        e?.message && e.message !== "Lead sync unavailable"
+          ? e.message
+          : "Could not mark not interested. Try again.",
+        { kind: "error" }
+      );
+    } finally {
+      setTplActionBtnBusy(btn, false);
+      syncTplNotInterestedBtn();
+    }
+  }
+
+  async function handleTplClearClick(btn) {
+    pulseTplActionBtn(btn);
+
+    const leadId = getTplLinkedLeadId();
+    const businessName =
+      String(document.getElementById("tpl-business")?.value || "").trim() || "Business";
+
+    if (!tplFormHasContent()) {
+      showTplToast("Lead Builder is already empty.", { kind: "info" });
+      if (leadId) {
+        global.location.replace("leads.html");
+      }
+      return;
+    }
+
+    const confirmed = await showTplActionConfirm({
+      title: "Clear and return to Lead Finder?",
+      text: leadId
+        ? "This clears the form and releases \"" +
+          businessName +
+          "\" back to your Active list in Lead Finder."
+        : "This clears all fields in the Lead Builder.",
+      confirmLabel: "Clear",
+      cancelLabel: "Keep editing",
+      kind: "danger",
+    });
+    if (!confirmed) return;
+
+    setTplActionBtnBusy(btn, true, "Clearing…");
+    global.SiteLoading?.showBusy?.("Clearing…", { immediate: true });
+    try {
+      if (leadId) {
+        global.PendingLeadBuilder?.clear?.(leadId);
+        global.LeadSync?.clearBuildingLocalSnapshot?.(leadId);
+        global.LeadSync?.clearPendingLocalSnapshot?.(leadId);
+      }
+
+      if (leadId && window.LeadSync) {
+        await window.LeadSync.init(() => {}).catch(() => null);
+        if (window.LeadSync.isConfigured?.()) {
+          await window.LeadSync.releaseLeadBuilding(leadId, businessName);
+          await window.LeadSync.refreshTeam?.().catch(() => null);
+        } else {
+          const api = await window.LeadSync.init(() => {}).catch(() => null);
+          await api?.setWorkflow?.(leadId, "active", businessName);
+        }
+      }
+
+      clearTpl();
+      try {
+        sessionStorage.setItem("lpc_lf_force_team_refresh_v1", String(Date.now()));
+        sessionStorage.removeItem("lpc_lead_pick_v1");
+      } catch (storageErr) {
+        /* ignore */
+      }
+      if (window.RepStorage?.flushSync) {
+        await window.RepStorage.flushSync().catch(() => null);
+      }
+      showTplToast("Lead released · returning to Lead Finder.", { kind: "success" });
+      global.setTimeout(() => {
+        global.location.replace("leads.html");
+      }, 400);
+    } catch (e) {
+      console.warn(e);
+      showTplToast(e?.message || "Could not release lead. Try again.", { kind: "error" });
+    } finally {
+      global.SiteLoading?.hideBusy?.();
+      setTplActionBtnBusy(btn, false);
+    }
+  }
+
+  function clearTplValidation() {
+    showTplValidationMsg("");
+    const el = document.getElementById("tpl-validation-msg");
+    el?.classList.remove("is-success");
+    document.querySelectorAll("#tpl-builder .tpl-input.is-invalid").forEach((el) => {
+      el.classList.remove("is-invalid");
+    });
+    document.querySelectorAll("#tpl-builder .tpl-field.is-invalid").forEach((el) => {
+      el.classList.remove("is-invalid");
+    });
+  }
+
+  function phoneDigitCount(raw) {
+    return String(raw || "").replace(/\D/g, "").length;
+  }
+
+  /** Send-lead ring · one equal step per field, top-to-bottom in Lead Builder (6 steps). */
+  const TPL_PROGRESS_STEPS = 6;
+  const TPL_PROGRESS_KEYS = ["business", "price", "maps", "phone", "preference", "owner"];
+  const tplProgressTouched = { preference: false };
+
+  function resetTplProgressTouched() {
+    tplProgressTouched.preference = false;
+  }
+
+  function isTplProgressFieldFilled(key) {
+    switch (key) {
+      case "business":
+        return !!tplInputValue("tpl-business");
+      case "price":
+        return readTplPriceChosenFromDom();
+      case "maps":
+        return !!tplInputValue("tpl-maps");
+      case "preference":
+        return !!(
+          document.getElementById("btn-dl")?.classList.contains("active") ||
+          document.getElementById("btn-bk")?.classList.contains("active")
+        );
+      case "phone":
+        return phoneDigitCount(tplInputValue("tpl-phone")) >= 10;
+      case "owner":
+        return !!tplInputValue("tpl-name");
+      default:
+        return false;
+    }
+  }
+
+  function tplProgressRatio(filled) {
+    const steps = Math.min(TPL_PROGRESS_STEPS, Math.max(0, Number(filled) || 0));
+    return steps / TPL_PROGRESS_STEPS;
+  }
+
+  function getTplFormProgress() {
+    const filled = TPL_PROGRESS_KEYS.filter(isTplProgressFieldFilled).length;
+    const ratio = tplProgressRatio(filled);
+    return {
+      filled,
+      total: TPL_PROGRESS_STEPS,
+      ratio,
+      percent: Math.round(ratio * 100),
+      ready: filled === TPL_PROGRESS_STEPS,
+    };
+  }
+
+  let tplSendProgressHandled = false;
+  let tplProgressAnimFrame = null;
+  let tplProgressRevealTimer = null;
+  let tplProgressFilledLast = 0;
+  let tplProgressPulseTimer = null;
+
+  function pulseTplSendProgress() {
+    const wrap = document.getElementById("tpl-send-progress");
+    if (!wrap || window.matchMedia("(prefers-reduced-motion: reduce)").matches) return;
+    wrap.classList.remove("is-pulse");
+    void wrap.offsetWidth;
+    wrap.classList.add("is-pulse");
+    if (tplProgressPulseTimer) clearTimeout(tplProgressPulseTimer);
+    tplProgressPulseTimer = setTimeout(() => wrap.classList.remove("is-pulse"), 520);
+  }
+
+  function cancelTplProgressReveal() {
+    if (tplProgressAnimFrame) {
+      cancelAnimationFrame(tplProgressAnimFrame);
+      tplProgressAnimFrame = null;
+    }
+    if (tplProgressRevealTimer) {
+      clearTimeout(tplProgressRevealTimer);
+      tplProgressRevealTimer = null;
+    }
+    document.getElementById("tpl-send-progress")?.classList.remove("is-revealing");
+  }
+
+  function renderTplSendProgressAt(ratio, opts) {
+    const wrap = document.getElementById("tpl-send-progress");
+    const sendBtn = document.getElementById("tpl-send-btn");
+    if (!wrap || !sendBtn) return;
+
+    const { ready } = getTplFormProgress();
+    const sending = sendBtn.dataset.tplSending === "1";
+    const clamped = Math.min(1, Math.max(0, Number(ratio) || 0));
+    const showReady = ready && !sending && clamped >= 0.999;
+    const displayPct = Math.round(clamped * 100);
+
+    wrap.style.setProperty("--tpl-progress", String(clamped));
+    wrap.setAttribute("aria-valuenow", String(displayPct));
+    const pctEl = document.getElementById("tpl-send-pct");
+    if (pctEl) pctEl.textContent = displayPct + "%";
+    wrap.classList.toggle("is-idle", clamped <= 0 && !showReady);
+    wrap.classList.toggle("is-ready", showReady);
+    wrap.classList.toggle("is-incomplete", !showReady);
+    wrap.classList.toggle("is-revealing", !!opts?.revealing);
+    sendBtn.classList.toggle("is-ready", showReady);
+    sendBtn.classList.toggle("is-incomplete", !showReady);
+    sendBtn.setAttribute("aria-disabled", showReady ? "false" : "true");
+    if (!sending) {
+      sendBtn.disabled = !showReady;
+    }
+  }
+
+  function animateTplProgressBetween(from, to, durationMs, onDone) {
+    const start = performance.now();
+    const delta = to - from;
+
+    function frame(now) {
+      const t = Math.min(1, (now - start) / durationMs);
+      const eased = 1 - Math.pow(1 - t, 3);
+      renderTplSendProgressAt(from + delta * eased, { revealing: true });
+      if (t < 1) {
+        tplProgressAnimFrame = requestAnimationFrame(frame);
+        return;
+      }
+      tplProgressAnimFrame = null;
+      onDone?.();
+    }
+
+    tplProgressAnimFrame = requestAnimationFrame(frame);
+  }
+
+  function revealTplSendProgressFromPick() {
+    cancelTplProgressReveal();
+    const wrap = document.getElementById("tpl-send-progress");
+    if (!wrap) {
+      updateTplSendProgress();
+      return;
+    }
+
+    const milestones = [0];
+    let filled = 0;
+    TPL_PROGRESS_KEYS.forEach((key) => {
+      if (isTplProgressFieldFilled(key)) filled += 1;
+      milestones.push(tplProgressRatio(filled));
+    });
+    const points = milestones.filter((value, index, list) => index === 0 || value !== list[index - 1]);
+    const target = points[points.length - 1] || 0;
+
+    if (
+      points.length <= 2 ||
+      target <= tplProgressRatio(1) ||
+      window.matchMedia("(prefers-reduced-motion: reduce)").matches
+    ) {
+      updateTplSendProgress();
+      return;
+    }
+
+    tplSendProgressHandled = true;
+    wrap.classList.add("is-revealing");
+    renderTplSendProgressAt(0, { revealing: true });
+
+    let step = 1;
+    const runStep = () => {
+      if (step >= points.length) {
+        wrap.classList.remove("is-revealing");
+        updateTplSendProgress();
+        return;
+      }
+      animateTplProgressBetween(points[step - 1], points[step], 420, () => {
+        step += 1;
+        tplProgressRevealTimer = setTimeout(runStep, step < points.length ? 150 : 0);
+      });
+    };
+
+    tplProgressRevealTimer = setTimeout(runStep, 420);
+  }
+
+  function shakeTplSendProgress() {
+    const wrap = document.getElementById("tpl-send-progress");
+    if (!wrap) return;
+    wrap.classList.remove("is-shake");
+    void wrap.offsetWidth;
+    wrap.classList.add("is-shake");
+    setTimeout(() => wrap.classList.remove("is-shake"), 520);
+  }
+
+  function syncTplProgressFilledBaseline() {
+    tplProgressFilledLast = getTplFormProgress().filled;
+    updateTplSendProgress();
+  }
+
+  function tickTplSendProgress() {
+    syncTplNotInterestedBtn();
+    const { filled, ratio } = getTplFormProgress();
+    const wrap = document.getElementById("tpl-send-progress");
+    const sendBtn = document.getElementById("tpl-send-btn");
+    if (!wrap || !sendBtn) return;
+
+    if (filled > tplProgressFilledLast) {
+      const from = tplProgressRatio(tplProgressFilledLast);
+      tplProgressFilledLast = filled;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        renderTplSendProgressAt(ratio);
+        return;
+      }
+      cancelTplProgressReveal();
+      animateTplProgressBetween(from, ratio, 420, () => {
+        renderTplSendProgressAt(ratio);
+        pulseTplSendProgress();
+      });
+      return;
+    }
+
+    if (filled < tplProgressFilledLast) {
+      const from = tplProgressRatio(tplProgressFilledLast);
+      const to = tplProgressRatio(filled);
+      tplProgressFilledLast = filled;
+      if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+        renderTplSendProgressAt(to);
+        return;
+      }
+      cancelTplProgressReveal();
+      animateTplProgressBetween(from, to, 420, () => {
+        renderTplSendProgressAt(to);
+      });
+      return;
+    }
+
+    tplProgressFilledLast = filled;
+    updateTplSendProgress();
+  }
+
+  function updateTplSendProgress() {
+    cancelTplProgressReveal();
+    const sendBtn = document.getElementById("tpl-send-btn");
+    if (!document.getElementById("tpl-send-progress") || !sendBtn) return;
+
+    const { ratio, ready } = getTplFormProgress();
+    const sending = sendBtn.dataset.tplSending === "1";
+    renderTplSendProgressAt(sending && ready ? 1 : ratio);
+  }
+
+  function syncTplSendProgressAfterPick(opts) {
+    opts = opts || {};
+    tplSendProgressHandled = true;
+    const filled = TPL_PROGRESS_KEYS.filter(isTplProgressFieldFilled).length;
+    if (opts.reveal && filled >= 2) revealTplSendProgressFromPick();
+    else updateTplSendProgress();
+  }
+
+  function validateTplForm() {
+    clearTplValidation();
+    const missing = [];
+    let mapsLinkInvalid = false;
+
+    TPL_REQUIRED_FIELDS.forEach((field) => {
+      const input = document.getElementById(field.id);
+      const row = input?.closest(".tpl-field");
+      const value = tplInputValue(field.id);
+      let invalid = !value;
+
+      if (!invalid && field.minDigits && phoneDigitCount(value) < field.minDigits) {
+        invalid = true;
+      }
+
+      if (!invalid && field.isUrl && !isTplHttpUrl(value)) {
+        invalid = true;
+        if (field.id === "tpl-maps") mapsLinkInvalid = true;
+      }
+
+      if (invalid) {
+        missing.push(field);
+        input?.classList.add("is-invalid");
+        row?.classList.add("is-invalid");
+      }
+    });
+
+    if (missing.length) {
+      if (mapsLinkInvalid) {
+        showTplValidationMsg("Google Maps must be a valid link (include https:// or a domain like maps.google.com).");
+      } else {
+        const names = missing.map((f) => f.label).join(", ");
+        showTplValidationMsg("Fill out the Lead Builder · missing: " + names + ".");
+      }
+      shakeTplSendProgress();
+      const first = document.querySelector("#tpl-builder .tpl-input.is-invalid");
+      first?.focus();
+      first?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return false;
+    }
+
+    if (!isTplProgressFieldFilled("price")) {
+      const priceRow = document.getElementById("btn-p500")?.closest(".tpl-field");
+      priceRow?.classList.add("is-invalid");
+      showTplValidationMsg("Fill out the Lead Builder · missing: Price.");
+      shakeTplSendProgress();
+      priceRow?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return false;
+    }
+
+    if (!isTplProgressFieldFilled("preference")) {
+      const prefRow = document.getElementById("btn-dl")?.closest(".tpl-field");
+      prefRow?.classList.add("is-invalid");
+      showTplValidationMsg("Fill out the Lead Builder · missing: Preference.");
+      shakeTplSendProgress();
+      prefRow?.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      return false;
+    }
+
+    return true;
+  }
+
+  function tplErrorMessage(err) {
+    if (!err) return "Could not send. Try again.";
+    if (typeof err === "string") return err;
+    return String(err.message || err.details || err.hint || "Could not send. Try again.");
+  }
+
+  function hideTplLeadSuccessScreen() {
+    const screen = document.getElementById("tpl-sent-screen");
+    if (!screen) return;
+    screen.classList.remove("is-visible");
+    document.documentElement.classList.remove("tpl-sent-screen-open");
+    screen.hidden = true;
+  }
+
+  function showTplLeadSuccessScreen() {
+    const screen = document.getElementById("tpl-sent-screen");
+    if (!screen) return;
+
+    screen.hidden = false;
+    screen.classList.remove("is-visible");
+    void screen.offsetWidth;
+    screen.classList.add("is-visible");
+    document.documentElement.classList.add("tpl-sent-screen-open");
+
+    const leaveBtn = screen.querySelector(".tpl-sent-screen-leave");
+    if (leaveBtn && !leaveBtn.dataset.bound) {
+      leaveBtn.dataset.bound = "1";
+      leaveBtn.addEventListener("click", () => {
+        hideTplLeadSuccessScreen();
+      });
+    }
+  }
+
+  function showTplSentTag() {
+    showTplLeadSuccessScreen();
+  }
+
+  function setTplSendBtnLabel(sendBtn, text) {
+    if (!sendBtn) return;
+    const label = sendBtn.querySelector(".tpl-send-label");
+    if (label) label.textContent = text;
+    else sendBtn.textContent = text;
+  }
+
+  async function sendTpl(btn) {
     closeTplInfoPanels();
+    const sendBtn = btn || document.getElementById("tpl-send-btn");
+    const defaultLabel = "Send lead";
+
+    clearTplValidation();
+
+    if (!getTplFormProgress().ready) {
+      validateTplForm();
+      return;
+    }
+
+    if (!validateTplForm()) {
+      return;
+    }
+
+    if (!window.LeadBuilderSubmit?.canSubmit?.()) {
+      showTplValidationMsg("Lead Builder needs Supabase · run supabase-new-clients-setup.sql in your project.");
+      if (sendBtn) {
+        preserveScroll(() => {
+          setTplSendBtnLabel(sendBtn, "Not configured");
+        });
+        setTimeout(() => {
+          preserveScroll(() => {
+            setTplSendBtnLabel(sendBtn, defaultLabel);
+          });
+        }, 2500);
+      }
+      return;
+    }
+
+    if (sendBtn) {
+      sendBtn.dataset.tplSending = "1";
+      sendBtn.disabled = true;
+      updateTplSendProgress();
+      preserveScroll(() => {
+        setTplSendBtnLabel(sendBtn, "Sending…");
+      });
+    }
+
+    try {
+      const payload = buildLeadPayload();
+      await window.LeadBuilderSubmit.submitLead(payload);
+      const leadId = String(payload.lead_id || "").trim();
+      const businessName = String(payload.business_name || "").trim();
+      if (leadId) {
+        window.PendingLeadBuilder?.save?.(leadId, {
+          businessName,
+          price: payload.price,
+          phone: payload.phone,
+          owner_name: payload.owner_name,
+          preference: payload.preference,
+        });
+        await window.LeadSync?.markLeadPending?.(leadId, businessName);
+        window.DashboardPending?.stagePendingLead?.({
+          id: leadId,
+          name: businessName || "Business",
+        });
+      }
+      persistTemplateBuilder();
+      clearTplValidation();
+      showTplSentTag();
+      clearTpl();
+      if (sendBtn) {
+        preserveScroll(() => {
+          setTplSendBtnLabel(sendBtn, defaultLabel);
+        });
+      }
+    } catch (err) {
+      console.warn(err);
+      showTplValidationMsg(tplErrorMessage(err));
+      if (sendBtn) {
+        preserveScroll(() => {
+          setTplSendBtnLabel(sendBtn, "Send failed");
+        });
+        setTimeout(() => {
+          preserveScroll(() => {
+            setTplSendBtnLabel(sendBtn, defaultLabel);
+          });
+        }, 2000);
+      }
+    }
+
+    if (sendBtn) {
+      delete sendBtn.dataset.tplSending;
+      sendBtn.disabled = false;
+    }
+    updateTplSendProgress();
+  }
+
+  function clearTpl(options) {
+    closeTplInfoPanels();
+    if (!options?.keepFeedback) clearTplValidation();
     clearStashedLeadPick();
-    ["tpl-name", "tpl-phone", "tpl-maps"].forEach((id) => {
+    ["tpl-business", "tpl-name", "tpl-phone", "tpl-maps"].forEach((id) => {
       const el = document.getElementById(id);
       if (el) el.value = "";
     });
-    setTplPrice("$500", true);
-    setTplMode("dl", true);
+    clearTplPrice(true, true);
+    clearTplMode(true, true);
+    resetTplProgressTouched();
     saveTemplateBuilder({
-      mode: "dl",
-      price: "$500",
+      mode: "",
+      price: "",
+      priceChosen: false,
+      preferenceChosen: false,
+      businessName: "",
       name: "",
       phone: "",
       maps: "",
+      leadId: "",
     });
     syncTplCallBtn();
     initTplAutosaveTag();
+    syncTplProgressFilledBaseline();
+    syncTplNotInterestedBtn();
     void window.RepStorage?.flushSync?.();
   }
 
@@ -2284,22 +4169,34 @@
   function syncTplCallBtn() {
     const btn = document.getElementById("tpl-call-btn");
     const phone = document.getElementById("tpl-phone")?.value || "";
-    if (!btn) return;
-    const href = telHrefFromTplPhone(phone);
-    if (href) {
-      btn.href = href;
-      btn.removeAttribute("aria-disabled");
-      btn.classList.remove("is-disabled");
-    } else {
-      btn.href = "#";
-      btn.setAttribute("aria-disabled", "true");
-      btn.classList.add("is-disabled");
+    if (btn) {
+      const href = telHrefFromTplPhone(phone);
+      if (href) {
+        btn.href = href;
+        btn.removeAttribute("aria-disabled");
+        btn.classList.remove("is-disabled");
+      } else {
+        btn.href = "#";
+        btn.setAttribute("aria-disabled", "true");
+        btn.classList.add("is-disabled");
+      }
     }
+    syncTplNotInterestedBtn();
   }
 
   function bindTemplateBuilderAutosave() {
-    ["tpl-name", "tpl-phone", "tpl-maps"].forEach((id) => {
-      document.getElementById(id)?.addEventListener("input", persistTemplateBuilder);
+    ["tpl-business", "tpl-name", "tpl-phone", "tpl-maps"].forEach((id) => {
+      const el = document.getElementById(id);
+      el?.addEventListener("input", persistTemplateBuilder);
+      el?.addEventListener("input", tickTplSendProgress);
+      el?.addEventListener("change", tickTplSendProgress);
+      el?.addEventListener("input", () => {
+        el.classList.remove("is-invalid");
+        el.closest(".tpl-field")?.classList.remove("is-invalid");
+        if (!document.querySelector("#tpl-builder .tpl-input.is-invalid")) {
+          showTplValidationMsg("");
+        }
+      });
     });
     const phoneEl = document.getElementById("tpl-phone");
     const callBtn = document.getElementById("tpl-call-btn");
@@ -2329,31 +4226,77 @@
   }
 
   function bindTemplateBuilderActions(force) {
-    const copyBtn = document.getElementById("tpl-copy-btn");
+    const sendBtn = document.getElementById("tpl-send-btn");
     const clearBtn = document.getElementById("tpl-clear-btn");
-    if (copyBtn && (force || !copyBtn.dataset.bound)) {
-      copyBtn.dataset.bound = "1";
-      copyBtn.onclick = (e) => {
+    const niBtn = document.getElementById("tpl-not-interested-btn");
+    if (sendBtn && (force || !sendBtn.dataset.bound)) {
+      sendBtn.dataset.bound = "1";
+      sendBtn.onclick = (e) => {
         e.preventDefault();
-        copyTpl(copyBtn);
+        sendTpl(sendBtn);
       };
     }
     if (clearBtn && (force || !clearBtn.dataset.bound)) {
       clearBtn.dataset.bound = "1";
       clearBtn.onclick = (e) => {
         e.preventDefault();
-        clearTpl();
+        void handleTplClearClick(clearBtn);
+      };
+    }
+    if (niBtn && (force || !niBtn.dataset.bound)) {
+      niBtn.dataset.bound = "1";
+      niBtn.onclick = (e) => {
+        e.preventDefault();
+        if (niBtn.disabled) return;
+        void markTplNotInterested();
       };
     }
   }
 
+  function initTplHelpGuide() {
+    const card = document.getElementById("tpl-help-card");
+    const toggle = document.getElementById("tpl-help-toggle");
+    const panel = document.getElementById("tpl-help-panel");
+    const guide = document.getElementById("tpl-help-guide");
+    if (!card || !toggle || !panel || toggle.dataset.bound === "1") return;
+    toggle.dataset.bound = "1";
+
+    const setOpen = (open) => {
+      card.classList.toggle("is-open", open);
+      toggle.setAttribute("aria-expanded", open ? "true" : "false");
+      panel.setAttribute("aria-hidden", open ? "false" : "true");
+      const action = toggle.querySelector(".tpl-help-toggle-action");
+      if (action) action.textContent = open ? "Hide guide" : "Show guide";
+      if (open) {
+        closeTplInfoPanels();
+        if (window.SiteIcons) window.SiteIcons.initIcons(guide);
+        card.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    };
+
+    toggle.addEventListener("click", (e) => {
+      e.preventDefault();
+      setOpen(!card.classList.contains("is-open"));
+    });
+
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && card.classList.contains("is-open")) {
+        setOpen(false);
+      }
+    });
+  }
+
   function initTemplateBuilderPage() {
     if (!document.getElementById("tpl-builder")) return;
+    tplSendProgressHandled = false;
     initTplInfo();
+    initTplHelpGuide();
     bindTemplateBuilderAutosave();
     applyTemplateBuilder();
     initLeadPickFromFinder();
     if (!readStashedLeadPick()) initTplAutosaveTag();
+    if (!tplSendProgressHandled) syncTplProgressFilledBaseline();
+    syncTplNotInterestedBtn();
   }
 
   function initTplInfo() {
@@ -2397,8 +4340,10 @@
 
   window.setTplMode = setTplMode;
   window.setTplPrice = setTplPrice;
-  window.copyTpl = copyTpl;
+  window.sendTpl = sendTpl;
   window.clearTpl = clearTpl;
+  window.markTplNotInterested = markTplNotInterested;
+  window.handleTplClearClick = handleTplClearClick;
 
   function initVideo() {
     const wrap = document.getElementById("video-embed");
@@ -2437,6 +4382,7 @@
     return {
       leadId: String(lead?.id || "").trim(),
       name: "",
+      businessName: String(lead?.name || "").trim(),
       phone: lead?.phone || "",
       mapsUrl: lead?.mapsUrl || lead?.maps_url || "",
       price: "$500",
@@ -2473,13 +4419,16 @@
 
   function applyLeadPick(pick) {
     if (!pick || !document.getElementById("tpl-builder")) return false;
-    if (pick.mode) setTplMode(pick.mode, true);
-    if (pick.price) setTplPrice(pick.price, true);
+    if (pick.mode) setTplMode(pick.mode, true, true);
+    if (pick.price) setTplPrice(pick.price, true, true);
     const mapsVal = String(pick.mapsUrl || pick.maps || "").trim();
+    const businessEl = document.getElementById("tpl-business");
     const nameEl = document.getElementById("tpl-name");
     const phoneEl = document.getElementById("tpl-phone");
     const mapsEl = document.getElementById("tpl-maps");
+    const businessVal = String(pick.businessName || "").trim();
     const nameVal = String(pick.name || "").trim();
+    if (businessEl) businessEl.value = businessVal;
     if (nameEl) nameEl.value = nameVal;
     if (phoneEl) {
       phoneEl.value = pick.phone
@@ -2490,7 +4439,9 @@
     persistTemplateBuilder();
     syncTplCallBtn();
     initTplAutosaveTag();
-    return !!(nameVal || pick.phone || mapsVal);
+    syncTplSendProgressAfterPick({ reveal: true });
+    syncTplNotInterestedBtn();
+    return !!(businessVal || nameVal || pick.phone || mapsVal);
   }
 
   function mergeLeadPickIntoStorage(pick) {
@@ -2498,45 +4449,78 @@
     const s = loadTemplateBuilder();
     const mapsVal = String(pick.mapsUrl || pick.maps || "").trim();
     saveTemplateBuilder({
-      mode: pick.mode || s.mode || tplMode || "dl",
-      price: pick.price || s.price || "$500",
+      mode: pick.mode || s.mode || tplMode || "",
+      price: pick.price || (s.priceChosen ? s.price : "") || "",
+      priceChosen: !!(pick.price || s.priceChosen),
+      preferenceChosen: !!(pick.mode || s.preferenceChosen),
+      businessName:
+        "businessName" in pick
+          ? String(pick.businessName || "").trim()
+          : String(s.businessName || "").trim(),
       name: "name" in pick ? String(pick.name || "").trim() : String(s.name || "").trim(),
       phone: pick.phone || s.phone || "",
       maps: mapsVal || s.maps || "",
+      leadId: String(pick.leadId || pick.lead_id || s.leadId || "").trim(),
     });
   }
 
-  function forwardLeadToBuilder(lead) {
-    if (!lead) return;
-    const leadId = lead.id;
-    if (leadId && window.LeadsPage?.pinLeadForBuilder) {
-      void window.LeadsPage.pinLeadForBuilder(leadId);
+  async function forwardLeadToBuilder(lead) {
+    if (!lead) return false;
+    const leadId = String(lead.id || "").trim();
+    const businessName = String(lead.name || lead.businessName || "").trim() || "Business";
+    if (leadId && window.LeadSync?.markLeadBuilding) {
+      try {
+        await window.LeadSync.markLeadBuilding(leadId, businessName);
+      } catch (e) {
+        console.warn(e);
+        showTplToast(
+          e?.message && String(e.message).trim()
+            ? e.message
+            : "This lead is not available right now.",
+          { kind: "error" }
+        );
+        if (!document.getElementById("tpl-builder")) {
+          alert(
+            e?.message && String(e.message).trim()
+              ? e.message
+              : "This lead is not available right now."
+          );
+        }
+        return false;
+      }
     }
     const pick = buildLeadPickFromLead(lead);
     stashLeadPick(pick);
     mergeLeadPickIntoStorage(pick);
     if (document.getElementById("tpl-builder")) {
       if (applyLeadPick(pick)) clearStashedLeadPick();
-      return;
+      return true;
     }
-    const qs = leadId ? "?lead=" + encodeURIComponent(String(leadId)) : "";
+    const qs = lead.id ? "?lead=" + encodeURIComponent(String(lead.id)) : "";
     window.location.href = "template.html" + qs;
+    return true;
   }
 
   function initLeadPickFromFinder() {
     const pick = readStashedLeadPick();
     if (pick) {
+      mergeLeadPickIntoStorage(pick);
       if (applyLeadPick(pick)) clearStashedLeadPick();
       return;
     }
+    const urlLeadId = new URLSearchParams(window.location.search).get("lead") || "";
     const s = loadTemplateBuilder();
-    if (s.phone || s.maps || s.name) {
+    if (urlLeadId && !s.leadId) {
+      saveTemplateBuilder({ ...s, leadId: urlLeadId });
+    }
+    if (s.phone || s.maps || s.name || s.businessName) {
       applyLeadPick({
         name: s.name,
         phone: s.phone,
         mapsUrl: s.maps,
         price: s.price,
         mode: s.mode,
+        businessName: s.businessName,
       });
     }
   }
@@ -2644,7 +4628,7 @@
         formatMoney(tier.commission) +
         " per close (" +
         tier.saleShort +
-        ") — after " +
+        ") · after " +
         owner +
         " closes the deal and notifies you.";
     }
@@ -2827,18 +4811,34 @@
     );
   }
 
+  function dispatchSiteAppReady() {
+    try {
+      window.dispatchEvent(new CustomEvent("site-app-ready"));
+    } catch (_) {}
+  }
+
   function bootApp() {
     if (document.body.dataset.appBooted === "1") {
       mountPage();
+      if ((document.body.dataset.page || "home") === "leads") {
+        initDashboardToggleCards();
+      }
+      initLeadFinderNavCount();
+      dispatchSiteAppReady();
       return;
     }
     document.body.dataset.appBooted = "1";
     mountPage();
+    dispatchSiteAppReady();
 
     const page = document.body.dataset.page || "home";
+    if (page === "leads") {
+      initDashboardToggleCards();
+    }
     if (page === "settings") {
       window.SiteImagePreload?.warmDocumentImages?.(document.body);
       if (window.SiteIcons) window.SiteIcons.initIcons();
+      initLeadFinderNavCount();
       return;
     }
 
@@ -2855,14 +4855,18 @@
     initOutreachEditor();
     initVideo();
     initConfigLinks();
+    bindTelegramNavLeave(document.getElementById("page-body"));
     initEarningsProjection();
     initOwnerPage();
     window.SiteImagePreload?.warmDocumentImages?.(document.body);
     if (window.SiteIcons) window.SiteIcons.initIcons();
+    scrollPageHash();
 
     if (document.getElementById("tpl-builder")) {
       initTemplateBuilderPage();
     }
+
+    initLeadFinderNavCount();
   }
 
   function pageNeedsSettingsRefresh() {
@@ -2870,8 +4874,8 @@
     return (
       page === "home" ||
       page === "scripts" ||
-      page === "outreach" ||
       page === "faq" ||
+      !!document.getElementById("salesList") ||
       !!document.getElementById("deals-list") ||
       !!document.getElementById("onboarding-path") ||
       !!document.getElementById("course-module-list") ||
@@ -2903,6 +4907,7 @@
       return;
     }
     appLaunchStarted = true;
+    window.appLaunchStarted = true;
 
     if (window.RepStorage?.init) {
       window.RepStorage.init().catch((e) => console.warn("Rep settings init failed", e));
@@ -2922,18 +4927,33 @@
       startWhenReady();
       return;
     }
-    if (isSiteUnlocked()) startWhenReady();
+    if (isSiteUnlocked()) {
+      startWhenReady();
+      return;
+    }
+    requestAnimationFrame(() => {
+      if (!appLaunchStarted && isSiteUnlocked()) startWhenReady();
+    });
   }
 
-  document.addEventListener("DOMContentLoaded", scheduleAppLaunch);
+  if (document.readyState !== "loading") {
+    initDashboardIncomeUiEarly();
+  }
+
+  document.addEventListener("DOMContentLoaded", () => {
+    initDashboardIncomeUiEarly();
+    scheduleAppLaunch();
+  });
 
   window.addEventListener("site-unlocked", () => {
+    initDashboardIncomeUiEarly();
     ensureSignOutFloatScript();
     if (!appLaunchStarted) startWhenReady();
     else if (document.body.dataset.appBooted === "1") {
       initAccordions();
       if (document.getElementById("scripts-editor")) initCallScripts();
       if (document.getElementById("outreach-editor")) initOutreachEditor();
+      initLeadFinderNavCount();
     }
     window.DashboardPending?.refresh?.();
     if (window.RepStorage?.whenReady) {
@@ -2974,6 +4994,7 @@
       bindTemplateBuilderActions(true);
       reapplyLeadPickFromFinder();
     }
+    reloadSalesTracker?.();
   });
 
   window.addEventListener("pageshow", (e) => {
@@ -2991,7 +5012,6 @@
     renderOnboardingPath();
     initOnboardingChecklist();
     refreshCourseNavInSidebar();
-    updateChecklistNavProgress();
   });
 
 })();

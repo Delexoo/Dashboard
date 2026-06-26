@@ -1,6 +1,6 @@
 /**
  * Merges gitignored js/private-config.js into SITE_CONFIG.
- * Supabase URL/key only — PINs are verified server-side (verify_rep_pin RPC).
+ * Supabase URL/key only · PINs are verified server-side (verify_rep_pin RPC).
  */
 (function () {
   const pub = window.SITE_CONFIG || {};

@@ -1,7 +1,7 @@
 /**
- * Public site config — safe to commit to GitHub.
+ * Public site config · safe to commit to GitHub.
  * Supabase publishable URL/key are public client values (RLS + server PIN check protect data).
- * PINs are never stored here — only in Supabase rep_pins.
+ * PINs are never stored here · only in Supabase rep_pins.
  */
 window.SITE_CONFIG = {
   companyName: "Sales Team Dashboard",
@@ -9,17 +9,21 @@ window.SITE_CONFIG = {
   ownerName: "Delexo",
   ownerHandle: "@delexo",
   ownerPhotoUrl: "https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/meettheowner.jpg",
-  ownerBio: "Hi, I'm Delexo. I'm 19, highly ambitious, and always up for a risk. I'm a Harvard CS50 alum and Google Cybersecurity certified. I'm currently pursuing Harvard's Cybersecurity for Business program and hope to graduate with Harvard VPAL credentials.\n\nReach out anytime by text, call, or meeting. Happy to help.",
+  ownerBio: "Hi, I go by Delexo online. I'm 19, ambitious, and always up for a risk.\n\nI enrolled in Harvard CS50 and I'm now an alumnus. I also completed Google Cybersecurity, and I'm currently pursuing Cybersecurity for Business at Harvard VPAL.\n\nIf you ever need any help, reach out anytime.",
+  ownerBioLead: "Hi, I go by Delexo online. I'm 19, I'm majoring in Cybersecurity and Computer Science. I spend a lot of my time creating new projects, tools, courses!",
+  ownerBioCreds: ["Harvard CS50 Certificate","Google Cybersecurity Certificate","The Ultimate Dark Web, Anonymity, Privacy & Security Course","Learn Ethical Hacking From Scratch","100 Days of Code: The Complete Python Pro Bootcamp",{"label":"Cybersecurity for Business · Harvard VPAL","status":"in-progress"}],
+  ownerBioClose: "If you ever need help, reach out anytime.",
   ownerStoreUrl: "https://delexo.store",
   ownerCalUrl: "https://cal.com/delexo",
   honorableMentionName: "Coming soon",
-  honorableMentionBio: "Profile coming soon — same image as a placeholder until your friend’s details are added here.",
+  honorableMentionBio: "Profile coming soon · same image as a placeholder until your friend’s details are added here.",
   honorableMentionPhotoUrl: "https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/Default.jpg",
-  contributors: ["Culson","Zackary","Nolan","Addie","Losan","David","Misha","Delexo"],
+  contributorsPinnedFirst: ["delexo","misha"],
   contributorsVerified: ["Misha","Delexo"],
   contributorsVerifiedBadgeUrl: "https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/Verified.png",
   contributorsDefaultRole: "Sales Representative",
-  contributorsRoles: {"Misha":"Chief Strategy Advisor","Delexo":"CEO"},
+  contributorsRoles: {"Misha":"Co-Owner","Delexo":"CEO"},
+  ownerRepIds: ["delexo"],
   contributorsShareUrl: "https://tally.so/r/1AGlbg",
   contributorsShareLabel: "Invite",
   contributorsShareHint: "Invite someone to apply",
@@ -41,12 +45,13 @@ window.SITE_CONFIG = {
   payoutTelegramUrl: "https://t.me/+U9wsP-sf8GFmNWFh",
   payoutTelegramName: "Website Agency",
   leadsListUrl: "leads.html",
-  supabaseUrl: "https://qisqgdffekqeprhjklyd.supabase.co",
-  supabaseAnonKey: "sb_publishable_2ULS4fB1YKnpmRzGgwuy2g_Z6Y2OCPw",
+  supabaseUrl: "https://qxtvrlskuntfcsgqdekh.supabase.co",
+  supabaseAnonKey: "sb_publishable_1aqaA4jT-naO9ELuS-B6oQ_rDAg6YR-",
   useSupabaseLeads: true,
   useRepSettingsSync: true,
   useBugReports: true,
   useFeedback: true,
+  useNewClients: true,
   useFaqQa: true,
   onboardingVideoUrl: "https://youtu.be/BPbOQqbex98?si=wBPx0bqtRxfaQJrf",
   courseModuleVideos: {"introduction":"https://youtu.be/mXOzM9eNC_A","setup-accounts":"https://youtu.be/tgdvS4wTPrA","preferences":""},

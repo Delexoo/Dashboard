@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Admin Console · Sales Team Dashboard</title>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="css/site.css">
+</head>
+<body data-page="sales-console">
+  <button
+    type="button"
+    class="owner-console-view-banner"
+    id="owner-viewing-banner"
+    hidden
+    aria-live="polite"
+    aria-hidden="true"
+    aria-label="Dismiss viewing banner"
+  >
+    <span class="owner-console-view-banner-text" id="owner-viewing-banner-text"></span>
+  </button>
+  <div id="shell"></div>
+  <div id="page-body" class="dashboard-redesign owner-console-page">
+    <header class="owner-console-head">
+      <h1>Admin Console</h1>
+    </header>
+
+    <section class="dash-work-panels-card owner-console-team-overview" aria-labelledby="owner-team-overview-heading">
+      <header class="owner-console-team-overview-head">
+        <h2 class="dash-sales-history-heading" id="owner-team-overview-heading">Team activity</h2>
+      </header>
+
+      <dl class="owner-console-team-totals" id="owner-team-totals-grid" aria-label="Team totals"></dl>
+
+      <div class="owner-console-team-table-wrap">
+        <table class="owner-console-team-table">
+          <thead>
+            <tr>
+              <th scope="col">Rep</th>
+              <th scope="col">Activity</th>
+              <th scope="col">Hours</th>
+              <th scope="col">Commission</th>
+              <th scope="col">Sales</th>
+              <th scope="col">Goal</th>
+            </tr>
+          </thead>
+          <tbody id="owner-team-members-body"></tbody>
+        </table>
+      </div>
+
+      <p class="owner-console-team-overview-empty dash-empty-desc" id="owner-team-overview-empty" hidden>
+        No team data yet. Stats appear when reps log in and use the platform.
+      </p>
+    </section>
+
+    <div class="owner-console-layout">
+      <section class="dash-work-panels-card owner-console-inbox" aria-labelledby="owner-inbox-heading">
+        <header class="dash-sales-history-head owner-console-inbox-head">
+          <h2 class="dash-sales-history-heading" id="owner-inbox-heading">Sent leads</h2>
+          <div class="owner-console-filters" role="tablist" aria-label="Lead status filter">
+            <button type="button" class="owner-console-filter is-active" data-filter="pending" role="tab" aria-selected="true">Pending</button>
+            <button type="button" class="owner-console-filter" data-filter="confirmed" role="tab" aria-selected="false">Confirmed</button>
+            <button type="button" class="owner-console-filter" data-filter="all" role="tab" aria-selected="false">All</button>
+          </div>
+        </header>
+
+        <div class="owner-console-inbox-search-wrap">
+          <label class="sr-only" for="owner-inbox-search">Search sent leads</label>
+          <div class="owner-console-inbox-search-field">
+            <input
+              type="text"
+              id="owner-inbox-search"
+              class="owner-console-inbox-search"
+              placeholder="Search rep, business, phone, owner…"
+              autocomplete="off"
+              spellcheck="false"
+              role="combobox"
+              aria-autocomplete="list"
+              aria-controls="owner-inbox-search-suggestions"
+              aria-expanded="false"
+            />
+            <button
+              type="button"
+              id="owner-inbox-search-clear"
+              class="owner-console-inbox-search-clear"
+              hidden
+              aria-label="Clear search"
+            >
+              <span data-icon="x" data-icon-class="owner-console-inbox-search-clear-ico" aria-hidden="true"></span>
+            </button>
+            <ul
+              id="owner-inbox-search-suggestions"
+              class="owner-console-inbox-search-suggestions"
+              role="listbox"
+              aria-label="Reps with pending leads"
+              hidden
+            ></ul>
+          </div>
+        </div>
+
+        <div class="owner-console-inbox-body">
+          <div class="owner-console-inbox-status" id="owner-inbox-status" hidden role="status"></div>
+
+          <ul class="dash-pending-list" id="owner-lead-list" hidden></ul>
+
+          <div class="dash-empty dash-pending-empty owner-console-empty" id="owner-inbox-empty" hidden>
+            <p class="dash-empty-title">No leads in this view</p>
+            <p class="dash-empty-desc">When reps send leads from Lead Builder, they appear here.</p>
+          </div>
+        </div>
+      </section>
+
+      <aside class="owner-console-team-wrap">
+        <section class="dash-goal-tracker-card owner-console-team" aria-labelledby="owner-team-heading">
+          <header class="owner-console-team-head">
+            <h2 class="dash-sales-history-heading" id="owner-team-heading">Team dashboard</h2>
+          </header>
+
+          <div class="owner-console-rep-picker">
+            <span class="dash-tracker-label" id="owner-rep-picker-label">Rep</span>
+            <div class="owner-console-rep-segment" id="owner-rep-segment">
+              <div
+                class="owner-console-rep-toggles"
+                id="owner-rep-toggles"
+                role="tablist"
+                aria-labelledby="owner-rep-picker-label"
+              ></div>
+            </div>
+          </div>
+
+          <div class="owner-console-team-panel" id="owner-team-panel" hidden>
+            <div class="dash-progress-panel owner-console-progress-panel">
+              <div class="dash-goal-controls">
+                <div class="dash-goal-metrics">
+                  <div class="dash-goal-stat">
+                    <span class="dash-tracker-label">Monthly goal</span>
+                    <strong class="dash-stat-value" id="owner-team-goal">$0</strong>
+                  </div>
+                  <div class="dash-goal-stats-right">
+                    <div class="dash-goal-stat dash-earned-stat" aria-live="polite">
+                      <span class="dash-tracker-label">Commission earned</span>
+                      <strong class="dash-stat-value dash-earned-value" id="owner-team-earned">$0</strong>
+                    </div>
+                    <div class="dash-goal-stat dash-closes-stat" aria-live="polite">
+                      <span class="dash-tracker-label">Sales</span>
+                      <strong class="dash-stat-value" id="owner-team-sales">0</strong>
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              <div class="dash-goal-ring-card">
+                <div class="dash-goal-ring" id="owner-progress-orbit">
+                  <svg class="dash-goal-ring-svg" viewBox="0 0 280 280" role="img" aria-label="Goal progress">
+                    <circle class="dash-goal-ring-track" cx="140" cy="140" r="118" fill="none"></circle>
+                    <circle class="dash-goal-ring-fill" id="owner-progress-ring" cx="140" cy="140" r="118" fill="none"></circle>
+                  </svg>
+                  <div class="dash-goal-ring-center">
+                    <span class="dash-goal-ring-pct" id="owner-team-progress">0%</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <section class="owner-console-recent-sales" aria-labelledby="owner-recent-sales-heading">
+              <header class="dash-sales-history-head">
+                <h3 class="dash-sales-history-heading" id="owner-recent-sales-heading">Recent sales</h3>
+              </header>
+              <div class="dash-sales-list-wrap">
+                <div class="sales-list dash-sales-list" id="owner-team-deals" aria-live="polite"></div>
+              </div>
+              <p class="owner-console-deals-empty dash-empty-desc" id="owner-team-deals-empty" hidden>No sales logged yet.</p>
+            </section>
+          </div>
+
+          <p class="owner-console-team-placeholder" id="owner-team-placeholder">Choose a rep above to view their stats.</p>
+        </section>
+      </aside>
+    </div>
+
+    <section
+      id="owner-not-interested-section"
+      class="dash-work-panels-card owner-console-not-interested"
+      aria-labelledby="owner-ni-heading"
+    >
+      <header class="dash-sales-history-head owner-console-ni-head">
+        <div>
+          <h2 class="dash-sales-history-heading" id="owner-ni-heading">Not interested</h2>
+          <p class="owner-console-ni-lead dash-empty-desc">
+            Businesses reps marked not interested from Lead Builder or Lead Finder.
+          </p>
+        </div>
+        <span class="owner-console-ni-count" id="owner-ni-count" aria-live="polite"></span>
+      </header>
+
+      <div class="owner-console-inbox-status" id="owner-ni-status" hidden role="status"></div>
+
+      <ul class="dash-pending-list owner-console-ni-list" id="owner-ni-list" hidden></ul>
+
+      <div class="dash-empty dash-pending-empty owner-console-empty" id="owner-ni-empty" hidden>
+        <p class="dash-empty-title">No not-interested businesses yet</p>
+        <p class="dash-empty-desc">When reps mark a business not interested, it shows up here.</p>
+      </div>
+    </section>
+
+    <section
+      class="dash-work-panels-card owner-console-playtest-reset"
+      id="owner-playtest-reset"
+      aria-labelledby="owner-playtest-heading"
+    >
+      <header class="dash-sales-history-head owner-console-playtest-head">
+        <div class="owner-playtest-head-copy">
+          <div class="owner-playtest-title-row">
+            <h2 class="dash-sales-history-heading" id="owner-playtest-heading">Playtest reset</h2>
+            <span class="owner-console-status owner-playtest-badge">Advanced</span>
+          </div>
+          <p class="owner-console-playtest-lead dash-empty-desc">
+            Zero out team playtest data without deleting PIN accounts or the Lead Finder business list.
+          </p>
+        </div>
+      </header>
+
+      <div class="owner-playtest-body">
+        <div class="owner-playtest-layout">
+          <div class="owner-playtest-panel">
+            <p class="owner-playtest-panel-label">Scope</p>
+            <div class="owner-console-filters owner-playtest-segment" role="radiogroup" aria-label="Reset scope">
+              <label class="owner-playtest-segment-opt is-active">
+                <input type="radio" name="owner-playtest-scope" value="all_reps" checked />
+                <span>All reps</span>
+              </label>
+              <label class="owner-playtest-segment-opt">
+                <input type="radio" name="owner-playtest-scope" value="one_rep" />
+                <span>One rep</span>
+              </label>
+            </div>
+            <div class="owner-playtest-rep-field">
+              <label class="dash-tracker-label" for="owner-playtest-rep">Rep</label>
+              <select class="owner-playtest-rep-select" id="owner-playtest-rep" disabled aria-label="Choose rep">
+                <option value="">Choose a rep…</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="owner-playtest-panel">
+            <p class="owner-playtest-panel-label">What to reset</p>
+            <div class="owner-console-filters owner-playtest-segment" role="radiogroup" aria-label="Reset mode">
+              <label class="owner-playtest-segment-opt is-active">
+                <input type="radio" name="owner-playtest-mode" id="owner-playtest-mode-preset" value="preset" checked />
+                <span>Full reset</span>
+              </label>
+              <label class="owner-playtest-segment-opt">
+                <input type="radio" name="owner-playtest-mode" id="owner-playtest-mode-custom" value="custom" />
+                <span>Custom</span>
+              </label>
+            </div>
+            <div class="owner-playtest-preset-card" id="owner-playtest-preset-only">
+              <p>
+                Resets sales, settings, payouts, photos, submitted leads, workflow, feedback, bugs, FAQ, and display
+                names.
+              </p>
+            </div>
+            <div class="owner-playtest-datasets" id="owner-playtest-custom-wrap" hidden>
+              <div class="owner-playtest-datasets-grid" id="owner-playtest-datasets"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="owner-playtest-foot">
+          <p class="owner-playtest-safe-note">
+            PIN accounts and the Lead Finder business list are never deleted.
+          </p>
+          <div class="owner-playtest-actions">
+            <button type="button" class="btn owner-console-dialog-btn--danger owner-playtest-reset-btn" id="owner-playtest-open">
+              Reset playtest data…
+            </button>
+          </div>
+          <p class="owner-console-inbox-status owner-playtest-status" id="owner-playtest-status" hidden role="status"></p>
+        </div>
+      </div>
+    </section>
+  </div>
+
+  <dialog class="owner-console-dialog" id="owner-confirm-dialog" aria-labelledby="owner-confirm-title">
+    <form method="dialog" class="owner-console-dialog-panel" id="owner-confirm-form">
+      <h2 class="owner-console-dialog-title" id="owner-confirm-title">Confirm sale</h2>
+
+      <dl class="owner-console-dialog-details" id="owner-confirm-details"></dl>
+
+      <p class="owner-console-dialog-credit" id="owner-confirm-credit" aria-live="polite"></p>
+
+      <div class="owner-console-tier-field">
+        <span class="owner-console-tier-label">Upfront sale amount</span>
+        <div class="owner-console-tier-pills" id="owner-tier-pills">
+          <button type="button" class="pill" data-sale="500">$500</button>
+          <button type="button" class="pill active" data-sale="700">$700</button>
+          <button type="button" class="pill" data-sale="1000">$1,000</button>
+          <button type="button" class="pill" data-sale="1500">$1,500</button>
+        </div>
+      </div>
+
+      <p class="owner-console-commission-preview" id="owner-commission-preview" aria-live="polite">
+        Commission (40%): <strong>$280</strong>
+      </p>
+
+      <p class="owner-console-dialog-error" id="owner-confirm-error" hidden role="alert"></p>
+
+      <div class="owner-console-dialog-actions">
+        <button type="button" class="btn secondary" id="owner-confirm-cancel">Cancel</button>
+        <button type="submit" class="btn" id="owner-confirm-submit">Confirm sale</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="owner-console-dialog" id="owner-delete-dialog" aria-labelledby="owner-delete-title">
+    <form method="dialog" class="owner-console-dialog-panel" id="owner-delete-form">
+      <h2 class="owner-console-dialog-title" id="owner-delete-title">Delete lead</h2>
+
+      <dl class="owner-console-dialog-details" id="owner-delete-details"></dl>
+
+      <p class="owner-console-dialog-credit owner-console-dialog-warning" id="owner-delete-warning" aria-live="polite"></p>
+
+      <p class="owner-console-dialog-error" id="owner-delete-error" hidden role="alert"></p>
+
+      <div class="owner-console-dialog-actions">
+        <button type="button" class="btn secondary" id="owner-delete-cancel">Cancel</button>
+        <button type="submit" class="btn owner-console-dialog-btn--danger" id="owner-delete-submit">Delete lead</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog class="owner-console-dialog" id="owner-confirmed-sale-dialog" aria-labelledby="owner-confirmed-sale-title">
+    <div class="owner-console-dialog-panel">
+      <h2 class="owner-console-dialog-title" id="owner-confirmed-sale-title">Owner confirmed sale</h2>
+      <dl class="owner-console-dialog-details" id="owner-confirmed-sale-details"></dl>
+      <div class="owner-console-dialog-actions">
+        <button type="button" class="btn" id="owner-confirmed-sale-close">Close</button>
+      </div>
+    </div>
+  </dialog>
+
+  <dialog class="owner-console-dialog owner-playtest-dialog" id="owner-playtest-dialog" aria-labelledby="owner-playtest-dialog-title">
+    <form method="dialog" class="owner-console-dialog-panel owner-playtest-dialog-panel" id="owner-playtest-form">
+      <h2 class="owner-console-dialog-title" id="owner-playtest-dialog-title">Confirm playtest reset</h2>
+
+      <dl class="owner-console-dialog-details owner-playtest-summary" id="owner-playtest-summary"></dl>
+
+      <div class="owner-console-tier-field owner-playtest-pin-field">
+        <label class="owner-console-tier-label" for="owner-playtest-pin">Reset PIN</label>
+        <input
+          class="owner-playtest-pin-input"
+          id="owner-playtest-pin"
+          name="owner-playtest-pin"
+          type="password"
+          inputmode="numeric"
+          autocomplete="off"
+          maxlength="12"
+          placeholder="Enter PIN"
+          required
+        />
+      </div>
+
+      <p class="owner-console-dialog-error" id="owner-playtest-error" hidden role="alert"></p>
+
+      <div class="owner-console-dialog-actions">
+        <button type="button" class="btn secondary" id="owner-playtest-cancel">Cancel</button>
+        <button type="submit" class="btn owner-console-dialog-btn--danger" id="owner-playtest-submit">Reset data</button>
+      </div>
+    </form>
+  </dialog>
+
+  <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
+  <script src="js/image-preload.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
+  <script src="js/icons.js"></script>
+  <script src="js/rep-session.js"></script>
+  <script src="js/rep-settings-sync.js"></script>
+  <script src="js/user-prefs.js"></script>
+  <script src="js/theme.js"></script>
+  <script src="js/lock.js"></script>
+  <script src="js/layout-fix.js"></script>
+  <script src="js/course-modules.js"></script>
+  <script src="js/lead-csv-format.js"></script>
+  <script src="js/owner-access.js"></script>
+  <script src="js/app.js"></script>
+  <script src="js/owner-confirmed-sale-details.js"></script>
+  <script src="js/owner-team-stats.js"></script>
+  <script src="js/owner-console-team-overview.js"></script>
+  <script src="js/owner-sales-console.js"></script>
+  <script src="js/owner-playtest-reset.js"></script>
+</body>
+</html>

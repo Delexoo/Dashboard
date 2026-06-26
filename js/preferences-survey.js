@@ -5,9 +5,9 @@
 
   const STEPS = ["theme", "nickname", "profile", "done"];
   const THEMES = [
-    ["current", "Current"],
     ["white", "White"],
     ["black", "Black"],
+    ["cream", "Cream"],
     ["green", "Green"],
     ["grey", "Grey"],
     ["blue", "Blue"],
@@ -72,7 +72,7 @@
   }
 
   function selectedTheme() {
-    return global.UserPrefs?.get?.()?.uiColor || "current";
+    return global.UserPrefs?.get?.()?.uiColor || "white";
   }
 
   function saveTheme(theme) {
@@ -185,10 +185,11 @@
   }
 
   function doneStep() {
+    const name = esc(global.RepSession?.getName?.() || global.RepSession?.get?.()?.name || "you");
     return (
       '<article class="survey-step survey-step-enter">' +
       '<header class="survey-step-head"><p class="survey-kicker">Preferences saved</p>' +
-      '<h3 class="survey-question">You’re done.</h3>' +
+      `<h3 class="survey-question">You're all set, ${name}! Click next!</h3>` +
       '<p class="survey-sub">Your preferences are saved. You can update theme, nickname, and photo anytime from Settings.</p></header>' +
       "</article>"
     );
@@ -202,13 +203,29 @@
     return doneStep();
   }
 
+  function clearCompletionFlags() {
+    const progress = loadProgress();
+    delete progress.preferencesComplete;
+    delete progress.module_preferences;
+    delete progress.preferences;
+    saveProgress(progress);
+  }
+
   function updateProgress() {
     const text = document.getElementById("preferences-survey-progress-text");
     const bar = document.getElementById("preferences-survey-progress-bar");
     if (text) text.textContent = "Step " + (currentStep + 1) + " of " + STEPS.length;
     if (bar) bar.style.width = ((currentStep + 1) / STEPS.length) * 100 + "%";
+    syncNavButtons();
+  }
+
+  function syncNavButtons() {
     const back = document.getElementById("preferences-survey-back");
-    if (back) back.disabled = currentStep === 0;
+    const canBack = currentStep > 0;
+    if (back) {
+      back.disabled = !canBack;
+      back.setAttribute("aria-disabled", canBack ? "false" : "true");
+    }
   }
 
   function renderStep() {
@@ -228,6 +245,18 @@
     renderStep();
   }
 
+  function goBack() {
+    if (currentStep <= 0) return;
+    if (STEPS[currentStep] === "done") clearCompletionFlags();
+    goTo(currentStep - 1);
+  }
+
+  function restartSurvey() {
+    clearCompletionFlags();
+    saveItem(STEP_KEY, "0");
+    goTo(0);
+  }
+
   function showStatus(id, msg, ok) {
     const el = document.getElementById(id);
     if (!el) return;
@@ -243,7 +272,7 @@
       if (step === "nickname") {
         await saveNickname(document.getElementById("preferences-display-name")?.value);
       }
-      if (step === "theme") markProgress(["preferencesTheme"]);
+      if (step === "theme") saveTheme(selectedTheme());
       goTo(currentStep + 1);
     } catch (e) {
       showStatus("preferences-survey-status", e.message || "Could not save.", false);
@@ -294,10 +323,11 @@
       if (e.target.closest("[data-pref-skip-photo]")) {
         markProgress(["preferencesProfile"]);
         goTo(currentStep + 1);
+        return;
       }
     });
-    document.getElementById("preferences-survey-back")?.addEventListener("click", () => goTo(currentStep - 1));
-    document.getElementById("preferences-survey-restart")?.addEventListener("click", () => goTo(0));
+    document.getElementById("preferences-survey-back")?.addEventListener("click", goBack);
+    document.getElementById("preferences-survey-restart")?.addEventListener("click", restartSurvey);
   }
 
   async function mount() {

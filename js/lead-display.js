@@ -14,7 +14,7 @@
 
   function isPlaceholder(value) {
     const v = raw(value).toLowerCase();
-    return !v || v === "—" || v === "-" || v === "n/a";
+    return !v || v === "-" || v === "-" || v === "n/a";
   }
 
   function looksLikeBusinessName(value) {
@@ -39,6 +39,84 @@
     return true;
   }
 
+  function isMapsUiLabel(value) {
+    const v = raw(value).toLowerCase();
+    if (!v || v === "·") return true;
+    return /^(directions|website|menu|call|save|share|order online|overview|reviews|photos|updates|about)$/i.test(v);
+  }
+
+  const PHONE_RE = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
+  const ADDRESS_RE = /\b\d{1,6}\s+[A-Za-z0-9]/;
+  const STREET_WORD_RE =
+    /\b(st|street|rd|road|ave|avenue|blvd|boulevard|dr|drive|ln|lane|way|suite|ste|hwy|highway|pkwy|parkway|ct|court|pl|place)\b/i;
+
+  function looksLikeHours(value) {
+    const v = raw(value).replace(/^[\s·•]+/, "");
+    if (!v) return false;
+    const low = v.toLowerCase();
+    if (/^(open|closed|closes)\b/.test(low)) return true;
+    if (/\b(opens?|closed|closes soon)\b/i.test(v) && /\b(AM|PM)\b/i.test(v)) return true;
+    if (/^opens?\b/i.test(low) && /\d/.test(v)) return true;
+    return false;
+  }
+
+  function looksLikeStreetAddress(value) {
+    const v = raw(value);
+    if (!v || isNullMarker(v) || isPlaceholder(v)) return false;
+    if (looksLikeHours(v)) return false;
+    if (PHONE_RE.test(v)) return false;
+    if (v.startsWith("http")) return false;
+    if (ADDRESS_RE.test(v)) return true;
+    if (STREET_WORD_RE.test(v) && /\d/.test(v)) return true;
+    if (/,/.test(v) && /\d/.test(v) && !looksLikeHours(v)) return true;
+    return false;
+  }
+
+  function extraFieldCandidates(lead, keys) {
+    const out = [];
+    keys.forEach((key) => {
+      const v = raw(lead?.[key]);
+      if (v) out.push(v);
+    });
+    return out;
+  }
+
+  function resolveAddressRaw(lead) {
+    const candidates = [
+      lead?.address,
+      ...extraFieldCandidates(lead, ["W4Efsd 2", "W4Efsd 5", "W4Efsd 6", "W4Efsd 7", "Address", "address"]),
+    ];
+    for (const c of candidates) {
+      if (!c || isNullMarker(c) || isPlaceholder(c)) continue;
+      if (looksLikeHours(c)) continue;
+      if (looksLikeStreetAddress(c)) return c;
+    }
+    return "";
+  }
+
+  function resolveHoursRaw(lead) {
+    const candidates = [
+      lead?.hours,
+      ...extraFieldCandidates(lead, ["W4Efsd 4", "Hours", "hours"]),
+      lead?.address,
+      ...extraFieldCandidates(lead, ["W4Efsd 2", "W4Efsd 5", "W4Efsd 6", "W4Efsd 7"]),
+    ];
+    for (const c of candidates) {
+      if (!c || isNullMarker(c) || isPlaceholder(c)) continue;
+      if (looksLikeHours(c)) return c;
+    }
+    return "";
+  }
+
+  function sanitizeLeadFields(lead) {
+    if (!lead || typeof lead !== "object") return lead;
+    return {
+      ...lead,
+      address: resolveAddressRaw(lead),
+      hours: resolveHoursRaw(lead),
+    };
+  }
+
   function nameFromMapsUrl(mapsUrl) {
     const m = String(mapsUrl || "").match(/\/place\/([^/]+)\//);
     if (!m) return "";
@@ -57,21 +135,34 @@
 
   function resolveCategory(lead) {
     const name = resolveName(lead);
+    const titleLine = raw(lead?.titleLine || lead?.["W4Efsd"]);
+    if (
+      titleLine &&
+      !isMapsUiLabel(titleLine) &&
+      titleLine !== name &&
+      !looksLikeBusinessName(titleLine) &&
+      !looksLikeStreetAddress(titleLine) &&
+      !looksLikeHours(titleLine)
+    ) {
+      return titleLine;
+    }
+    const grp = raw(lead?.categoryGroup || lead?.["R8c4Qb 2"]);
+    if (grp && grp !== name && !looksLikeBusinessName(grp) && !isMapsUiLabel(grp)) return grp;
     const cat = raw(lead?.category);
-    const grp = raw(lead?.categoryGroup);
-    if (isShortCategory(cat) && cat !== name) return cat;
-    if (isShortCategory(grp) && grp !== name) return grp;
-    if (cat && cat !== name && !looksLikeBusinessName(cat)) return cat;
-    return grp || "Local business";
+    if (isShortCategory(cat) && cat !== name && !isMapsUiLabel(cat)) return cat;
+    if (cat && cat !== name && !looksLikeBusinessName(cat) && !isMapsUiLabel(cat)) return cat;
+    return "Local business";
   }
 
   function isBadAddress(value, lead) {
     const v = raw(value);
     if (!v || isNullMarker(v) || isPlaceholder(v)) return true;
+    if (looksLikeHours(v)) return true;
     const cat = resolveCategory(lead).toLowerCase();
     const low = v.toLowerCase();
     if (cat && low === cat) return true;
     if (!/\d/.test(v) && /day care|daycare|preschool|chiropractor|groomer/i.test(low)) return true;
+    if (!looksLikeStreetAddress(v)) return true;
     return false;
   }
 
@@ -89,7 +180,11 @@
     return digits.length < 10;
   }
 
-  /** US display for Lead Builder + copy template: +1(401)300-0957 */
+  function hasCallablePhone(lead) {
+    return !isBadPhone(lead?.phone);
+  }
+
+  /** US display for Lead Builder: +1(401)300-0957 */
   function formatPhoneForLeadBuilder(value) {
     const t = raw(value);
     if (!t || isNullMarker(t)) return "";
@@ -146,13 +241,18 @@
       return n;
     },
     formatPhone: (lead) => format(lead?.phone, "Phone not listed", isBadPhone),
-    formatAddress: (lead) => format(lead?.address, "Address not listed", (v) => isBadAddress(v, lead)),
+    hasCallablePhone,
+    isBadPhone,
+    formatAddress: (lead) => {
+      const a = resolveAddressRaw(lead);
+      if (!a) return "Address not listed";
+      return format(a, "Address not listed", (v) => isBadAddress(v, lead));
+    },
     formatHours: (lead) => {
-      const v = raw(lead?.hours);
-      if (!v) return "Hours not listed";
-      if (isNullMarker(v)) return NULL;
-      if (isBadAddress(v, lead)) return NULL;
-      return v;
+      const h = resolveHoursRaw(lead);
+      if (!h) return "Hours not listed";
+      if (isNullMarker(h)) return NULL;
+      return h;
     },
     formatCategory: (lead) => {
       const c = resolveCategory(lead);
@@ -165,9 +265,10 @@
       return n % 1 === 0 ? n.toFixed(1) : String(Math.round(n * 10) / 10);
     },
     formatReviews: (lead) => {
+      if (lead?.hasNoReviews || lead?.reviewLabel === "No reviews") return "No reviews";
       const n = Number(lead?.reviewCount);
       if (!Number.isFinite(n) || n < 0) return "";
-      if (n === 0) return "0 reviews";
+      if (n === 0) return "No reviews";
       if (n === 1) return "1 review";
       return `${Math.round(n)} reviews`;
     },
@@ -177,8 +278,10 @@
       const rating =
         Number.isFinite(n) && n > 0 ? (n % 1 === 0 ? n.toFixed(1) : String(Math.round(n * 10) / 10)) : "";
       let reviews = "";
-      if (Number.isFinite(c) && c >= 0) {
-        reviews = c === 1 ? "1 review" : `${Math.round(c)} reviews`;
+      if (lead?.hasNoReviews || lead?.reviewLabel === "No reviews") {
+        reviews = "No reviews";
+      } else if (Number.isFinite(c) && c >= 0) {
+        reviews = c === 1 ? "1 review" : c === 0 ? "No reviews" : `${Math.round(c)} reviews`;
       }
       if (rating && reviews) return `${rating} · ${reviews}`;
       if (rating) return rating;
@@ -188,9 +291,15 @@
     initials: (lead) => {
       const name = resolveName(lead);
       if (!name) return "?";
-      const parts = name.split(/\s+/).filter(Boolean);
-      const a = (parts[0] || "?")[0] || "?";
-      const b = (parts[1] || parts[0] || "")[0] || "";
+      const skip = new Set(["the", "a", "an"]);
+      const parts = name.split(/\s+/).filter((p) => p && !skip.has(p.toLowerCase()));
+      if (!parts.length) return "?";
+      if (parts.length === 1) {
+        const w = parts[0].replace(/[^A-Za-z0-9]/g, "");
+        return (w.slice(0, 2) || "?").toUpperCase();
+      }
+      const a = parts[0][0] || "?";
+      const b = parts[1][0] || "";
       return (a + b).toUpperCase();
     },
     /** Stable gradient colors per lead (by id). */
@@ -209,12 +318,21 @@
       return "$1,500";
     },
     formatPhoneForLeadBuilder,
+    sanitizeLeadFields,
+    resolveAddressRaw,
+    resolveHoursRaw,
+    looksLikeHours,
+    looksLikeStreetAddress,
     buildLeadBuilderPick(lead) {
       const phone = formatPhoneForLeadBuilder(lead?.phone);
       const mapsUrl = raw(lead?.mapsUrl || lead?.maps_url);
+      const formatted = global.LeadDisplay.formatName(lead);
+      const businessName =
+        formatted === "Business name not listed" ? raw(lead?.name) : formatted;
       return {
         leadId: raw(lead?.id),
         name: "",
+        businessName,
         phone,
         mapsUrl,
         price: global.LeadDisplay.priceTierFromReviewCount(lead?.reviewCount),

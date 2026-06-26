@@ -10,7 +10,7 @@
 <body data-page="settings">
   <div id="shell"></div>
   <div id="page-body">
-    <h1>Customize your workspace</h1>
+    <h1>Settings</h1>
     <p class="lead">Change your theme, nickname, profile photo, and account preferences.</p>
 
     <div class="settings-stack">
@@ -22,7 +22,7 @@
             <div class="settings-profile-photo-wrap">
               <label class="settings-profile-photo-preview" id="settings-profile-photo-preview" title="Change profile photo">
                 <input type="file" id="settings-profile-photo-input" accept="image/jpeg,image/png,image/webp,image/gif" hidden>
-                <img class="settings-profile-photo-img" id="settings-profile-photo-img" alt="" width="96" height="96" decoding="async" data-photo-url="https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/Default.jpg" src="https://raw.githubusercontent.com/Delexoo/Sales-Dashboard/main/doc/Default.jpg">
+                <img class="settings-profile-photo-img" id="settings-profile-photo-img" alt="" width="96" height="96" decoding="async" data-photo-url="" data-pending-src="">
                 <span class="settings-profile-photo-initials" id="settings-profile-photo-initials" aria-hidden="true" hidden>?</span>
               </label>
               <button type="button" class="settings-profile-photo-reset" id="settings-profile-photo-remove" hidden aria-label="Reset to default photo" title="Reset to default photo">
@@ -33,7 +33,7 @@
           </div>
 
           <div class="settings-profile-details">
-            <p class="settings-profile-signed-in muted">Signed in as <strong id="settings-rep-id">—</strong></p>
+            <p class="settings-profile-signed-in muted">Signed in as <strong id="settings-rep-id">-</strong></p>
             <label class="field settings-profile-name-field">
               <span class="field-label">Display name</span>
               <input type="text" id="settings-display-name" maxlength="40" autocomplete="name" placeholder="Your name">
@@ -54,7 +54,7 @@
           <div class="settings-payout-input-panel" id="settings-payout-input-panel" hidden>
             <label class="field">
               <span class="field-label" id="settings-payout-field-label">Payout details</span>
-              <input type="text" id="settings-payout-link-input" class="payout-link-input" autocomplete="off" spellcheck="false">
+              <div id="settings-payout-link-field-host" class="payout-link-field-host"></div>
             </label>
             <p class="settings-hint muted" id="settings-payout-input-hint"></p>
             <div class="settings-actions-row">
@@ -63,44 +63,41 @@
             </div>
           </div>
         </div>
-        <div class="settings-actions-row settings-payout-toolbar">
+        <div class="settings-actions-row settings-actions-row--center settings-payout-toolbar">
           <button type="button" class="btn" id="settings-payout-add-btn">Add payment method</button>
           <button type="button" class="btn secondary" id="settings-payout-set-default-btn" hidden>Set as default</button>
         </div>
         <p id="settings-payout-status" class="settings-status" hidden></p>
       </section>
 
-      <section class="card settings-card" id="settings-security">
-        <h2 class="settings-card-title" data-icon="shield">Security</h2>
-        <label class="field">
-          <span class="field-label">Current PIN</span>
-          <input type="password" id="settings-pin-current" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="off">
-        </label>
-        <label class="field">
-          <span class="field-label">New PIN</span>
-          <input type="password" id="settings-pin-new" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="off" placeholder="4 digits">
-        </label>
-        <label class="field">
-          <span class="field-label">Confirm new PIN</span>
-          <input type="password" id="settings-pin-confirm" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="off">
-        </label>
-        <p id="settings-pin-status" class="settings-status" hidden></p>
-        <button type="button" class="btn" id="settings-save-pin">Change PIN</button>
-        <p class="settings-note muted" id="settings-pin-cloud-note" hidden>PIN changes require cloud sign-in (Supabase).</p>
-      </section>
-
       <section class="card settings-card" id="settings-appearance">
         <h2 class="settings-card-title" data-icon="sparkles">Appearance</h2>
         <p class="field-label">Theme</p>
         <div class="settings-color-grid" role="group" aria-label="Theme color">
-          <button type="button" class="settings-color-btn settings-color-btn--current" data-ui-color-pick="current"><span class="settings-color-swatch" aria-hidden="true"></span>Current</button>
           <button type="button" class="settings-color-btn settings-color-btn--white" data-ui-color-pick="white"><span class="settings-color-swatch" aria-hidden="true"></span>White</button>
           <button type="button" class="settings-color-btn settings-color-btn--black" data-ui-color-pick="black"><span class="settings-color-swatch" aria-hidden="true"></span>Black</button>
+          <button type="button" class="settings-color-btn settings-color-btn--cream" data-ui-color-pick="cream"><span class="settings-color-swatch" aria-hidden="true"></span>Cream</button>
           <button type="button" class="settings-color-btn settings-color-btn--green" data-ui-color-pick="green"><span class="settings-color-swatch" aria-hidden="true"></span>Green</button>
           <button type="button" class="settings-color-btn settings-color-btn--grey" data-ui-color-pick="grey"><span class="settings-color-swatch" aria-hidden="true"></span>Grey</button>
           <button type="button" class="settings-color-btn settings-color-btn--blue" data-ui-color-pick="blue"><span class="settings-color-swatch" aria-hidden="true"></span>Blue</button>
           <button type="button" class="settings-color-btn settings-color-btn--purple" data-ui-color-pick="purple"><span class="settings-color-swatch" aria-hidden="true"></span>Purple</button>
           <button type="button" class="settings-color-btn settings-color-btn--red" data-ui-color-pick="red"><span class="settings-color-swatch" aria-hidden="true"></span>Red</button>
+        </div>
+        <div class="settings-toggle-row" id="settings-goal-celebration-row">
+          <div class="settings-toggle-copy">
+            <p class="settings-toggle-label" id="settings-goal-celebration-label">Goal celebration</p>
+            <p class="settings-hint muted">Confetti when you reach your revenue goal. Turn on to see a preview burst.</p>
+          </div>
+          <button
+            type="button"
+            class="settings-toggle"
+            id="settings-goal-celebration-toggle"
+            role="switch"
+            aria-labelledby="settings-goal-celebration-label"
+            aria-checked="true"
+          >
+            <span class="settings-toggle-thumb" aria-hidden="true"></span>
+          </button>
         </div>
         <div class="settings-toggle-row">
           <div class="settings-toggle-copy">
@@ -136,16 +133,42 @@
         </div>
       </section>
 
+      <section class="card settings-card" id="settings-security">
+        <h2 class="settings-card-title" data-icon="shield">Security</h2>
+        <label class="field">
+          <span class="field-label">Current PIN</span>
+          <input type="password" id="settings-pin-current" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="off">
+        </label>
+        <label class="field">
+          <span class="field-label">New PIN</span>
+          <input type="password" id="settings-pin-new" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="off" placeholder="4 digits">
+        </label>
+        <label class="field">
+          <span class="field-label">Confirm new PIN</span>
+          <input type="password" id="settings-pin-confirm" inputmode="numeric" pattern="[0-9]*" maxlength="12" autocomplete="off">
+        </label>
+        <p id="settings-pin-status" class="settings-status" hidden></p>
+        <div class="settings-actions-row settings-actions-row--center">
+          <button type="button" class="btn" id="settings-save-pin">Change PIN</button>
+        </div>
+        <p class="settings-note muted" id="settings-pin-cloud-note" hidden>PIN changes require cloud sign-in (Supabase).</p>
+      </section>
+
       <section class="card settings-card settings-card-danger">
         <h2 class="settings-card-title" data-icon="log-out">Session</h2>
         <p class="settings-hint muted">Sign out on this device. You will need your PIN again.</p>
-        <button type="button" class="btn btn-danger" id="settings-sign-out">Sign out</button>
+        <div class="settings-actions-row settings-actions-row--center">
+          <button type="button" class="btn btn-danger" id="settings-sign-out">Sign out</button>
+        </div>
       </section>
     </div>
   </div>
   <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
   <script src="js/image-preload.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
   <script src="js/icons.js"></script>
   <script src="js/rep-session.js"></script>
   <script src="js/rep-settings-sync.js"></script>
@@ -156,6 +179,7 @@
   <script src="js/payout-setup.js"></script>
   <script src="js/rep-profile-photo.js"></script>
   <script src="js/rep-identity.js"></script>
+  <script src="js/goal-celebration.js"></script>
   <script src="js/settings.js"></script>
   <script src="js/course-modules.js"></script>
   <script src="js/app.js"></script>

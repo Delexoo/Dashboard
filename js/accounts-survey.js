@@ -8,11 +8,26 @@
 
   const PROGRESS_KEY = "lpc_sales_onboarding_progress_v1";
 
-  const SURVEY_STEP_KEY = "lpc_setup_survey_step_v1";
+  const SURVEY_STEP_KEY = "lpc_setup_survey_step_v2";
 
   const SURVEY_STEP_KEY_LEGACY = "lpc_accounts_survey_step_v1";
 
   const SURVEY_FLOW_KEY = "lpc_setup_survey_flow_v1";
+
+  const LEGACY_STEP_IDS = [
+    "telegram-app",
+    "telegram-device",
+    "telegram-download",
+    "telegram-signup",
+    "telegram-ready",
+    "telegram-stuck-update",
+    "telegram-stuck-phone",
+    "telegram-stuck-still",
+    "telegram-join",
+    "payout-method",
+    "payout-link",
+    "done",
+  ];
 
   const STUCK_HELP_STEP_IDS = new Set([
     "telegram-stuck-update",
@@ -21,6 +36,9 @@
   ]);
 
   const STEPS = [
+    { id: "payout-method" },
+    { id: "payout-link" },
+    { id: "telegram-optional" },
     { id: "telegram-app" },
     { id: "telegram-device" },
     { id: "telegram-download" },
@@ -30,8 +48,6 @@
     { id: "telegram-stuck-phone" },
     { id: "telegram-stuck-still" },
     { id: "telegram-join" },
-    { id: "payout-method" },
-    { id: "payout-link" },
     { id: "done" },
   ];
 
@@ -42,6 +58,7 @@
   let saving = false;
   let needsTelegramInstall = false;
   let needsTelegramStuckHelp = false;
+  let wantsTelegramJoin = false;
   let telegramDevice = null;
   let telegramReady = false;
   let surveyDataReady = false;
@@ -65,7 +82,7 @@
   function telegramStuckChoicesHtml(nextStepId, stuckLabel) {
     const moreHelpBtn = nextStepId
       ? `<button type="button" class="survey-choice-btn secondary" data-stuck-more data-stuck-next="${esc(nextStepId)}">${esc(
-          stuckLabel || "I'm still stuck — show me what to try"
+          stuckLabel || "I'm still stuck · show me what to try"
         )}</button>`
       : `<button type="button" class="survey-choice-btn survey-choice-btn--danger" data-stuck-restart>Restart</button>`;
     return (
@@ -199,15 +216,18 @@
 
   /** Question order shown in progress bar and Back navigation */
   function questionStepIds() {
-    const ids = ["telegram-app"];
-    if (needsTelegramInstall) {
-      ids.push("telegram-device", "telegram-download", "telegram-signup");
+    const ids = ["payout-method", "payout-link", "telegram-optional"];
+    if (wantsTelegramJoin) {
+      ids.push("telegram-app");
+      if (needsTelegramInstall) {
+        ids.push("telegram-device", "telegram-download", "telegram-signup");
+      }
+      ids.push("telegram-ready");
+      if (needsTelegramStuckHelp) {
+        ids.push("telegram-stuck-update", "telegram-stuck-phone", "telegram-stuck-still");
+      }
+      ids.push("telegram-join");
     }
-    ids.push("telegram-ready");
-    if (needsTelegramStuckHelp) {
-      ids.push("telegram-stuck-update", "telegram-stuck-phone", "telegram-stuck-still");
-    }
-    ids.push("telegram-join", "payout-method", "payout-link");
     return ids;
   }
 
@@ -215,7 +235,11 @@
     try {
       saveItem(
         SURVEY_FLOW_KEY,
-        JSON.stringify({ install: needsTelegramInstall, stuck: needsTelegramStuckHelp })
+        JSON.stringify({
+          install: needsTelegramInstall,
+          stuck: needsTelegramStuckHelp,
+          wantsTelegram: wantsTelegramJoin,
+        })
       );
     } catch (e) {
       /* ignore */
@@ -227,6 +251,7 @@
       const raw = JSON.parse(loadItem(SURVEY_FLOW_KEY) || "{}");
       if (typeof raw.install === "boolean") needsTelegramInstall = raw.install;
       if (typeof raw.stuck === "boolean") needsTelegramStuckHelp = raw.stuck;
+      if (typeof raw.wantsTelegram === "boolean") wantsTelegramJoin = raw.wantsTelegram;
     } catch (e) {
       /* ignore */
     }
@@ -356,15 +381,17 @@
 
 
   function loadSurveyStep() {
-
-    let raw = loadItem(SURVEY_STEP_KEY);
-
-    if (raw == null) raw = loadItem(SURVEY_STEP_KEY_LEGACY);
-
-    const n = parseInt(raw || "0", 10);
-
-    return Number.isFinite(n) ? Math.min(Math.max(0, n), STEPS.length - 1) : 0;
-
+    const rawV2 = loadItem(SURVEY_STEP_KEY);
+    if (rawV2 != null) {
+      const n = parseInt(rawV2, 10);
+      return Number.isFinite(n) ? Math.min(Math.max(0, n), STEPS.length - 1) : 0;
+    }
+    const rawLegacy = loadItem(SURVEY_STEP_KEY_LEGACY);
+    const n = parseInt(rawLegacy || "0", 10);
+    if (!Number.isFinite(n)) return 0;
+    const legacyId = LEGACY_STEP_IDS[n];
+    const migrated = legacyId ? stepIndex(legacyId) : 0;
+    return migrated >= 0 ? migrated : 0;
   }
 
 
@@ -386,27 +413,17 @@
 
 
   function renderMethodButtons(selected) {
-
     const methods = global.PayoutSetup?.METHODS || [];
-
+    const renderIcon = global.PayoutSetup?.renderMethodIcon;
     return methods
-
       .map(
-
         (m) =>
-
-          `<button type="button" class="payout-method-btn payout-method-${esc(m.id)} survey-choice-btn" data-method="${esc(m.id)}" aria-pressed="${selected === m.id ? "true" : "false"}">` +
-
-          `<span class="payout-method-icon" aria-hidden="true">${esc(m.short || m.label.charAt(0))}</span>` +
-
+          `<button type="button" class="payout-method-btn payout-method-${esc(m.id)}" data-method="${esc(m.id)}" aria-pressed="${selected === m.id ? "true" : "false"}">` +
+          (renderIcon ? renderIcon(m.id) : `<span class="payout-method-icon" aria-hidden="true">${esc(m.short || m.label.charAt(0))}</span>`) +
           `<span class="payout-method-label">${esc(m.label)}</span>` +
-
           `</button>`
-
       )
-
       .join("");
-
   }
 
 
@@ -443,22 +460,9 @@
   }
 
   function renderDonePayoutRow(entry) {
-    if (!entry?.method || !entry?.link) return "";
-    const methodLabel = esc(global.PayoutSetup.methodLabel(entry.method));
-    const methodId = esc(entry.method);
-    const link = esc(entry.link);
-    const plain = global.PayoutSetup.isPlainTextMethod(entry.method);
-    return (
-      `<div class="payout-saved-row">` +
-      `<div class="payout-saved-row-body">` +
-      `<span class="legal-pill">${methodLabel}</span> ` +
-      (plain
-        ? `<span class="payout-saved-text">${link}</span>`
-        : `<a class="link-bold-blue" href="${link}" target="_blank" rel="noopener">${link}</a>`) +
-      `</div>` +
-      `<button type="button" class="payout-saved-remove" data-remove-payout="${methodId}" aria-label="Remove ${methodLabel}">×</button>` +
-      `</div>`
-    );
+    const PS = global.PayoutSetup;
+    if (!PS?.renderSavedPayoutRow) return "";
+    return PS.renderSavedPayoutRow(entry, { removeAttr: "data-remove-payout" });
   }
 
   async function handleSurveyPayoutRemove(methodId, listEl, btn) {
@@ -541,11 +545,24 @@
 
 
 
+    if (step.id === "telegram-optional") {
+      return (
+        `<div class="survey-step" data-step="${esc(step.id)}">` +
+        `<h2 class="survey-question">Join the team business chat? <span class="survey-optional-tag">Optional</span></h2>` +
+        `<p class="survey-sub">Telegram is for team updates and questions. <strong>Leads are sent through Lead Builder on the website</strong> · you do not need Telegram to submit interested businesses.</p>` +
+        `<div class="survey-choices" role="group" aria-label="Join Telegram chat">` +
+        `<button type="button" class="survey-choice-btn" data-telegram-opt="yes">Yes, I'd like to join</button>` +
+        `<button type="button" class="survey-choice-btn secondary" data-telegram-opt="no">No thanks · skip for now</button>` +
+        `</div>` +
+        `</div>`
+      );
+    }
+
     if (step.id === "telegram-app") {
       return (
         `<div class="survey-step" data-step="${esc(step.id)}">` +
         surveyStepHeadWithTelegramIcon("Do you have Telegram?") +
-        `<p class="survey-sub">We use Telegram for team updates and for posting interested businesses. Choose Yes if the app is already installed, or No for a short setup walkthrough.</p>` +
+        `<p class="survey-sub">We'll walk you through installing it if needed. Telegram is only for the team chat · leads go through Lead Builder on the website.</p>` +
         `<div class="survey-choices" role="group" aria-label="Telegram installed">` +
         `<button type="button" class="survey-choice-btn" data-choice="yes">Yes, I already have Telegram</button>` +
         `<button type="button" class="survey-choice-btn secondary" data-choice="no">No, walk me through setup</button>` +
@@ -621,7 +638,7 @@
         `<p class="survey-sub">Open the app and confirm you can see the chat list (even if it's empty).</p>` +
         `<div class="survey-choices" role="group" aria-label="Telegram ready">` +
         `<button type="button" class="survey-choice-btn" data-ready="yes">Yes, it's working now</button>` +
-        `<button type="button" class="survey-choice-btn secondary" data-ready="help">I'm stuck — show me what to try</button>` +
+        `<button type="button" class="survey-choice-btn secondary" data-ready="help">I'm stuck · show me what to try</button>` +
         `</div>` +
         `</div>`
       );
@@ -641,7 +658,7 @@
       return (
         `<div class="survey-step" data-step="${esc(step.id)}">` +
         `<h2 class="survey-question">What phone number should I use for Telegram?</h2>` +
-        `<p class="survey-sub">Use your real mobile number — the one you actually answer. No burner numbers, no Google Voice, and no VOIP. Telegram verifies you by text or call, and a fake number will break login later.</p>` +
+        `<p class="survey-sub">Use your real mobile number · the one you actually answer. No burner numbers, no Google Voice, and no VOIP. Telegram verifies you by text or call, and a fake number will break login later.</p>` +
         `<p class="survey-sub">Stick to one account on that number. Do not sign up again with a different number.</p>` +
         telegramStuckChoicesHtml("telegram-stuck-still") +
         `</div>`
@@ -652,7 +669,7 @@
       return (
         `<div class="survey-step" data-step="${esc(step.id)}">` +
         `<h2 class="survey-question">Still stuck after trying those steps?</h2>` +
-        `<p class="survey-sub">Open <a class="link-bold-blue" href="owner.html">Meet the Owner</a> and tell Delexo what is going wrong.</p>` +
+        `<p class="survey-sub">Open <a class="link-bold-blue" href="about.html#owner">About us</a> and tell Delexo what is going wrong.</p>` +
         telegramStuckChoicesHtml(null) +
         `</div>`
       );
@@ -666,12 +683,16 @@
 
         `<div class="survey-step" data-step="${esc(step.id)}">` +
 
-        `<h2 class="survey-question">Join the team Telegram group</h2>` +
+        `<h2 class="survey-question">Join the team business chat <span class="survey-optional-tag">Optional</span></h2>` +
 
-        `<p class="survey-sub">Open the link, join the group, then tap below.</p>` +
+        `<p class="survey-sub">Open the link, join the group if you want team updates, then tap below · or skip for now.</p>` +
         `<div class="survey-action-block">${telegramTeamLink()}</div>` +
-        surveyNextBtn("data-join-advance") +
-        `</div>`
+        `<div class="survey-choices survey-choices--join">` +
+        `<button type="button" class="survey-choice-btn secondary" data-telegram-skip>Skip for now</button>` +
+        `<button type="button" class="survey-choice-btn survey-proceed-btn" data-join-advance>` +
+        `<span class="survey-proceed-label">Joined · continue</span>` +
+        `<span class="survey-proceed-arrow" aria-hidden="true">→</span>` +
+        `</button></div></div>`
       );
     }
 
@@ -711,10 +732,6 @@
 
       const hint = meta?.hint || "";
 
-      const placeholder = meta?.placeholder || "";
-
-      const existing = payoutMethodsForDisplay().find((m) => m.method === selectedMethod);
-      const value = existing?.link || "";
       const addingAnother = payoutMethodsForDisplay().length > 0;
       const saveLabel = addingAnother ? "Save" : "Save & finish";
 
@@ -728,7 +745,7 @@
 
         `<div class="survey-input-block">` +
 
-        `<input type="text" id="survey-payout-input" class="payout-link-input survey-payout-input" autocomplete="off" spellcheck="false" placeholder="${esc(placeholder)}" value="${esc(value)}" />` +
+        `<div id="survey-payout-field-host" class="payout-link-field-host survey-payout-field-host"></div>` +
 
         `<p id="survey-payout-status" class="payout-status" hidden></p>` +
         `<div class="survey-payout-actions">` +
@@ -742,6 +759,17 @@
     if (step.id === "done") {
       const repName = esc(global.RepSession?.get?.()?.name || "you");
       const payoutComplete = isPayoutComplete();
+      const p = getOnboardingProgress();
+      const telegramJoined = !!p.telegram;
+      const telegramSkipped = !!p.telegramSkipped;
+
+      const telegramDoneRow = wantsTelegramJoin
+        ? telegramJoined
+          ? `<p class="survey-done-row"><span class="survey-done-check" aria-hidden="true">✓</span> Joined ${telegramTeamWordLink()}</p>`
+          : telegramSkipped
+            ? `<p class="survey-done-row"><span class="survey-done-muted" aria-hidden="true">-</span> Telegram skipped <span class="muted">(optional)</span></p>`
+            : `<p class="survey-done-row survey-done-row--incomplete"><span class="survey-done-incomplete" aria-hidden="true">○</span> Telegram not joined yet <span class="muted">(optional)</span></p>`
+        : `<p class="survey-done-row"><span class="survey-done-muted" aria-hidden="true">-</span> Telegram skipped <span class="muted">(optional)</span></p>`;
 
       const payoutStatusIcon = payoutComplete
         ? `<span class="survey-done-check" aria-hidden="true">✓</span>`
@@ -764,9 +792,9 @@
 
       return (
         `<div class="survey-step" data-step="${esc(step.id)}">` +
-        `<h2 class="survey-question">${payoutComplete ? "You're all set" : "You're almost done"}, ${repName}!</h2>` +
+        `<h2 class="survey-question">${payoutComplete ? `You're all set, ${repName}! Click next!` : `You're almost done, ${repName}! Click next!`}</h2>` +
         `<div class="survey-done-card card">` +
-        `<p class="survey-done-row"><span class="survey-done-check" aria-hidden="true">✓</span> Joined ${telegramTeamWordLink()}</p>` +
+        telegramDoneRow +
         `<p class="survey-done-row${payoutComplete ? "" : " survey-done-row--incomplete"}">${payoutStatusIcon} ${payoutStatusLabel}</p>` +
         payoutDetail +
         `</div>` +
@@ -831,6 +859,7 @@
   function restartSurvey() {
     needsTelegramInstall = false;
     needsTelegramStuckHelp = false;
+    wantsTelegramJoin = false;
     telegramDevice = null;
     telegramReady = false;
     saving = false;
@@ -838,6 +867,7 @@
       const p = getOnboardingProgress();
       delete p.surveyComplete;
       delete p.telegram;
+      delete p.telegramSkipped;
       delete p.module_setup_accounts;
       delete p.module_setup;
       saveOnboardingProgress(p);
@@ -845,7 +875,7 @@
       /* ignore */
     }
     saveItem(SURVEY_STEP_KEY, "0");
-    saveItem(SURVEY_FLOW_KEY, JSON.stringify({ install: false, stuck: false }));
+    saveItem(SURVEY_FLOW_KEY, JSON.stringify({ install: false, stuck: false, wantsTelegram: false }));
     goTo(0);
   }
 
@@ -854,6 +884,10 @@
     if (cur === "done" && !isPayoutComplete()) {
       if (!selectedMethod && savedPayout?.method) selectedMethod = savedPayout.method;
       goTo(stepIndex("payout-method"));
+      return;
+    }
+    if (cur === "done") {
+      goTo(stepIndex(wantsTelegramJoin ? "telegram-join" : "telegram-optional"));
       return;
     }
     const ids = questionStepIds();
@@ -873,7 +907,7 @@
     const ids = questionStepIds();
     const pos = ids.indexOf(cur);
     const canBack =
-      cur === "done" ? !isPayoutComplete() : pos > 0;
+      cur === "done" ? true : pos > 0;
     if (backBtn) {
       backBtn.disabled = !canBack;
       backBtn.setAttribute("aria-disabled", canBack ? "false" : "true");
@@ -889,6 +923,21 @@
     if (!stage || !step) return;
 
 
+
+    if (step.id === "telegram-optional") {
+      stage.querySelectorAll("[data-telegram-opt]").forEach((btn) => {
+        btn.addEventListener("click", () => {
+          wantsTelegramJoin = btn.dataset.telegramOpt === "yes";
+          saveFlowFlags();
+          if (wantsTelegramJoin) {
+            goTo(stepIndex("telegram-app"));
+            return;
+          }
+          markProgress("telegramSkipped");
+          goTo(stepIndex("done"));
+        });
+      });
+    }
 
     if (step.id === "telegram-app") {
       stage.querySelectorAll("[data-choice]").forEach((btn) => {
@@ -966,8 +1015,12 @@
       stage.querySelectorAll("[data-join-advance]").forEach((btn) => {
         btn.addEventListener("click", () => {
           markProgress("telegram");
-          goTo(currentStep + 1);
+          goTo(stepIndex("done"));
         });
+      });
+      stage.querySelector("[data-telegram-skip]")?.addEventListener("click", () => {
+        markProgress("telegramSkipped");
+        goTo(stepIndex("done"));
       });
     }
 
@@ -986,10 +1039,18 @@
     }
 
     if (step.id === "payout-link") {
-      const input = stage.querySelector("#survey-payout-input");
+      const fieldHost = stage.querySelector("#survey-payout-field-host");
+      const existing = payoutMethodsForDisplay().find((m) => m.method === selectedMethod);
+      const meta = methodMeta(selectedMethod);
+      const linkField = global.PayoutSetup?.mountLinkField?.(fieldHost, {
+        method: selectedMethod,
+        value: existing?.link || "",
+        inputId: "survey-payout-input",
+        placeholder: meta?.placeholder || "",
+      });
       const saveBtn = stage.querySelector("#survey-payout-save");
-      input?.focus();
-      input?.addEventListener("keydown", (e) => {
+      linkField?.focus();
+      fieldHost?.addEventListener("keydown", (e) => {
         if (e.key === "Enter") {
           e.preventDefault();
           savePayoutAndFinish();
@@ -1078,15 +1139,14 @@
 
   function finishPayoutLater() {
     showPayoutStatus("", "");
-    goTo(STEPS.length - 1);
+    goTo(stepIndex("telegram-optional"));
     updateProgress();
   }
 
   async function savePayoutAndFinish() {
 
-    const input = document.getElementById("survey-payout-input");
-
-    const link = input?.value?.trim() || "";
+    const fieldHost = document.getElementById("survey-payout-field-host");
+    const link = global.PayoutSetup?.readLinkField?.(fieldHost) || "";
 
     if (!selectedMethod) {
 
@@ -1102,7 +1162,7 @@
 
       showPayoutStatus(meta?.hint || "Enter your payout details.", "warn");
 
-      input?.focus();
+      fieldHost?._payoutLinkField?.focus?.();
 
       return;
 
@@ -1130,7 +1190,7 @@
 
       showPayoutStatus("", "");
 
-      goTo(STEPS.length - 1);
+      goTo(stepIndex("telegram-optional"));
 
     } catch (e) {
 

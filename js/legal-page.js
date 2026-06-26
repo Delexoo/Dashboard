@@ -24,10 +24,16 @@
   });
 
   const backBtn = document.getElementById("legal-back-btn");
+  const backLabel = backBtn?.querySelector(".legal-page-back-label");
   const unlocked = sessionStorage.getItem("lpc_site_unlock") === "1";
   if (backBtn) {
-    backBtn.href = "setup.html";
-    backBtn.textContent = unlocked ? "← Back to dashboard" : "← Back to sign in";
+    if (unlocked) {
+      backBtn.href = "dashboard.html";
+      if (backLabel) backLabel.textContent = "Back to dashboard";
+    } else {
+      backBtn.href = "setup.html";
+      if (backLabel) backLabel.textContent = "Back to sign in";
+    }
   }
 
   const page = document.body.dataset.page;

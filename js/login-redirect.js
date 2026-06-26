@@ -40,7 +40,12 @@
 
     const progress = loadProgress();
     const landing = CM.loginLandingUrl(progress);
-    if (isAtUrl(landing)) return;
+    if (isAtUrl(landing)) {
+      hideLoadingMsg();
+      return;
+    }
+
+    hideLoadingMsg();
 
     if (CM.allComplete(progress)) {
       global.location.replace(landing);
@@ -53,12 +58,13 @@
     }
   }
 
+  function hideLoadingMsg() {
+    const msg = global.document.querySelector(".login-redirect-msg");
+    if (msg) msg.hidden = true;
+  }
+
   function runWhenStorageReady() {
-    if (global.RepStorage?.whenReady) {
-      global.RepStorage.whenReady(applyPostLoginRedirect);
-    } else {
-      applyPostLoginRedirect();
-    }
+    applyPostLoginRedirect();
   }
 
   function initEntryPage() {

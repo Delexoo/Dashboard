@@ -10,11 +10,11 @@
 <body data-page="feedback">
   <div id="shell"></div>
   <div id="page-body">
-    <h1>Share an idea</h1>
-    <p class="lead">Send suggestions for improving the dashboard — use <a href="bug-bounty.html">Bug Bounty</a> for bugs.</p>
+    <h1>Feedback</h1>
+    <p class="lead">Send suggestions for improving the dashboard · use <a href="bug-bounty.html">Bug Bounty</a> for bugs.</p>
 
     <section class="card feedback-card" id="feedback-panel">
-      <p class="bug-report-as muted">Reporting as <strong id="feedback-rep-name">—</strong></p>
+      <p class="bug-report-as muted">Reporting as <strong id="feedback-rep-name">-</strong></p>
 
       <form id="feedback-form" class="bug-report-form feedback-form bug-report-simple" autocomplete="off">
         <label class="field">
@@ -35,8 +35,11 @@
     </section>
   </div>
   <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
   <script src="js/image-preload.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
   <script src="js/icons.js"></script>
   <script src="js/rep-session.js"></script>
   <script src="js/rep-settings-sync.js"></script>

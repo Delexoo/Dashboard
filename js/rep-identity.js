@@ -10,22 +10,10 @@
   const SETTINGS_LABEL_ID = "settings-rep-id";
   const FAQ_AVATAR_ID = "faq-qa-ask-avatar";
 
-  let client = null;
   let resolving = null;
 
-  function cfg() {
-    const c = global.SITE_CONFIG || {};
-    return {
-      url: String(c.supabaseUrl || "").trim(),
-      key: String(c.supabaseAnonKey || "").trim(),
-    };
-  }
-
   function getClient() {
-    const { url, key } = cfg();
-    if (!url || !key || !global.supabase?.createClient) return null;
-    if (!client) client = global.supabase.createClient(url, key);
-    return client;
+    return global.SiteSupabase?.getClient?.() || null;
   }
 
   function repId() {
@@ -91,13 +79,12 @@
     const display = String(name || "").trim();
     NAME_LABEL_IDS.forEach((labelId) => {
       const el = document.getElementById(labelId);
-      if (el) el.textContent = display || "—";
+      if (el) el.textContent = display || "-";
     });
     const settingsEl = document.getElementById(SETTINGS_LABEL_ID);
     if (settingsEl) {
-      settingsEl.textContent = display || id || "—";
+      settingsEl.textContent = display || id || "-";
     }
-    if (display) global.RepSession?.refreshNameDisplays?.();
   }
 
   function applyFaqAvatar(identity) {
@@ -123,9 +110,6 @@
 
   async function enrichIdentity(id) {
     try {
-      if (global.RepStorage?.init) {
-        await global.RepStorage.init();
-      }
       let name = String(global.RepSession?.get?.()?.name || "").trim();
       if (!name) name = nameFromTracker(id);
       if (!name) {

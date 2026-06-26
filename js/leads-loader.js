@@ -1,10 +1,14 @@
 /**
  * Load leads from Supabase `leads` table (raw Google CSV columns).
  * Only businesses without a website (empty "lcr4fd href") are returned.
+ * Leads without a callable phone number are excluded from Lead Finder.
  */
 (function (global) {
-  const PHONE_RE = /\(?\d{3}\)?[\s.-]?\d{3}[\s.-]?\d{4}/;
-  const ADDRESS_RE = /\b\d{1,6}\s+[A-Za-z0-9]/;
+  const CACHE_KEY = "lpc_leads_cache_v4";
+  const CACHE_TTL_MS = 12 * 60 * 1000;
+
+  const LEAD_SELECT =
+    'id,imported_at,"hfpxzc href","qBF1Pd","MW4etd","UY7F9","W4Efsd","W4Efsd 2","W4Efsd 3","W4Efsd 4","W4Efsd 5","W4Efsd 6","W4Efsd 7","UsdlK","lcr4fd href","Cw1rxd","R8c4Qb","Cw1rxd 2","R8c4Qb 2","doJOZc","Jn12ke src","ah5Ghc","ah5Ghc 2","ah5Ghc 3","e4rVHe"';
 
   function cfg() {
     const c = global.SITE_CONFIG || {};
@@ -20,173 +24,209 @@
     return useDatabase && !!(url && key);
   }
 
-  function cellValues(row) {
-    const skip = new Set(["id", "imported_at", "has_website"]);
-    const out = [];
-    for (const [k, v] of Object.entries(row)) {
-      if (skip.has(k)) continue;
-      const s = String(v ?? "").trim();
-      if (!s || s === "·") continue;
-      out.push(s);
+  function hasCallablePhone(lead) {
+    if (global.LeadDisplay?.hasCallablePhone) {
+      return global.LeadDisplay.hasCallablePhone(lead);
     }
-    return out;
-  }
-
-  function parseRating(text) {
-    const t = String(text || "").trim();
-    const m = t.match(/(\d+(?:\.\d+)?)\s*\((\d+)\)/);
-    if (m) return { rating: Number(m[1]), reviews: Number(m[2]) };
-    const m2 = t.match(/^(\d+(?:\.\d+)?)$/);
-    if (m2) return { rating: Number(m2[1]), reviews: null };
-    const m3 = t.match(/\((\d+)\)/);
-    if (m3) return { rating: null, reviews: Number(m3[1]) };
-    return { rating: null, reviews: null };
+    const digits = String(lead?.phone || "").replace(/\D/g, "");
+    return digits.length >= 10;
   }
 
   function rawRowToLead(row) {
-    const mapsUrl = String(row["hfpxzc href"] || row.maps_url || "").trim();
+    if (global.LeadCsvFormat?.parseRow) {
+      return global.LeadCsvFormat.parseRow(row);
+    }
+    const mapsUrl = String(row["hfpxzc href"] || row.maps_url || row.mapsUrl || "").trim();
     const name = String(row["qBF1Pd"] || row.name || "").trim();
-    const lcr4fd = String(row["lcr4fd href"] || "").trim();
-    const hasWebsite = row.has_website === true || lcr4fd !== "";
-    const cells = cellValues(row);
-
-    let rating = null;
-    let reviewCount = null;
-    for (const c of cells) {
-      if (c.startsWith("http") || PHONE_RE.test(c)) continue;
-      const p = parseRating(c);
-      if (p.rating != null) rating = p.rating;
-      if (p.reviews != null) reviewCount = p.reviews;
-    }
-
-    let phone = "";
-    for (const c of cells) {
-      if (PHONE_RE.test(c) && !c.startsWith("http")) {
-        phone = c;
-        break;
-      }
-    }
-
-    let address = "";
-    for (const c of cells) {
-      const low = c.toLowerCase();
-      if (low.startsWith("open") || low.startsWith("closed")) continue;
-      if (PHONE_RE.test(c) || c.startsWith("http")) continue;
-      if (ADDRESS_RE.test(c)) {
-        address = c;
-        break;
-      }
-    }
-
-    let hours = "";
-    const hoursParts = [];
-    for (const c of cells) {
-      const low = c.toLowerCase();
-      if (low.startsWith("open") || low.startsWith("closed") || low.includes("closes") || low.includes("opens")) {
-        hoursParts.push(c);
-        if (hoursParts.length >= 2) break;
-      }
-    }
-    hours = hoursParts.join(" · ");
-
-    let category = String(row["W4Efsd"] || row.category || "").trim();
-    if (!category || parseRating(category).rating != null) {
-      category = "Local business";
-    }
-
-    let website = "";
-    if (lcr4fd && (lcr4fd.startsWith("http://") || lcr4fd.startsWith("https://"))) {
-      const low = lcr4fd.toLowerCase();
-      if (!low.includes("google.com/maps") && !low.includes("gstatic.com")) {
-        website = lcr4fd;
-      }
-    }
-
+    const lcr4fd = String(row["lcr4fd href"] || row.website || "").trim();
     return {
       id: row.id,
       name,
-      category,
-      categoryGroup: category,
-      phone,
-      address,
+      category: String(row["R8c4Qb 2"] || row.category || "Local business").trim(),
+      categoryGroup: String(row["R8c4Qb 2"] || row.categoryGroup || "Local business").trim(),
+      phone: String(row["UsdlK"] || row.phone || "").trim(),
+      address: String(row["W4Efsd 2"] || row.address || "").trim(),
       mapsUrl,
-      website,
-      hours,
-      hasWebsite,
-      rating,
-      reviewCount,
+      website: lcr4fd,
+      hours: String(row["W4Efsd 3"] || row.hours || "").trim(),
+      hasWebsite: row.has_website === true || lcr4fd !== "",
+      rating: null,
+      reviewCount: null,
+      formatValid: false,
+      formatError: "Format error",
       dedupeKey: row.id || "",
       sources: [],
     };
   }
 
+  function finalizeLead(lead) {
+    if (global.LeadDisplay?.sanitizeLeadFields) {
+      return global.LeadDisplay.sanitizeLeadFields(lead);
+    }
+    return lead;
+  }
+
+  function filterBrowsableLeads(leads) {
+    return (leads || []).filter((lead) => hasCallablePhone(lead));
+  }
+
   function buildMeta(leads) {
+    const validLeads = leads.filter((l) => l.formatValid !== false);
     const categories = [
-      ...new Set(leads.map((l) => l.categoryGroup || l.category || "Other")),
+      ...new Set(validLeads.map((l) => l.categoryGroup || l.category || "Other")),
     ].sort();
     return {
       source: "supabase",
       total: leads.length,
+      valid: validLeads.length,
+      invalid: leads.length - validLeads.length,
       noWebsite: leads.filter((l) => !l.hasWebsite).length,
       withWebsite: leads.filter((l) => l.hasWebsite).length,
+      withPhone: leads.filter((l) => hasCallablePhone(l)).length,
       categories,
     };
+  }
+
+  function normalizeJsonLead(lead) {
+    const row = { ...lead };
+    if (!global.LeadCsvFormat?.parseRow) {
+      return {
+        ...lead,
+        formatValid: false,
+        formatError: "Format error",
+      };
+    }
+    const parsed = global.LeadCsvFormat.parseRow(row);
+    if (parsed.formatValid) return parsed;
+    return {
+      ...parsed,
+      id: lead.id || parsed.id,
+      dedupeKey: lead.dedupeKey || parsed.dedupeKey,
+      sources: lead.sources || parsed.sources,
+      formatValid: false,
+      formatError: "Format error",
+    };
+  }
+
+  function readCache() {
+    try {
+      const raw = sessionStorage.getItem(CACHE_KEY);
+      if (!raw) return null;
+      const o = JSON.parse(raw);
+      if (!Array.isArray(o?.leads) || !o.leads.length) return null;
+      const age = Date.now() - Number(o.cachedAt || 0);
+      return {
+        meta: o.meta || {},
+        leads: o.leads,
+        cachedAt: Number(o.cachedAt || 0),
+        fresh: age >= 0 && age < CACHE_TTL_MS,
+      };
+    } catch (e) {
+      return null;
+    }
+  }
+
+  function writeCache(payload) {
+    try {
+      sessionStorage.setItem(
+        CACHE_KEY,
+        JSON.stringify({
+          meta: payload.meta || {},
+          leads: payload.leads || [],
+          cachedAt: Date.now(),
+        })
+      );
+    } catch (e) {
+      /* ignore quota */
+    }
+  }
+
+  function peekCache() {
+    return readCache();
+  }
+
+  function clearCache() {
+    try {
+      sessionStorage.removeItem(CACHE_KEY);
+    } catch (e) {
+      /* ignore */
+    }
   }
 
   async function loadFromJson() {
     const res = await fetch("data/leads.json", { cache: "no-store" });
     if (!res.ok) throw new Error("Could not load leads.json");
     const data = await res.json();
-    const leads = (data.leads || [])
-      .map((l) => {
-        const lead = { ...l };
-        delete lead.called;
-        return lead;
-      })
-      .filter((l) => !l.hasWebsite);
-    return {
-      meta: { ...(data.meta || {}), source: "json", total: leads.length, noWebsite: leads.length },
-      leads,
+    const leads = filterBrowsableLeads(
+      (data.leads || [])
+        .map((l) => {
+          const lead = normalizeJsonLead(l);
+          delete lead.called;
+          return finalizeLead(lead);
+        })
+    );
+    const meta = {
+      ...(data.meta || {}),
+      source: "json",
+      total: leads.length,
+      noWebsite: leads.length,
+      valid: leads.filter((l) => l.formatValid !== false).length,
+      invalid: leads.filter((l) => l.formatValid === false).length,
+      withPhone: leads.length,
     };
+    writeCache({ meta, leads });
+    return { meta, leads };
   }
 
-  async function loadFromSupabase() {
-    const { url, key } = cfg();
-    if (!url || !key || !global.supabase?.createClient) {
-      throw new Error(
-        "Supabase not configured — add supabaseUrl and supabaseAnonKey in js/config.js"
-      );
-    }
-    const client = global.supabase.createClient(url, key);
+  async function fetchLeadRows(client) {
     const pageSize = 1000;
     let from = 0;
     const rows = [];
+
     for (;;) {
       const { data, error } = await client
         .from("leads")
-        .select("*")
+        .select(LEAD_SELECT)
         .order("id", { ascending: true })
         .range(from, from + pageSize - 1);
+
       if (error) throw error;
       if (!data?.length) break;
       rows.push(...data);
       if (data.length < pageSize) break;
       from += pageSize;
     }
-    if (!rows.length) {
+    return rows;
+  }
+
+  async function loadFromSupabase() {
+    const sb = global.SiteSupabase?.getClient?.() || null;
+    if (!sb) {
       throw new Error(
-        "Leads table is empty — import google CSV into public.leads (Table Editor), then refresh"
+        "Supabase not configured · add supabaseUrl and supabaseAnonKey in js/config.js"
       );
     }
-    const leads = rows.map(rawRowToLead).sort((a, b) => {
+    const rows = await fetchLeadRows(sb);
+    if (!rows.length) {
+      throw new Error(
+        "Leads table is empty · import google CSV into public.leads (Table Editor), then refresh"
+      );
+    }
+    const leads = filterBrowsableLeads(
+      rows.map((row) => finalizeLead(rawRowToLead(row)))
+    ).sort((a, b) => {
       const g = (a.categoryGroup || "").localeCompare(b.categoryGroup || "");
       if (g) return g;
       return (a.name || "").localeCompare(b.name || "");
     });
-    return { meta: buildMeta(leads), leads };
+    const payload = { meta: buildMeta(leads), leads };
+    writeCache(payload);
+    return payload;
   }
 
-  async function load() {
+  let refreshPromise = null;
+
+  async function loadFromSource() {
     if (isDatabaseRequired()) {
       return loadFromSupabase();
     }
@@ -199,10 +239,46 @@
     return loadFromJson();
   }
 
+  function scheduleBackgroundRefresh() {
+    if (refreshPromise) return refreshPromise;
+    refreshPromise = loadFromSource()
+      .then((payload) => {
+        try {
+          global.dispatchEvent(new CustomEvent("leads-cache-refreshed", { detail: payload }));
+        } catch (e) {
+          /* ignore */
+        }
+        return payload;
+      })
+      .catch((e) => console.warn("Lead cache refresh failed", e))
+      .finally(() => {
+        refreshPromise = null;
+      });
+    return refreshPromise;
+  }
+
+  async function load(opts) {
+    const options = opts && typeof opts === "object" ? opts : {};
+    const cached = readCache();
+    if (cached?.fresh && !options.force) {
+      return { meta: cached.meta, leads: cached.leads, fromCache: true };
+    }
+
+    if (cached?.leads?.length && !options.force) {
+      scheduleBackgroundRefresh();
+      return { meta: cached.meta, leads: cached.leads, fromCache: true, stale: true };
+    }
+
+    return loadFromSource();
+  }
+
   global.LeadsLoader = {
     load,
     loadFromJson,
     loadFromSupabase,
     isDatabaseRequired,
+    peekCache,
+    clearCache,
+    hasCallablePhone,
   };
 })(window);

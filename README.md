@@ -41,8 +41,8 @@ In the repo: **Settings → Secrets and variables → Actions → New repository
 
 | Secret | Value |
 |--------|--------|
-| `SUPABASE_URL` | `https://xxxx.supabase.co` |
-| `SUPABASE_ANON_KEY` | Your Supabase **publishable** or anon key |
+| `SUPABASE_URL` | `https://qxtvrlskuntfcsgqdekh.supabase.co` |
+| `SUPABASE_ANON_KEY` | Your Supabase **publishable** or anon key (from Project Settings → API) |
 
 **PINs are not stored in GitHub.** Add reps in Supabase with `supabase-rep-pins.sql` (see parent folder). The site calls `verify_rep_pin` to check PINs server-side.
 

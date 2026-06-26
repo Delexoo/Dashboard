@@ -7,17 +7,26 @@
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css">
 </head>
-<body data-page="privacy" data-legal-page="1" data-public="1">
-  <div id="shell"></div>
+<body class="legal-standalone-mode" data-page="privacy" data-legal-page="1" data-public="1">
   <div id="page-body" class="legal-plain">
     <article class="legal-plain-doc">
-      <div class="legal-page-top">
-        <a href="setup.html" class="legal-page-back" id="legal-back-btn">← Back to sign in</a>
-        <nav class="legal-page-nav" aria-label="Legal documents">
-          <a href="privacy.html" class="legal-page-nav-btn" data-legal-nav="privacy">Privacy Policy</a>
-          <a href="terms.html" class="legal-page-nav-btn" data-legal-nav="terms">Terms of Service</a>
-        </nav>
-      </div>
+      <header class="legal-page-top">
+        <div class="legal-page-toolbar">
+          <a href="setup.html" class="legal-page-back" id="legal-back-btn">
+            <svg class="legal-page-back-ico" width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+              <path d="M10 3L5 8l5 5" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"></path>
+            </svg>
+            <span class="legal-page-back-label">Back to sign in</span>
+          </a>
+          <nav class="legal-page-nav" aria-label="Legal and help documents">
+            <div class="legal-page-segment">
+              <a href="privacy.html" class="legal-page-nav-btn" data-legal-nav="privacy">Privacy Policy</a>
+              <a href="terms.html" class="legal-page-nav-btn" data-legal-nav="terms">Terms of Service</a>
+              <a href="help.html" class="legal-page-nav-btn" data-legal-nav="help-guide">Help</a>
+            </div>
+          </nav>
+        </div>
+      </header>
       <h1>Privacy Policy</h1>
       <div class="legal-plain-text">
 
@@ -93,8 +102,6 @@
       </div>
     </article>
   </div>
-  <script src="js/config.js"></script>
-  <script src="js/image-preload.js"></script>
   <script src="js/legal-bootstrap.js"></script>
 </body>
 </html>

@@ -10,12 +10,12 @@
 <body data-page="bug-bounty">
   <div id="shell"></div>
   <div id="page-body">
-    <h1>Report a bug</h1>
-    <p class="lead">Tell us what broke on the site — approved bug reports can earn cash.</p>
+    <h1>Bug Bounty</h1>
+    <p class="lead">Tell us what broke on the site · approved bug reports can earn cash.</p>
 
     <section class="card bug-bounty-report bug-report-simple" id="bug-report-panel">
       <h2 class="section-head" style="margin-top:0">Report a bug</h2>
-      <p class="bug-report-as muted">Reporting as <strong id="bug-report-rep-name">—</strong></p>
+      <p class="bug-report-as muted">Reporting as <strong id="bug-report-rep-name">-</strong></p>
 
       <form id="bug-report-form" class="bug-report-form" autocomplete="off">
         <label class="field">
@@ -69,7 +69,7 @@
             </tr>
             <tr>
               <td><span class="bug-severity bug-severity-critical">Critical</span></td>
-              <td>Security — PIN bypass, exposed keys</td>
+              <td>Security · PIN bypass, exposed keys</td>
               <td class="bug-bounty-amount">$200+</td>
             </tr>
           </tbody>
@@ -78,8 +78,11 @@
     </section>
   </div>
   <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
   <script src="js/image-preload.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
   <script src="js/icons.js"></script>
   <script src="js/rep-session.js"></script>
   <script src="js/rep-settings-sync.js"></script>

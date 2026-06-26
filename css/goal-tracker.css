@@ -1,0 +1,596 @@
+/* Goal Tracker dashboard · scoped from GoalTracker/styles.css */
+body[data-page="home"] #page-body {
+  --bg: #f6f3ed;
+  --surface: #ffffff;
+  --surface-soft: #fbfaf7;
+  --surface-muted: #efebe3;
+  --text: #171411;
+  --muted: #746f67;
+  --line: #e3ded5;
+  --line-strong: #cfc7ba;
+  --shadow: 0 24px 60px rgba(39, 34, 27, 0.08);
+  --radius-xl: 28px;
+  --radius-lg: 20px;
+  --radius-md: 14px;
+  color-scheme: light;
+  font-family:
+    Inter,
+    ui-sans-serif,
+    system-ui,
+    -apple-system,
+    BlinkMacSystemFont,
+    "Segoe UI",
+    sans-serif;
+}
+
+body[data-page="home"] #page-body *,
+body[data-page="home"] #page-body *::before,
+body[data-page="home"] #page-body *::after {
+  box-sizing: border-box;
+}
+
+body[data-page="home"] #page-body {
+  min-height: 100vh;
+  margin: 0;
+  color: var(--text);
+  background:
+    linear-gradient(180deg, rgba(255, 255, 255, 0.72), rgba(246, 243, 237, 0.98)),
+    var(--bg);
+}
+
+body[data-page="home"] #page-body button,
+body[data-page="home"] #page-body input {
+  font: inherit;
+}
+
+body[data-page="home"] #page-body button {
+  cursor: pointer;
+}
+
+body[data-page="home"] #page-body .app-shell {
+  width: min(1080px, calc(100% - 32px));
+  margin: 0 auto;
+  padding: 28px 0;
+}
+
+body[data-page="home"] #page-body .topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 16px;
+}
+
+body[data-page="home"] #page-body .eyebrow {
+  margin: 0 0 7px;
+  color: var(--muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+}
+
+body[data-page="home"] #page-body h1,
+body[data-page="home"] #page-body h2,
+body[data-page="home"] #page-body p {
+  margin-top: 0;
+}
+
+body[data-page="home"] #page-body h1 {
+  margin-bottom: 0;
+  font-size: clamp(2rem, 5vw, 3.8rem);
+  line-height: 0.96;
+  letter-spacing: -0.07em;
+}
+
+body[data-page="home"] #page-body h2 {
+  max-width: 520px;
+  margin-bottom: 12px;
+  font-size: clamp(1.9rem, 4vw, 3.25rem);
+  line-height: 0.98;
+  letter-spacing: -0.07em;
+}
+
+body[data-page="home"] #page-body .hero-description {
+  max-width: 470px;
+  margin-bottom: 0;
+  color: var(--muted);
+  font-size: 0.97rem;
+  line-height: 1.65;
+}
+
+body[data-page="home"] #page-body .primary-button,
+body[data-page="home"] #page-body .secondary-button,
+body[data-page="home"] #page-body .icon-button {
+  border: 1px solid var(--text);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--text);
+  font-weight: 800;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+body[data-page="home"] #page-body .primary-button,
+body[data-page="home"] #page-body .secondary-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  min-height: 42px;
+  padding: 0 17px;
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+body[data-page="home"] #page-body .primary-button {
+  background: var(--text);
+  color: #ffffff;
+}
+
+body[data-page="home"] #page-body .primary-button span {
+  display: grid;
+  width: 19px;
+  height: 19px;
+  place-items: center;
+  border: 1px solid rgba(255, 255, 255, 0.38);
+  border-radius: 50%;
+  line-height: 1;
+}
+
+body[data-page="home"] #page-body .secondary-button:hover,
+body[data-page="home"] #page-body .icon-button:hover {
+  background: var(--surface);
+  transform: translateY(-1px);
+}
+
+body[data-page="home"] #page-body .primary-button:hover {
+  background: #2b2723;
+  transform: translateY(-1px);
+}
+
+body[data-page="home"] #page-body .dashboard-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  gap: 16px;
+}
+
+body[data-page="home"] #page-body .overview-card,
+body[data-page="home"] #page-body .sales-panel,
+body[data-page="home"] #page-body .income-form {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-xl);
+  background: rgba(255, 255, 255, 0.86);
+  box-shadow: var(--shadow);
+}
+
+body[data-page="home"] #page-body .overview-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1.06fr) minmax(300px, 0.94fr);
+  gap: clamp(18px, 4vw, 46px);
+  min-height: 520px;
+  padding: clamp(20px, 4vw, 38px);
+  animation: pageIn 520ms ease both;
+}
+
+body[data-page="home"] #page-body .overview-copy {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 30px;
+}
+
+body[data-page="home"] #page-body .goal-row {
+  display: flex;
+  align-items: end;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+body[data-page="home"] #page-body .goal-editor {
+  display: grid;
+  min-width: min(100%, 220px);
+  gap: 7px;
+  color: var(--muted);
+  font-size: 0.78rem;
+  font-weight: 800;
+}
+
+body[data-page="home"] #page-body input {
+  width: 100%;
+  height: 42px;
+  border: 1px solid var(--line-strong);
+  border-radius: 999px;
+  outline: none;
+  padding: 0 15px;
+  background: var(--surface);
+  color: var(--text);
+  font-weight: 750;
+  transition:
+    border-color 180ms ease,
+    box-shadow 180ms ease;
+}
+
+body[data-page="home"] #page-body input:focus {
+  border-color: var(--text);
+  box-shadow: 0 0 0 3px rgba(23, 20, 17, 0.06);
+}
+
+body[data-page="home"] #page-body .live-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 42px;
+  padding: 0 13px;
+  border: 1px solid var(--line);
+  border-radius: 999px;
+  background: var(--surface-soft);
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 800;
+}
+
+body[data-page="home"] #page-body .live-pill span {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #2f7d53;
+}
+
+body[data-page="home"] #page-body .quick-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+}
+
+body[data-page="home"] #page-body .quick-stats article,
+body[data-page="home"] #page-body .goal-summary div {
+  border: 1px solid var(--line);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+}
+
+body[data-page="home"] #page-body .quick-stats article {
+  display: grid;
+  gap: 5px;
+  min-height: 94px;
+  padding: 15px;
+}
+
+body[data-page="home"] #page-body .quick-stats span,
+body[data-page="home"] #page-body .goal-summary span {
+  color: var(--muted);
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+}
+
+body[data-page="home"] #page-body .quick-stats strong {
+  align-self: end;
+  font-size: clamp(1.1rem, 2.6vw, 1.65rem);
+  letter-spacing: -0.06em;
+}
+
+body[data-page="home"] #page-body .progress-panel {
+  display: grid;
+  align-content: center;
+  gap: 16px;
+}
+
+body[data-page="home"] #page-body .progress-orbit {
+  position: relative;
+  display: grid;
+  width: min(100%, 340px);
+  aspect-ratio: 1;
+  place-items: center;
+  justify-self: center;
+}
+
+body[data-page="home"] #page-body .progress-ring {
+  width: 100%;
+  height: 100%;
+  overflow: visible;
+  transform: rotate(-90deg);
+}
+
+body[data-page="home"] #page-body .ring-track,
+body[data-page="home"] #page-body .ring-progress {
+  fill: none;
+  stroke-width: 13;
+}
+
+body[data-page="home"] #page-body .ring-track {
+  stroke: var(--surface-muted);
+}
+
+body[data-page="home"] #page-body .ring-progress {
+  stroke: var(--text);
+  stroke-linecap: round;
+  transition: stroke-dashoffset 700ms cubic-bezier(0.2, 0.9, 0.2, 1);
+}
+
+body[data-page="home"] #page-body .progress-center {
+  position: absolute;
+  display: grid;
+  width: 62%;
+  aspect-ratio: 1;
+  place-items: center;
+  padding: 22px;
+  border: 1px solid var(--line);
+  border-radius: 50%;
+  background: var(--surface);
+  text-align: center;
+}
+
+body[data-page="home"] #page-body .progress-percent {
+  align-self: end;
+  font-size: clamp(2rem, 5vw, 3.65rem);
+  font-weight: 900;
+  letter-spacing: -0.08em;
+}
+
+body[data-page="home"] #page-body .progress-center strong {
+  margin-top: -7px;
+  font-size: clamp(1.12rem, 2.4vw, 1.75rem);
+  letter-spacing: -0.06em;
+}
+
+body[data-page="home"] #page-body .progress-center span:last-child {
+  align-self: start;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+body[data-page="home"] #page-body .goal-summary {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+body[data-page="home"] #page-body .goal-summary div {
+  display: grid;
+  gap: 6px;
+  padding: 15px;
+}
+
+body[data-page="home"] #page-body .goal-summary strong {
+  font-size: 1.22rem;
+  letter-spacing: -0.05em;
+}
+
+body[data-page="home"] #page-body .sales-panel {
+  padding: clamp(18px, 3vw, 24px);
+  animation: pageIn 560ms 80ms ease both;
+}
+
+body[data-page="home"] #page-body .section-heading,
+body[data-page="home"] #page-body .dialog-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 14px;
+}
+
+body[data-page="home"] #page-body .sales-panel h2,
+body[data-page="home"] #page-body .income-form h2 {
+  margin-bottom: 0;
+  font-size: clamp(1.25rem, 2vw, 1.6rem);
+  line-height: 1.1;
+  letter-spacing: -0.05em;
+}
+
+body[data-page="home"] #page-body .sales-list {
+  --dash-sales-visible-count: 3;
+  display: grid;
+  max-height: calc(
+    var(--dash-sales-visible-count) * 5.5rem + (var(--dash-sales-visible-count) - 1) * 8px
+  );
+  gap: 8px;
+  margin-top: 16px;
+  overflow-y: auto;
+}
+
+body[data-page="home"] #page-body .sales-list::-webkit-scrollbar {
+  width: 7px;
+}
+
+body[data-page="home"] #page-body .sales-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: var(--line-strong);
+}
+
+body[data-page="home"] #page-body .sale-card {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 5px 14px;
+  padding: 13px 14px;
+  border: 1px solid var(--line);
+  border-radius: var(--radius-md);
+  background: var(--surface-soft);
+  animation: saleIn 320ms ease both;
+  transition:
+    background 180ms ease,
+    border-color 180ms ease,
+    transform 180ms ease;
+}
+
+body[data-page="home"] #page-body .sale-card:hover {
+  border-color: var(--line-strong);
+  background: var(--surface);
+  transform: translateY(-1px);
+}
+
+body[data-page="home"] #page-body .sale-card strong {
+  overflow: hidden;
+  font-size: 0.95rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+body[data-page="home"] #page-body .sale-card .sale-amount {
+  font-size: 0.98rem;
+  font-weight: 900;
+}
+
+body[data-page="home"] #page-body .sale-card time {
+  grid-column: 1 / -1;
+  color: var(--muted);
+  font-size: 0.76rem;
+  font-weight: 700;
+}
+
+body[data-page="home"] #page-body .empty-state {
+  padding: 22px;
+  border: 1px dashed var(--line-strong);
+  border-radius: var(--radius-lg);
+  background: var(--surface-soft);
+  color: var(--muted);
+  text-align: center;
+}
+
+body[data-page="home"] #page-body .income-dialog {
+  width: min(500px, calc(100% - 28px));
+  padding: 0;
+  border: 0;
+  background: transparent;
+}
+
+body[data-page="home"] #page-body .income-dialog::backdrop {
+  background: rgba(30, 27, 23, 0.22);
+  backdrop-filter: blur(5px);
+}
+
+body[data-page="home"] #page-body .income-dialog[open] {
+  animation: dialogIn 220ms ease both;
+}
+
+body[data-page="home"] #page-body .income-form {
+  display: grid;
+  gap: 15px;
+  padding: 24px;
+}
+
+body[data-page="home"] #page-body .income-form label {
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  font-size: 0.82rem;
+  font-weight: 800;
+}
+
+body[data-page="home"] #page-body .icon-button {
+  display: grid;
+  width: 36px;
+  height: 36px;
+  place-items: center;
+  border-color: var(--line);
+  background: var(--surface);
+  font-size: 1.25rem;
+  line-height: 1;
+}
+
+body[data-page="home"] #page-body .full-width {
+  width: 100%;
+}
+
+body[data-page="home"] #page-body .goal-reached {
+  animation: goalPulse 520ms ease;
+}
+
+@keyframes pageIn {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes saleIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes dialogIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes goalPulse {
+  40% {
+    transform: scale(1.012);
+  }
+}
+
+@media (max-width: 860px) {
+body[data-page="home"] #page-body .overview-card {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+body[data-page="home"] #page-body .quick-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+body[data-page="home"] #page-body .app-shell {
+    width: min(100% - 20px, 1080px);
+    padding: 16px 0 22px;
+  }
+
+body[data-page="home"] #page-body .topbar,
+body[data-page="home"] #page-body .section-heading {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+body[data-page="home"] #page-body .topbar .primary-button,
+body[data-page="home"] #page-body .secondary-button {
+    width: 100%;
+  }
+
+body[data-page="home"] #page-body .goal-row,
+body[data-page="home"] #page-body .goal-summary,
+body[data-page="home"] #page-body .quick-stats {
+    grid-template-columns: 1fr;
+  }
+
+body[data-page="home"] #page-body .goal-row {
+    display: grid;
+  }
+
+body[data-page="home"] #page-body .overview-card,
+body[data-page="home"] #page-body .sales-panel,
+body[data-page="home"] #page-body .income-form {
+    border-radius: 22px;
+  }
+
+body[data-page="home"] #page-body .progress-center {
+    width: 66%;
+    padding: 18px;
+  }
+}
+
+body[data-page="home"] #page-body {
+  max-width: none;
+  padding-top: 12px;
+  padding-bottom: 32px;
+}

@@ -4,6 +4,7 @@ private-config.js
 users.txt
 data/reps.json
 data/leads.json
+*.sql
 .env
 .env.*
 *.local

@@ -1,6 +1,6 @@
 /**
 
- * Help → Settings — profile, PIN, theme, and preferences.
+ * Help → Settings · profile, PIN, theme, and preferences.
 
  */
 
@@ -13,6 +13,8 @@
   let payoutRefresh = null;
   let settingsMounted = false;
   let profilePhotoBusy = false;
+  let profilePhotoLoadGen = 0;
+  let lastProfilePhotoLogicalUrl = "";
   const DARK_UI_COLORS = new Set(["black"]);
 
   function trackerName(id) {
@@ -41,7 +43,11 @@
     if (!rep?.id) return;
     profileRefresh?.(rep);
     if (!profilePhotoBusy) {
-      profilePhotoRefresh?.(rep.name);
+      const RPP = global.RepProfilePhoto;
+      const nextUrl = RPP?.displayUrl?.() || "";
+      if (nextUrl !== lastProfilePhotoLogicalUrl || !lastProfilePhotoLogicalUrl) {
+        profilePhotoRefresh?.(rep.name);
+      }
     }
     payoutRefresh?.();
     paintAppearancePrefs(global.UserPrefs?.get?.());
@@ -53,6 +59,89 @@
     if (wrap) wrap.classList.toggle("is-busy", profilePhotoBusy);
   }
 
+  function setProfilePhotoLoading(loading) {
+    const wrap = document.querySelector(".settings-profile-photo-wrap");
+    if (wrap) wrap.classList.toggle("is-loading", !!loading);
+  }
+
+  function profilePhotoDisplaySrc(logicalUrl, RPP, options, img) {
+    if (logicalUrl === RPP.DEFAULT_URL) return logicalUrl;
+    if (options?.cacheKey) {
+      return (
+        logicalUrl + (logicalUrl.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(String(options.cacheKey))
+      );
+    }
+    const pending = String(img?.dataset.pendingSrc || img?.src || "").trim();
+    const logicalBase = logicalUrl.split("?")[0];
+    if (pending && pending.split("?")[0] === logicalBase) return pending;
+    return logicalUrl;
+  }
+
+  function profilePhotoSrcMatches(img, expectedSrc) {
+    const expected = String(expectedSrc || "").trim();
+    if (!expected) return false;
+    const current = String(img?.currentSrc || img?.src || "").trim();
+    if (!current) return false;
+    try {
+      return new URL(current, global.location.href).href === new URL(expected, global.location.href).href;
+    } catch (e) {
+      return current === expected;
+    }
+  }
+
+  function isProfilePhotoReady(img) {
+    if (!img) return false;
+    const pending = String(img.dataset.pendingSrc || "").trim();
+    if (!pending) return false;
+    return img.complete && img.naturalWidth > 0 && profilePhotoSrcMatches(img, pending);
+  }
+
+  function watchProfilePhotoLoad(img) {
+    if (!img) return;
+    const expectedSrc = String(img.dataset.pendingSrc || "").trim();
+    if (!expectedSrc) {
+      setProfilePhotoLoading(false);
+      return;
+    }
+
+    profilePhotoLoadGen += 1;
+    const gen = profilePhotoLoadGen;
+
+    const finish = () => {
+      if (gen !== profilePhotoLoadGen) return;
+      if (!isProfilePhotoReady(img)) return;
+      const reveal = () => {
+        if (gen !== profilePhotoLoadGen) return;
+        if (!isProfilePhotoReady(img)) return;
+        setProfilePhotoLoading(false);
+      };
+      if (typeof img.decode === "function") {
+        img.decode().then(reveal).catch(reveal);
+      } else {
+        reveal();
+      }
+    };
+
+    setProfilePhotoLoading(true);
+
+    if (isProfilePhotoReady(img)) {
+      finish();
+      return;
+    }
+
+    const onDone = () => {
+      if (gen !== profilePhotoLoadGen) return;
+      if (isProfilePhotoReady(img)) finish();
+    };
+
+    img.addEventListener("load", onDone, { once: true });
+    img.addEventListener("error", () => {
+      if (gen !== profilePhotoLoadGen) return;
+      if (isProfilePhotoReady(img)) finish();
+      else setProfilePhotoLoading(false);
+    }, { once: true });
+  }
+
   function showProfilePhotoStatus(msg, ok) {
     showStatus($("settings-profile-status"), msg, ok);
   }
@@ -60,7 +149,7 @@
   function paintAppearancePrefs(prefs) {
     if (!prefs) return;
     document.querySelectorAll("[data-ui-color-pick]").forEach((btn) => {
-      const isActive = btn.dataset.uiColorPick === (prefs.uiColor || "current");
+      const isActive = btn.dataset.uiColorPick === (prefs.uiColor || global.UserPrefs?.DEFAULT_PREFS?.uiColor || "white");
       btn.classList.toggle("active", isActive);
       btn.setAttribute("aria-pressed", isActive ? "true" : "false");
     });
@@ -77,6 +166,15 @@
       soBtn.classList.toggle("is-on", on);
       soBtn.setAttribute("aria-checked", on ? "true" : "false");
     }
+    syncGoalCelebrationUI(prefs);
+  }
+
+  function syncGoalCelebrationUI(prefs) {
+    const btn = $("settings-goal-celebration-toggle");
+    if (!btn) return;
+    const on = prefs?.showGoalCelebration !== false;
+    btn.classList.toggle("is-on", on);
+    btn.setAttribute("aria-checked", on ? "true" : "false");
   }
 
   function renderProfilePhoto(name, options) {
@@ -91,23 +189,49 @@
     const displayName = String(name || "").trim() || "Rep";
     const force = options?.force === true;
 
+    if (
+      !force &&
+      logicalUrl === lastProfilePhotoLogicalUrl &&
+      img &&
+      isProfilePhotoReady(img)
+    ) {
+      if (removeBtn) {
+        const showReset = !!hasCustom;
+        const wasHidden = removeBtn.hidden;
+        removeBtn.hidden = !showReset;
+        if (showReset && wasHidden && global.SiteIcons?.initIcons) {
+          global.SiteIcons.initIcons(removeBtn);
+        }
+      }
+      setProfilePhotoLoading(false);
+      return;
+    }
+
+    lastProfilePhotoLogicalUrl = logicalUrl;
+
     global.SiteImagePreload?.preloadOne?.(logicalUrl, "high");
 
     if (img) {
       const prev = img.dataset.photoUrl || "";
       const changed = prev !== logicalUrl;
-      if (changed || force) {
-        img.dataset.photoUrl = logicalUrl;
-        if (logicalUrl === RPP.DEFAULT_URL) {
-          img.src = logicalUrl;
-        } else {
-          const bust = options?.cacheKey || Date.now();
-          img.src =
-            logicalUrl + (logicalUrl.includes("?") ? "&" : "?") + "v=" + encodeURIComponent(String(bust));
-        }
-      }
+      const displaySrc = profilePhotoDisplaySrc(logicalUrl, RPP, options, img);
+      const needsSrcUpdate = changed || force || !profilePhotoSrcMatches(img, displaySrc);
+
+      img.dataset.photoUrl = logicalUrl;
+      img.dataset.pendingSrc = displaySrc;
       img.alt = displayName + " profile photo";
       img.hidden = false;
+
+      if (needsSrcUpdate) {
+        setProfilePhotoLoading(true);
+        img.src = displaySrc;
+      } else if (isProfilePhotoReady(img)) {
+        setProfilePhotoLoading(false);
+      } else {
+        setProfilePhotoLoading(true);
+      }
+
+      watchProfilePhotoLoad(img);
     }
     if (initialsEl) initialsEl.hidden = true;
     if (removeBtn) {
@@ -167,21 +291,11 @@
 
 
   function useCloudProfile() {
-
-    const { url, key } = cfg();
-
-    return !!(url && key && global.supabase?.createClient);
-
+    return !!global.SiteSupabase?.canUse?.();
   }
 
-
-
   function getClient() {
-
-    const { url, key } = cfg();
-
-    return global.supabase.createClient(url, key);
-
+    return global.SiteSupabase?.getClient?.() || null;
   }
 
 
@@ -287,7 +401,7 @@
   function bindUiColorGrid(prefs) {
     document.querySelectorAll("[data-ui-color-pick]").forEach((btn) => {
       const pick = btn.dataset.uiColorPick;
-      const isActive = pick === (prefs.uiColor || "current");
+      const isActive = pick === (prefs.uiColor || global.UserPrefs?.DEFAULT_PREFS?.uiColor || "white");
       btn.classList.toggle("active", isActive);
       btn.setAttribute("aria-pressed", isActive ? "true" : "false");
 
@@ -353,8 +467,30 @@
     });
   }
 
+  function bindGoalCelebrationToggle(prefs) {
+    const btn = $("settings-goal-celebration-toggle");
+    const row = $("settings-goal-celebration-row");
+    if (!btn) return;
+
+    syncGoalCelebrationUI(prefs);
+
+    if (btn.dataset.bound) return;
+    btn.dataset.bound = "1";
+
+    btn.addEventListener("click", () => {
+      const turningOn = !btn.classList.contains("is-on");
+      prefs.showGoalCelebration = turningOn;
+      global.UserPrefs.save(prefs);
+      syncGoalCelebrationUI(prefs);
+      if (turningOn) {
+        global.GoalCelebration?.firePreview?.(row || btn);
+      }
+    });
+  }
+
   function initAppearance(prefs) {
     bindUiColorGrid(prefs);
+    bindGoalCelebrationToggle(prefs);
     bindFullscreenHintToggle(prefs);
     bindSignOutFloatToggle(prefs);
   }
@@ -693,7 +829,7 @@
     const addPanel = $("settings-payout-add-panel");
     const methodsEl = $("settings-payout-methods");
     const inputPanel = $("settings-payout-input-panel");
-    const inputEl = $("settings-payout-link-input");
+    const fieldHost = $("settings-payout-link-field-host");
     const fieldLabel = $("settings-payout-field-label");
     const hintEl = $("settings-payout-input-hint");
     const saveBtn = $("settings-payout-save");
@@ -705,6 +841,7 @@
     let selectedMethod = null;
     let adding = false;
     let defaultPick = null;
+    let linkField = null;
 
     function showPayoutStatus(msg, ok) {
       if (ok) return;
@@ -780,7 +917,7 @@
       listEl.addEventListener("click", (e) => {
         if (methods.length <= 1) return;
         if (e.target.closest("[data-remove-method]")) return;
-        if (e.target.closest(".settings-payout-link")) return;
+        if (e.target.closest(".settings-payout-item-link")) return;
         const item = e.target.closest(".settings-payout-item[data-payout-method]");
         if (!item) return;
         selectPayoutMethod(item.dataset.payoutMethod);
@@ -845,26 +982,30 @@
       const selectable = methods.length > 1;
       listEl.innerHTML = methods
         .map((m, i) => {
-          const plain = PS.isPlainTextMethod(m.method);
-          const linkHtml = plain
-            ? `<span class="settings-payout-link-text">${PS.esc(m.link)}</span>`
-            : `<a class="link-bold-blue settings-payout-link" href="${PS.esc(m.link)}" target="_blank" rel="noopener">${PS.esc(m.link)}</a>`;
+          const href = PS.payoutLinkHref(m.method, m.link);
+          const handle = PS.payoutLinkHandle(m.method, m.link);
+          const handleHtml = PS.esc(handle || m.link);
+          const iconInner = PS.renderMethodIcon(m.method, "settings-payout-item-icon");
           const isDefault = i === 0;
           const isPicked = m.method === defaultPick;
           const primaryBadge = isDefault
             ? `<span class="settings-payout-primary-badge">Default</span>`
             : "";
+          const linkHtml = href
+            ? `<a class="settings-payout-item-link" href="${PS.esc(href)}" target="_blank" rel="noopener noreferrer">${iconInner}<span class="settings-payout-handle">${handleHtml}</span></a>`
+            : `<span class="settings-payout-item-link settings-payout-item-link--plain">${iconInner}<span class="settings-payout-handle">${handleHtml}</span></span>`;
           return (
             `<li class="settings-payout-item${isDefault ? " is-default" : ""}${selectable && isPicked ? " is-pick-selected" : ""}"` +
             ` data-payout-method="${PS.esc(m.method)}"` +
             ">" +
             `<div class="settings-payout-item-main">` +
             (selectable ? '<span class="settings-payout-pick" aria-hidden="true"></span>' : "") +
-            PS.renderMethodIcon(m.method, "settings-payout-item-icon") +
-            `<div class="settings-payout-item-copy">` +
-            `<p class="settings-payout-item-title">${PS.esc(PS.methodLabel(m.method))} ${primaryBadge}</p>` +
             linkHtml +
-            `</div></div>` +
+            primaryBadge +
+            (!href
+              ? `<span class="settings-payout-link-text visually-hidden">${PS.esc(m.link)}</span>`
+              : "") +
+            `</div>` +
             `<div class="settings-payout-item-actions">` +
             `<button type="button" class="settings-payout-remove payout-saved-remove" data-remove-method="${PS.esc(m.method)}" aria-label="Remove ${PS.esc(PS.methodLabel(m.method))}">×</button>` +
             `</div></li>`
@@ -896,9 +1037,10 @@
     function closeAddPanel() {
       adding = false;
       selectedMethod = null;
+      linkField = null;
       if (addPanel) addPanel.hidden = true;
       if (inputPanel) inputPanel.hidden = true;
-      if (inputEl) inputEl.value = "";
+      if (fieldHost) fieldHost.innerHTML = "";
       syncPayoutToolbar();
       methodsEl?.querySelectorAll(".payout-method-btn").forEach((b) => {
         b.setAttribute("aria-pressed", "false");
@@ -919,11 +1061,13 @@
         if (fieldLabel) {
           fieldLabel.textContent = meta?.fieldLabel || "Payout details";
         }
-        if (inputEl) {
-          inputEl.placeholder = meta?.placeholder || "";
-          inputEl.value = existing?.link || "";
-          inputEl.focus();
-        }
+        linkField = PS.mountLinkField(fieldHost, {
+          method: selectedMethod,
+          value: existing?.link || "",
+          inputId: "settings-payout-link-input",
+          placeholder: meta?.placeholder || "",
+        });
+        linkField?.focus();
         if (hintEl) hintEl.textContent = meta?.hint || "";
         methodsEl.querySelectorAll(".payout-method-btn").forEach((b) => {
           b.setAttribute("aria-pressed", b.dataset.method === selectedMethod ? "true" : "false");
@@ -950,11 +1094,11 @@
         showPayoutStatus("Choose a payment app first.", false);
         return;
       }
-      const link = inputEl?.value?.trim();
+      const link = PS.readLinkField(fieldHost);
       if (!link) {
         const meta = PS.methodMeta(selectedMethod);
         showPayoutStatus(meta?.hint || "Enter your payout details.", false);
-        inputEl?.focus();
+        linkField?.focus();
         return;
       }
       saveBtn.disabled = true;
@@ -971,7 +1115,7 @@
       saveBtn.disabled = false;
     });
 
-    inputEl?.addEventListener("keydown", (e) => {
+    fieldHost?.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
         saveBtn?.click();

@@ -10,146 +10,267 @@
 <body data-page="template">
   <div id="shell"></div>
   <div id="page-body">
-    <div class="tpl-page-head">
-      <h1>Build an interested lead</h1>
-      <p class="tpl-autosave-tag is-loading" id="tpl-autosave-tag" aria-live="polite">
-        <span class="tpl-autosave-tag-ico" id="tpl-autosave-ico" aria-hidden="true">
-          <span class="tpl-autosave-spinner"></span>
-          <span class="tpl-autosave-check" data-icon="check" data-icon-class="tpl-autosave-check-ico" hidden></span>
-        </span>
-        <span id="tpl-autosave-label">Saving…</span>
-      </p>
-    </div>
-    <p class="lead" style="margin-bottom:16px">Format call details into a clean lead template — click <strong>Copy template</strong>, then paste it into <a class="link-bold-blue" data-config="interestedBusinessesUrl" href="#" target="_blank" rel="noopener">Interested Businesses</a>.</p>
+    <div class="tpl-page-wrap">
+      <div class="tpl-page-head">
+        <h1>Lead Builder</h1>
+        <p class="tpl-autosave-tag is-loading" id="tpl-autosave-tag" aria-live="polite">
+          <span class="tpl-autosave-tag-ico" id="tpl-autosave-ico" aria-hidden="true">
+            <span class="tpl-autosave-spinner"></span>
+            <span class="tpl-autosave-check" data-icon="check" data-icon-class="tpl-autosave-check-ico" hidden></span>
+          </span>
+          <span id="tpl-autosave-label">Saving…</span>
+        </p>
+        <p class="tpl-sent-tag" id="tpl-sent-tag" hidden aria-live="polite">
+          <span class="tpl-sent-arrow" aria-hidden="true">→</span>
+          <span>Sent!</span>
+        </p>
+      </div>
+      <p class="lead tpl-page-lead">Collect information, send, done!</p>
 
-    <div class="tpl-box" id="tpl-builder">
-      <div class="tpl-row">
-        <span class="tpl-label">Price:</span>
-        <div class="tpl-row-body">
-          <div class="tpl-row-fields">
-            <button type="button" class="pill active" id="btn-p500" onclick="setTplPrice('$500')">$500</button>
-            <button type="button" class="pill" id="btn-p700" onclick="setTplPrice('$700')">$700</button>
-            <button type="button" class="pill" id="btn-p1000" onclick="setTplPrice('$1,000')">$1,000</button>
-            <button type="button" class="pill" id="btn-p1500" onclick="setTplPrice('$1,500')">$1,500</button>
+      <div class="tpl-sent-screen" id="tpl-sent-screen" hidden aria-modal="true" role="dialog" aria-labelledby="tpl-sent-screen-title">
+        <h2 class="tpl-sent-screen-title" id="tpl-sent-screen-title">Lead sent</h2>
+        <p class="tpl-sent-screen-lead">Management has been notified! We'll build the website and notify you when your commission is ready.</p>
+        <button type="button" class="btn tpl-sent-screen-leave">Go back</button>
+      </div>
+
+      <dialog class="site-leave-dialog tpl-action-dialog" id="tpl-action-dialog" aria-labelledby="tpl-action-dialog-title">
+        <div class="site-leave-dialog-panel tpl-action-dialog-panel" id="tpl-action-dialog-panel">
+          <h2 class="site-leave-dialog-title" id="tpl-action-dialog-title"></h2>
+          <p class="site-leave-dialog-text" id="tpl-action-dialog-text"></p>
+          <div class="site-leave-dialog-actions" id="tpl-action-dialog-actions"></div>
+        </div>
+      </dialog>
+
+      <div class="tpl-box" id="tpl-builder">
+        <div class="tpl-row tpl-field">
+          <label class="tpl-label" for="tpl-business">Business Name</label>
+          <div class="tpl-row-body">
+            <div class="tpl-row-fields">
+              <input class="tpl-input" id="tpl-business" type="text" placeholder="From Lead Finder or call">
+            </div>
           </div>
-          <div class="tpl-info-wrap">
-            <button type="button" class="tpl-info-btn" aria-label="How to: Price" aria-expanded="false" aria-controls="tpl-info-price" data-tpl-info-toggle>
-              <span data-icon="info" aria-hidden="true"></span>
-            </button>
-            <div class="tpl-info-tooltip" id="tpl-info-price" role="tooltip" hidden>
-              <p>What you quoted on the call — must match this line exactly. <strong>Auto-Fill</strong> on Lead Finder picks a starting tier from review count (you can still change it).</p>
+        </div>
+
+        <div class="tpl-row tpl-field">
+          <label class="tpl-label">Price</label>
+          <div class="tpl-row-body">
+            <div class="tpl-row-fields tpl-row-fields--pills">
+              <button type="button" class="pill" id="btn-p500" onclick="setTplPrice('$500')">$500</button>
+              <button type="button" class="pill" id="btn-p700" onclick="setTplPrice('$700')">$700</button>
+              <button type="button" class="pill" id="btn-p1000" onclick="setTplPrice('$1,000')">$1,000</button>
+              <button type="button" class="pill" id="btn-p1500" onclick="setTplPrice('$1,500')">$1,500</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="tpl-row tpl-field">
+          <label class="tpl-label" for="tpl-maps">Google Maps</label>
+          <div class="tpl-row-body">
+            <div class="tpl-row-fields">
+              <input class="tpl-input" id="tpl-maps" type="url" inputmode="url" placeholder="https://maps.google.com/…" autocomplete="url">
+            </div>
+          </div>
+        </div>
+
+        <div class="tpl-row tpl-field">
+          <label class="tpl-label" for="tpl-phone">Phone</label>
+          <div class="tpl-row-body">
+            <div class="tpl-row-fields tpl-row-fields--phone">
+              <input class="tpl-input" id="tpl-phone" type="tel" inputmode="tel" placeholder="4013000957 or +14013000957">
+              <a class="tpl-call-btn is-disabled" id="tpl-call-btn" href="#" aria-disabled="true">
+                <span data-icon="phone" data-icon-class="tpl-call-ico" aria-hidden="true"></span>
+                Call
+              </a>
+            </div>
+          </div>
+        </div>
+
+        <div class="tpl-row tpl-field">
+          <label class="tpl-label">Preference</label>
+          <div class="tpl-row-body">
+            <div class="tpl-row-fields tpl-row-fields--pills">
+              <button type="button" class="pill" id="btn-dl" onclick="setTplMode('dl')">Direct Link</button>
+              <button type="button" class="pill" id="btn-bk" onclick="setTplMode('bk')">Booking</button>
+            </div>
+          </div>
+        </div>
+
+        <div class="tpl-row tpl-field">
+          <label class="tpl-label" for="tpl-name">Owner Name</label>
+          <div class="tpl-row-body">
+            <div class="tpl-row-fields">
+              <input class="tpl-input" id="tpl-name" type="text" placeholder="Name from call">
+            </div>
+          </div>
+        </div>
+
+        <p class="tpl-validation-msg" id="tpl-validation-msg" hidden role="alert"></p>
+
+        <div class="tpl-row tpl-row-actions tpl-field">
+          <div class="tpl-row-body tpl-row-body--actions">
+            <div class="tpl-row-fields btn-row tpl-action-btns">
+              <div class="tpl-send-progress is-incomplete" id="tpl-send-progress" style="--tpl-progress: 0" role="progressbar" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0" aria-label="Lead form completion">
+                <button type="button" class="btn tpl-send-btn is-incomplete" id="tpl-send-btn" aria-disabled="true" onclick="window.sendTpl(this)">
+                  <span class="tpl-send-btn-main">
+                    <span data-icon="send" data-icon-class="tpl-send-ico" aria-hidden="true"></span>
+                    <span class="tpl-send-label">Send lead</span>
+                  </span>
+                  <span class="tpl-send-pct" id="tpl-send-pct" aria-hidden="true">0%</span>
+                </button>
+              </div>
+              <button type="button" class="btn secondary tpl-action-btn tpl-not-interested-btn" id="tpl-not-interested-btn" disabled>Business not interested</button>
+              <button type="button" class="btn secondary tpl-action-btn tpl-clear-btn" id="tpl-clear-btn">Clear</button>
             </div>
           </div>
         </div>
       </div>
 
-      <div class="tpl-row">
-        <span class="tpl-label">Google Maps:</span>
-        <div class="tpl-row-body">
-          <div class="tpl-row-fields">
-            <input class="tpl-input" id="tpl-maps" type="url" placeholder="From Lead Finder or Google Maps">
-          </div>
-          <div class="tpl-info-wrap">
-            <button type="button" class="tpl-info-btn" aria-label="How to: Google Maps" aria-expanded="false" aria-controls="tpl-info-maps" data-tpl-info-toggle>
-              <span data-icon="info" aria-hidden="true"></span>
-            </button>
-            <div class="tpl-info-tooltip" id="tpl-info-maps" role="tooltip" hidden>
-              <p>Maps link from <a class="link-bold-blue" href="leads.html">Lead Finder</a> (Auto-Fill) or the business Google Maps page.</p>
-            </div>
-          </div>
-        </div>
-      </div>
+      <div class="tpl-footnote-block">
+        <div class="tpl-help-card" id="tpl-help-card">
+          <button
+            type="button"
+            class="tpl-help-toggle"
+            id="tpl-help-toggle"
+            aria-expanded="false"
+            aria-controls="tpl-help-panel"
+          >
+            <span class="tpl-help-toggle-main">
+              <span class="tpl-help-toggle-icon" aria-hidden="true">?</span>
+              <span class="tpl-help-toggle-title">Need help with a field?</span>
+            </span>
+            <span class="tpl-help-toggle-meta">
+              <span class="tpl-help-toggle-action">Show guide</span>
+              <span class="tpl-help-toggle-chevron" aria-hidden="true"></span>
+            </span>
+          </button>
 
-      <div class="tpl-row">
-        <span class="tpl-label">Preference:</span>
-        <div class="tpl-row-body">
-          <div class="tpl-row-fields">
-            <button type="button" class="pill active" id="btn-dl" onclick="setTplMode('dl')">Direct Link</button>
-            <button type="button" class="pill" id="btn-bk" onclick="setTplMode('bk')">Booking</button>
+          <div class="tpl-help-panel" id="tpl-help-panel" aria-hidden="true">
+            <div class="tpl-help-panel-inner">
+              <div class="tpl-help-guide" id="tpl-help-guide">
+          <div class="tpl-help-guide-head">
+            <p class="tpl-help-guide-kicker">Step-by-step</p>
+            <h2 class="tpl-help-guide-title">How to use Lead Builder</h2>
+            <p class="tpl-help-guide-lead">Work top to bottom. Each row in the form matches a step below.</p>
           </div>
-          <div class="tpl-info-wrap">
-            <button type="button" class="tpl-info-btn" aria-label="How to: Preference" aria-expanded="false" aria-controls="tpl-info-pref" data-tpl-info-toggle>
-              <span data-icon="info" aria-hidden="true"></span>
-            </button>
-            <div class="tpl-info-tooltip" id="tpl-info-pref" role="tooltip" hidden>
-              <p><strong>Direct Link</strong> = text demo link · <strong>Booking</strong> = meeting — pick what they chose on the call.</p>
-            </div>
-          </div>
-        </div>
-      </div>
 
-      <div class="tpl-row">
-        <span class="tpl-label">Phone:</span>
-        <div class="tpl-row-body">
-          <div class="tpl-row-fields tpl-row-fields--phone">
-            <input class="tpl-input" id="tpl-phone" type="tel" inputmode="tel" placeholder="4013000957 or +14013000957">
-            <a class="tpl-call-btn is-disabled" id="tpl-call-btn" href="#" aria-disabled="true">
-              <span data-icon="phone" data-icon-class="tpl-call-ico" aria-hidden="true"></span>
-              Call
-            </a>
-          </div>
-          <div class="tpl-info-wrap">
-            <button type="button" class="tpl-info-btn" aria-label="How to: Phone" aria-expanded="false" aria-controls="tpl-info-phone" data-tpl-info-toggle>
-              <span data-icon="info" aria-hidden="true"></span>
-            </button>
-            <div class="tpl-info-tooltip" id="tpl-info-phone" role="tooltip" hidden>
-              <p>Build Lead adds +1 automatically (e.g. +1(401)300-0957). Same format when you copy the template.</p>
-            </div>
-          </div>
-        </div>
-      </div>
+          <ol class="tpl-help-steps">
+            <li class="tpl-help-step">
+              <div class="tpl-help-step-copy">
+                <strong>Business name</strong>
+                <span>Build Lead from Lead Finder fills this in for you. Otherwise, enter the business name from your call.</span>
+              </div>
+              <div class="tpl-help-demo" aria-hidden="true">
+                <span class="tpl-label">Business Name</span>
+                <span class="tpl-help-demo-input">Bobby's Burgers</span>
+              </div>
+            </li>
 
-      <div class="tpl-row">
-        <span class="tpl-label">Owner Name:</span>
-        <div class="tpl-row-body">
-          <div class="tpl-row-fields">
-            <input class="tpl-input" id="tpl-name" type="text" placeholder="Name from call">
-          </div>
-          <div class="tpl-info-wrap">
-            <button type="button" class="tpl-info-btn" aria-label="How to: Owner Name" aria-expanded="false" aria-controls="tpl-info-name" data-tpl-info-toggle>
-              <span data-icon="info" aria-hidden="true"></span>
-            </button>
-            <div class="tpl-info-tooltip" id="tpl-info-name" role="tooltip" hidden>
-              <p>First name is fine; last name only if they give one.</p>
-            </div>
-          </div>
-        </div>
-      </div>
+            <li class="tpl-help-step">
+              <div class="tpl-help-step-copy">
+                <strong>Price</strong>
+                <span>You choose the price · use what you quoted on the call. Build Lead may suggest a tier from review count; change it anytime.</span>
+              </div>
+              <div class="tpl-help-demo" aria-hidden="true">
+                <span class="tpl-label">Price</span>
+                <span class="tpl-help-demo-fields">
+                  <span class="pill">$500</span>
+                  <span class="pill">$700</span>
+                  <span class="pill">$1,000</span>
+                  <span class="pill">$1,500</span>
+                </span>
+              </div>
+            </li>
 
-      <div class="tpl-row tpl-row-actions">
-        <span class="tpl-label">Submit</span>
-        <div class="tpl-row-body">
-          <div class="tpl-row-fields btn-row tpl-action-btns">
-            <button type="button" class="btn" id="tpl-copy-btn" onclick="window.copyTpl(this)">Copy template</button>
-            <button type="button" class="btn secondary" id="tpl-clear-btn" onclick="window.clearTpl()">Clear</button>
-          </div>
-          <div class="tpl-info-wrap">
-            <button type="button" class="tpl-info-btn" aria-label="How to: Copy and send" aria-expanded="false" aria-controls="tpl-info-submit" data-tpl-info-toggle>
-              <span data-icon="info" aria-hidden="true"></span>
-            </button>
-            <div class="tpl-info-tooltip tpl-info-tooltip-above" id="tpl-info-submit" role="tooltip" hidden>
-              <p>Paste the full Lead Builder message into <a class="link-bold-blue" data-config="interestedBusinessesUrl" href="#" target="_blank" rel="noopener">Interested Businesses</a> on Telegram right away.</p>
+            <li class="tpl-help-step">
+              <div class="tpl-help-step-copy">
+                <strong>Google Maps</strong>
+                <span>Build Lead from Lead Finder fills this in for you. Otherwise, paste the business's Google Maps link.</span>
+              </div>
+              <div class="tpl-help-demo" aria-hidden="true">
+                <span class="tpl-label">Google Maps</span>
+                <span class="tpl-help-demo-input">maps.google.com/…</span>
+              </div>
+            </li>
+
+            <li class="tpl-help-step">
+              <div class="tpl-help-step-copy">
+                <strong>Phone</strong>
+                <span>Build Lead auto-fills this from the lead card. Otherwise, enter the owner's phone number. Tap <strong>Call</strong> to dial again if needed.</span>
+              </div>
+              <div class="tpl-help-demo" aria-hidden="true">
+                <span class="tpl-label">Phone</span>
+                <span class="tpl-help-demo-phone">
+                  <span class="tpl-help-demo-input">4013000957</span>
+                  <span class="tpl-help-demo-call"><span data-icon="phone" data-icon-class="tpl-help-demo-ico"></span>Call</span>
+                </span>
+              </div>
+            </li>
+
+            <li class="tpl-help-step">
+              <div class="tpl-help-step-copy">
+                <strong>Preference</strong>
+                <span>Ask on the call. <span class="tpl-help-term">Direct Link</span> = they get a text with the demo link · <span class="tpl-help-term">Booking</span> = they schedule a meeting to learn more. You don't host · I do.</span>
+              </div>
+              <div class="tpl-help-demo" aria-hidden="true">
+                <span class="tpl-label">Preference</span>
+                <span class="tpl-help-demo-fields">
+                  <span class="pill active">Direct Link</span>
+                  <span class="pill">Booking</span>
+                </span>
+              </div>
+            </li>
+
+            <li class="tpl-help-step">
+              <div class="tpl-help-step-copy">
+                <strong>Owner name</strong>
+                <span>Ask the owner for their name when you call. First name is fine · last name only if they give one.</span>
+              </div>
+              <div class="tpl-help-demo" aria-hidden="true">
+                <span class="tpl-label">Owner Name</span>
+                <span class="tpl-help-demo-input">Mike</span>
+              </div>
+            </li>
+
+            <li class="tpl-help-step">
+              <div class="tpl-help-step-copy">
+                <strong>Send</strong>
+                <span>When you're done, click <span class="tpl-help-term">Send lead</span>. Your submission is saved · no copy-paste needed. We handle the rest — we create the website, send it, collect payment, and host the meeting with the business owner. You just sit back and relax · we'll notify you when your commission is ready!</span>
+              </div>
+              <div class="tpl-help-demo" aria-hidden="true">
+                <span class="tpl-help-demo-fields tpl-help-demo-actions">
+                  <span class="tpl-help-demo-btn tpl-help-demo-btn--primary">Send lead <span class="tpl-help-demo-pct">0%</span></span>
+                  <span class="tpl-help-demo-btn tpl-help-demo-btn--secondary">Clear</span>
+                </span>
+              </div>
+            </li>
+          </ol>
+              </div>
             </div>
           </div>
         </div>
       </div>
-    </div>
-    <div class="tpl-footnote-block">
-      <p class="tpl-footnote">Not sure what to enter? Click the <strong>info icon</strong> (<span class="tpl-footnote-ico" data-icon="info" aria-hidden="true"></span>) beside any field for a quick tip.</p>
     </div>
   </div>
   <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
   <script src="js/image-preload.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
   <script src="js/icons.js"></script>
   <script src="js/rep-session.js"></script>
+  <script src="js/rep-identity.js"></script>
+  <script src="js/lead-builder-submit.js"></script>
   <script src="js/rep-settings-sync.js"></script>
   <script src="js/user-prefs.js"></script>
   <script src="js/theme.js"></script>
+  <script id="site-loading-boot" src="js/site-loading.js"></script>
   <script src="js/lock.js"></script>
   <script src="js/layout-fix.js"></script>
   <script src="js/course-modules.js"></script>
   <script src="js/lead-display.js"></script>
+  <script src="js/pending-lead-builder.js"></script>
+  <script src="js/lead-sync.js"></script>
   <script src="js/app.js"></script>
 </body>
 </html>

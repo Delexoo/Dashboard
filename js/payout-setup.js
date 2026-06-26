@@ -12,7 +12,13 @@
     venmo: "Venmo.png",
     paypal: "PayPal.png",
     zelle: "Zelle.png",
+    applepay: "ApplePay.png",
+    googlepay: "GooglePay.png",
+    stripe: "Stripe.png",
+    crypto: "Bitcoin.png",
   };
+
+  const REMOVED_METHODS = new Set(["wise"]);
 
   const METHODS = [
     {
@@ -67,14 +73,6 @@
       plainText: true,
     },
     {
-      id: "wise",
-      label: "Wise",
-      short: "W",
-      placeholder: "wise.com/pay/me/yourname",
-      hint: "Paste your Wise payment link",
-      fieldLabel: "Paste your Wise link",
-    },
-    {
       id: "stripe",
       label: "Stripe",
       short: "S",
@@ -102,7 +100,18 @@
     },
   ];
 
-  let client = null;
+  const PAYOUT_PHONE_COUNTRIES = [
+    { id: "US", name: "United States", dial: "1" },
+    { id: "CA", name: "Canada", dial: "1" },
+    { id: "GB", name: "United Kingdom", dial: "44" },
+    { id: "AU", name: "Australia", dial: "61" },
+    { id: "MX", name: "Mexico", dial: "52" },
+    { id: "IN", name: "India", dial: "91" },
+    { id: "PH", name: "Philippines", dial: "63" },
+    { id: "DE", name: "Germany", dial: "49" },
+    { id: "FR", name: "France", dial: "33" },
+    { id: "BR", name: "Brazil", dial: "55" },
+  ];
 
   function cfg() {
     const c = global.SITE_CONFIG || {};
@@ -113,16 +122,11 @@
   }
 
   function canSync() {
-    const { url, key } = cfg();
-    return !!(url && key && global.supabase?.createClient);
+    return !!global.SiteSupabase?.canUse?.();
   }
 
   function getClient() {
-    if (client) return client;
-    if (!canSync()) return null;
-    const { url, key } = cfg();
-    client = global.supabase.createClient(url, key);
-    return client;
+    return canSync() ? global.SiteSupabase?.getClient?.() || null : null;
   }
 
   function rep() {
@@ -158,6 +162,15 @@
     return METHODS.find((m) => m.id === id) || null;
   }
 
+  function isSupportedMethod(id) {
+    return !REMOVED_METHODS.has(String(id || "").trim());
+  }
+
+  function filterSupportedMethods(methods) {
+    if (!Array.isArray(methods)) return [];
+    return methods.filter((m) => m?.method && m?.link && isSupportedMethod(m.method));
+  }
+
   function payoutIconUrl(id) {
     const file = PAYOUT_ICON_FILES[id];
     return file ? PAYOUT_ICON_BASE + file : "";
@@ -182,8 +195,354 @@
     );
   }
 
+  function payoutLinkHref(method, rawLink) {
+    const link = String(rawLink || "").trim();
+    if (!link) return "";
+    if (isPlainTextMethod(method) && !/^https?:\/\//i.test(link)) return "";
+    return /^https?:\/\//i.test(link) ? link : "https://" + link.replace(/^\/+/, "");
+  }
+
+  function payoutCountryById(id) {
+    return PAYOUT_PHONE_COUNTRIES.find((c) => c.id === id) || PAYOUT_PHONE_COUNTRIES[0];
+  }
+
+  function usesPhoneField(method) {
+    return method === "applepay" || method === "zelle" || method === "googlepay";
+  }
+
+  function parsePhoneStorage(raw) {
+    const t = String(raw || "").trim();
+    if (!t || t.includes("@")) return null;
+    let digits = t.replace(/\D/g, "");
+    if (!digits) return null;
+
+    if (t.startsWith("+")) {
+      const sorted = PAYOUT_PHONE_COUNTRIES.slice().sort((a, b) => b.dial.length - a.dial.length);
+      for (const c of sorted) {
+        if (digits.startsWith(c.dial) && digits.length > c.dial.length) {
+          return { countryId: c.id, dial: c.dial, national: digits.slice(c.dial.length) };
+        }
+      }
+    }
+
+    if (digits.length === 11 && digits[0] === "1") {
+      return { countryId: "US", dial: "1", national: digits.slice(1) };
+    }
+    if (digits.length === 10) {
+      return { countryId: "US", dial: "1", national: digits };
+    }
+    return { countryId: "US", dial: "1", national: digits };
+  }
+
+  function formatUsCaPhoneInput(digits) {
+    const d = String(digits || "").replace(/\D/g, "").slice(0, 10);
+    if (!d) return "";
+    if (d.length <= 3) return "(" + d;
+    if (d.length <= 6) return "(" + d.slice(0, 3) + ") " + d.slice(3);
+    return "(" + d.slice(0, 3) + ") " + d.slice(3, 6) + "-" + d.slice(6);
+  }
+
+  function formatNationalPhoneInput(digits, dial) {
+    if (dial === "1") return formatUsCaPhoneInput(digits);
+    return String(digits || "").replace(/\D/g, "").slice(0, 15);
+  }
+
+  function normalizePhoneStorage(rawNational, countryId) {
+    const country = payoutCountryById(countryId);
+    const t = String(rawNational || "").trim();
+    if (!t) return "";
+    if (t.includes("@")) return t;
+
+    let national = t.replace(/\D/g, "");
+    if (country.dial === "1" && national.length === 11 && national[0] === "1") {
+      national = national.slice(1);
+    }
+    if (country.dial === "1") {
+      if (national.length !== 10) {
+        throw new Error("Enter a complete 10-digit phone number.");
+      }
+    } else if (national.length < 6) {
+      throw new Error("Enter a valid phone number.");
+    }
+    return "+" + country.dial + national;
+  }
+
+  function formatPhoneDisplay(raw) {
+    const t = String(raw || "").trim();
+    if (!t) return "";
+    if (t.includes("@")) return t;
+    const parsed = parsePhoneStorage(t);
+    if (!parsed?.national) return t;
+    const nationalFmt = formatNationalPhoneInput(parsed.national, parsed.dial);
+    if (parsed.dial === "1") return "+1 " + nationalFmt;
+    return "+" + parsed.dial + " " + nationalFmt;
+  }
+
+  function renderPhoneCountriesSelect(selectedId) {
+    const pick = selectedId || "US";
+    return PAYOUT_PHONE_COUNTRIES.map((c) => {
+      const sel = c.id === pick ? " selected" : "";
+      return (
+        '<option value="' +
+        esc(c.id) +
+        '" data-dial="' +
+        esc(c.dial) +
+        '"' +
+        sel +
+        ">" +
+        esc(c.name) +
+        " (+" +
+        esc(c.dial) +
+        ")</option>"
+      );
+    }).join("");
+  }
+
+  function mountLinkField(host, options) {
+    if (!host) return null;
+    options = options || {};
+    const method = options.method;
+    const inputId = options.inputId || "payout-link-input";
+    const selectId = options.selectId || inputId + "-country";
+    const stored = String(options.value || "");
+
+    host.innerHTML = "";
+    host.classList.remove("payout-link-field-host--phone");
+    host._payoutLinkField = null;
+
+    if (!usesPhoneField(method)) {
+      host.innerHTML =
+        '<input type="text" id="' +
+        esc(inputId) +
+        '" class="payout-link-input" autocomplete="off" spellcheck="false" placeholder="' +
+        esc(options.placeholder || "") +
+        '" value="' +
+        esc(stored) +
+        '" />';
+      const input = host.querySelector("#" + inputId);
+      const api = {
+        read() {
+          return String(input?.value || "").trim();
+        },
+        focus() {
+          input?.focus();
+        },
+      };
+      host._payoutLinkField = api;
+      return api;
+    }
+
+    host.classList.add("payout-link-field-host--phone");
+    const isEmail = stored.includes("@");
+    const parsed = isEmail ? null : parsePhoneStorage(stored);
+    const countryId = parsed?.countryId || "US";
+    const nationalDisplay = isEmail
+      ? stored
+      : formatNationalPhoneInput(parsed?.national || "", parsed?.dial || "1");
+    const placeholder =
+      method === "applepay" ? "(555) 123-4567 or email" : "(555) 123-4567";
+
+    host.innerHTML =
+      '<div class="payout-phone-row">' +
+      '<select id="' +
+      esc(selectId) +
+      '" class="payout-phone-country" aria-label="Country code">' +
+      renderPhoneCountriesSelect(countryId) +
+      "</select>" +
+      '<input type="tel" id="' +
+      esc(inputId) +
+      '" class="payout-link-input payout-phone-input" autocomplete="tel" inputmode="tel" spellcheck="false" placeholder="' +
+      esc(placeholder) +
+      '" value="' +
+      esc(nationalDisplay) +
+      '" />' +
+      "</div>";
+
+    const select = host.querySelector("#" + selectId);
+    const input = host.querySelector("#" + inputId);
+
+    function currentDial() {
+      return select?.selectedOptions?.[0]?.dataset.dial || "1";
+    }
+
+    function applyPhoneFormat() {
+      if (!input) return;
+      const raw = input.value;
+      if (raw.includes("@")) return;
+      const formatted = formatNationalPhoneInput(raw.replace(/\D/g, ""), currentDial());
+      if (input.value !== formatted) input.value = formatted;
+    }
+
+    select?.addEventListener("change", applyPhoneFormat);
+    input?.addEventListener("input", applyPhoneFormat);
+
+    const api = {
+      read() {
+        const raw = String(input?.value || "").trim();
+        if (!raw) return "";
+        if (raw.includes("@")) return raw;
+        return normalizePhoneStorage(raw, select?.value || "US");
+      },
+      focus() {
+        input?.focus();
+      },
+    };
+    host._payoutLinkField = api;
+    return api;
+  }
+
+  function readLinkField(host) {
+    return host?._payoutLinkField?.read?.() || "";
+  }
+
+  function looksLikePhone(value) {
+    const text = String(value || "").trim();
+    if (!text || text.includes("@")) return false;
+    if (text.startsWith("+")) return parsePhoneStorage(text)?.national?.length >= 6;
+    const digits = text.replace(/\D/g, "");
+    return digits.length >= 10 && digits.length <= 15 && /^[\d\s().+-]+$/.test(text);
+  }
+
+  function isOpaqueSlug(value) {
+    const token = String(value || "").trim();
+    return token.length >= 12 && /^[a-zA-Z0-9_-]+$/.test(token);
+  }
+
+  function shortenToken(value, keepEnd) {
+    keepEnd = keepEnd || 4;
+    const token = String(value || "").trim();
+    if (token.length <= keepEnd + 3) return token;
+    return "…" + token.slice(-keepEnd);
+  }
+
+  function shortenAddress(value) {
+    const token = String(value || "").trim();
+    if (token.length <= 14) return token;
+    return token.slice(0, 6) + "…" + token.slice(-4);
+  }
+
+  function friendlyUrlHandle(link, opts) {
+    opts = opts || {};
+    try {
+      const href = /^https?:\/\//i.test(link) ? link : "https://" + link.replace(/^\/+/, "");
+      const url = new URL(href);
+      const host = url.hostname.replace(/^www\./i, "");
+      const parts = url.pathname.split("/").filter(Boolean);
+      const last = parts[parts.length - 1] || "";
+
+      if (!last) return host;
+      if (isOpaqueSlug(last)) return host + " · " + shortenToken(last, 5);
+      if (last.length > 28) return host + " · " + shortenToken(last, 6);
+      if (/^[a-zA-Z0-9._-]+$/.test(last) && last.length <= 24 && !isOpaqueSlug(last)) {
+        return last.startsWith("@") ? last : "@" + last.replace(/^@/, "");
+      }
+      return host + "/" + last;
+    } catch (e) {
+      return opts.fallbackLabel || link;
+    }
+  }
+
+  function payoutLinkHandle(method, rawLink) {
+    const link = String(rawLink || "").trim();
+    if (!link) return "";
+    const id = String(method || "").trim();
+
+    if (id === "cashapp") {
+      const fromUrl = link.match(/cash\.app\/([^/?#]+)/i);
+      if (fromUrl) {
+        const h = fromUrl[1].replace(/^\$/, "");
+        return h.startsWith("@") ? h : "@" + h;
+      }
+      const bare = link.replace(/^\$/, "").trim();
+      if (bare && !/^https?:\/\//i.test(bare)) return bare.startsWith("@") ? bare : "@" + bare;
+    }
+
+    if (id === "venmo") {
+      const fromUrl = link.match(/venmo\.com\/(?:u\/)?([^/?#]+)/i);
+      if (fromUrl) return "@" + fromUrl[1].replace(/^@/, "");
+      if (link.startsWith("@")) return link;
+      if (!/^https?:\/\//i.test(link)) return "@" + link.replace(/^@/, "");
+    }
+
+    if (id === "paypal") {
+      const fromUrl = link.match(/paypal\.me\/([^/?#]+)/i);
+      if (fromUrl) return "@" + fromUrl[1].replace(/^@/, "");
+      if (/^https?:\/\//i.test(link)) return friendlyUrlHandle(link, { fallbackLabel: "PayPal link" });
+    }
+
+    if (id === "stripe") {
+      if (/^https?:\/\//i.test(link) || /stripe\.com/i.test(link)) {
+        return friendlyUrlHandle(link, { fallbackLabel: "Stripe payment link" });
+      }
+      if (isOpaqueSlug(link)) return "Stripe · " + shortenToken(link, 5);
+      return "Stripe payment link";
+    }
+
+    if (id === "crypto") {
+      if (/^https?:\/\//i.test(link)) return friendlyUrlHandle(link, { fallbackLabel: "Crypto link" });
+      return shortenAddress(link);
+    }
+
+    if (id === "zelle" || id === "applepay" || id === "googlepay") {
+      if (looksLikePhone(link)) return formatPhoneDisplay(link);
+      return link;
+    }
+
+    if (id === "other") {
+      if (/^https?:\/\//i.test(link) || /\.\w{2,}\//.test(link)) {
+        return friendlyUrlHandle(link, { fallbackLabel: "Payment link" });
+      }
+      if (looksLikePhone(link)) return formatPhoneDisplay(link);
+      if (link.length > 28) return shortenAddress(link);
+      return link;
+    }
+
+    if (isPlainTextMethod(id)) {
+      if (looksLikePhone(link)) return formatPhoneDisplay(link);
+      if (link.length > 28) return shortenAddress(link);
+      return link;
+    }
+
+    if (/^https?:\/\//i.test(link)) return friendlyUrlHandle(link);
+
+    if (isOpaqueSlug(link)) return shortenToken(link, 5);
+
+    return link;
+  }
+
+  function renderSavedPayoutRow(entry, opts) {
+    opts = opts || {};
+    if (!entry?.method || !entry?.link) return "";
+
+    const method = entry.method;
+    const link = String(entry.link).trim();
+    const handle = payoutLinkHandle(method, link);
+    const href = payoutLinkHref(method, link);
+    const label = methodLabel(method);
+    const removeAttr = opts.removeAttr || "data-remove-payout";
+    const iconClass = opts.iconClass || "payout-saved-icon";
+    const handleHtml = esc(handle || link);
+    const icon = renderMethodIcon(method, iconClass);
+
+    const main = href
+      ? `<a class="payout-saved-link" href="${esc(href)}" target="_blank" rel="noopener noreferrer">${icon}<span class="payout-saved-handle">${handleHtml}</span></a>`
+      : `<div class="payout-saved-link payout-saved-link--plain">${icon}<span class="payout-saved-handle">${handleHtml}</span></div>`;
+
+    const removeBtn =
+      opts.removable === false
+        ? ""
+        : `<button type="button" class="payout-saved-remove" ${removeAttr}="${esc(method)}" aria-label="Remove ${esc(label)}">×</button>`;
+
+    return (
+      `<div class="payout-saved-row">` +
+      `<div class="payout-saved-row-body">${main}</div>` +
+      removeBtn +
+      `</div>`
+    );
+  }
+
   function orderMethodsWithDefault(methods, defaultMethod) {
-    const list = Array.isArray(methods) ? methods.filter((m) => m?.method && m?.link) : [];
+    const list = filterSupportedMethods(Array.isArray(methods) ? methods : []);
     if (list.length <= 1) return list;
     const id = String(defaultMethod || "").trim();
     if (!id) return list;
@@ -201,7 +560,7 @@
       if (raw) {
         const parsed = JSON.parse(raw);
         if (Array.isArray(parsed?.methods)) {
-          const methods = parsed.methods.filter((m) => m && m.method && m.link);
+          const methods = filterSupportedMethods(parsed.methods);
           const defaultMethod = parsed.defaultMethod || methods[0]?.method || null;
           return {
             methods: orderMethodsWithDefault(methods, defaultMethod),
@@ -213,7 +572,7 @@
       /* ignore */
     }
     const legacy = loadLocal();
-    if (legacy?.method && legacy?.link) {
+    if (legacy?.method && legacy?.link && isSupportedMethod(legacy.method)) {
       const methods = [
         {
           method: legacy.method,
@@ -254,7 +613,7 @@
 
   function saveLocalList(methods, defaultMethod) {
     const list = Array.isArray(methods)
-      ? methods.filter((m) => m && m.method && m.link)
+      ? filterSupportedMethods(methods)
       : [];
     if (!list.length) {
       try {
@@ -351,9 +710,9 @@
           link: row.payout_link || row.link,
           updatedAt: row.updated_at || data.updated_at,
         }))
-        .filter((m) => m.method && m.link);
+        .filter((m) => m.method && m.link && isSupportedMethod(m.method));
     }
-    if (data.method && data.payout_link) {
+    if (data.method && data.payout_link && isSupportedMethod(data.method)) {
       return [
         {
           method: data.method,
@@ -370,7 +729,7 @@
     for (const list of lists) {
       if (!Array.isArray(list)) continue;
       for (const m of list) {
-        if (!m?.method || !m?.link) continue;
+        if (!m?.method || !m?.link || !isSupportedMethod(m.method)) continue;
         const prev = byMethod.get(m.method);
         const prevAt = prev?.updatedAt || "";
         const nextAt = m.updatedAt || "";
@@ -430,10 +789,20 @@
     return !!METHODS.find((m) => m.id === method)?.plainText;
   }
 
-  function normalizeLink(method, raw) {
+  function normalizeLink(method, raw, opts) {
+    opts = opts || {};
     const t = String(raw || "").trim();
     if (!t) return "";
-    if (isPlainTextMethod(method)) return t;
+    if (isPlainTextMethod(method)) {
+      if (usesPhoneField(method) && !t.includes("@")) {
+        if (/^\+\d{7,15}$/.test(t.replace(/[^\d+]/g, ""))) {
+          return t.replace(/[^\d+]/g, "");
+        }
+        const parsed = parsePhoneStorage(t);
+        return normalizePhoneStorage(t, opts.countryId || parsed?.countryId || "US");
+      }
+      return t;
+    }
     if (/^https?:\/\//i.test(t)) return t;
     if (method === "cashapp") {
       if (t.startsWith("$")) return "https://cash.app/" + t.replace(/^\$/, "");
@@ -447,10 +816,6 @@
     if (method === "paypal") {
       if (t.includes("paypal.")) return "https://" + t.replace(/^https?:\/\//i, "");
       return "https://paypal.me/" + t.replace(/^\/+/, "");
-    }
-    if (method === "wise") {
-      if (t.includes("wise.com")) return "https://" + t.replace(/^https?:\/\//i, "");
-      return "https://wise.com/pay/me/" + t.replace(/^\/+/, "");
     }
     if (method === "stripe") {
       if (/stripe\.com/i.test(t)) {
@@ -587,7 +952,7 @@
       const msg = String(e?.message || e || "");
       if (/policy|permission|denied|42501/i.test(msg)) {
         throw new Error(
-          "Could not update Supabase — run supabase-rep-payouts-setup.sql (delete policy) in the SQL Editor."
+          "Could not update Supabase · run supabase-rep-payouts-setup.sql (delete policy) in the SQL Editor."
         );
       }
       throw e;
@@ -617,7 +982,7 @@
       const msg = String(e?.message || e || "");
       if (/policy|permission|denied|42501/i.test(msg)) {
         throw new Error(
-          "Could not update Supabase — run supabase-rep-payouts-setup.sql in the SQL Editor."
+          "Could not update Supabase · run supabase-rep-payouts-setup.sql in the SQL Editor."
         );
       }
       throw e;
@@ -648,7 +1013,7 @@
       const msg = String(error.message || "");
       if (/policy|permission|denied|42501/i.test(msg)) {
         throw new Error(
-          "Could not delete from Supabase — run supabase-rep-payouts-setup.sql (delete policy) in the SQL Editor."
+          "Could not delete from Supabase · run supabase-rep-payouts-setup.sql (delete policy) in the SQL Editor."
         );
       }
       throw error;
@@ -692,13 +1057,14 @@
 
     const methodsEl = root.querySelector("#payout-methods");
     const panelEl = root.querySelector("#payout-input-panel");
-    const inputEl = root.querySelector("#payout-link-input");
+    const fieldHost = root.querySelector("#payout-link-field-host");
     const hintEl = root.querySelector("#payout-input-hint");
     const saveBtn = root.querySelector("#payout-save-btn");
     const resetBtn = root.querySelector("#payout-reset-btn");
     const fieldLabelEl = root.querySelector("#payout-field-label");
     const statusEl = root.querySelector("#payout-status");
     const savedEl = root.querySelector("#payout-saved-preview");
+    let linkField = null;
 
     function showStatus(msg, type) {
       if (!statusEl) return;
@@ -712,21 +1078,17 @@
         if (savedEl) savedEl.hidden = true;
         return;
       }
-      const plain = isPlainTextMethod(data.method);
       savedEl.hidden = false;
       savedEl.innerHTML =
         `<p class="payout-saved-title">Saved for <strong>${esc(rep()?.name || "you")}</strong></p>` +
-        `<p class="payout-saved-row"><span class="legal-pill">${esc(methodLabel(data.method))}</span> ` +
-        (plain
-          ? `<span class="payout-saved-text">${esc(data.link)}</span>`
-          : `<a class="link-bold-blue" href="${esc(data.link)}" target="_blank" rel="noopener">${esc(data.link)}</a>`) +
-        `</p>`;
+        renderSavedPayoutRow(data, { removable: false });
     }
 
     function clearForm() {
       selectedMethod = null;
       saved = null;
-      if (inputEl) inputEl.value = "";
+      linkField = null;
+      if (fieldHost) fieldHost.innerHTML = "";
       if (panelEl) panelEl.hidden = true;
       if (savedEl) savedEl.hidden = true;
       methodsEl?.querySelectorAll(".payout-method-btn").forEach((btn) => {
@@ -742,17 +1104,18 @@
       if (fieldLabelEl) {
         fieldLabelEl.textContent = meta?.fieldLabel || "Paste your payout link";
       }
-      if (inputEl) {
-        inputEl.placeholder = meta?.placeholder || "";
-        inputEl.value =
-          saved && saved.method === method ? saved.link : "";
-        inputEl.focus();
-      }
+      linkField = mountLinkField(fieldHost, {
+        method,
+        value: saved && saved.method === method ? saved.link : "",
+        inputId: "payout-link-input",
+        placeholder: meta?.placeholder || "",
+      });
       if (hintEl) hintEl.textContent = meta?.hint || "";
       methodsEl?.querySelectorAll(".payout-method-btn").forEach((btn) => {
         btn.setAttribute("aria-pressed", btn.dataset.method === method ? "true" : "false");
       });
       showStatus("", "");
+      linkField?.focus();
     }
 
     methodsEl?.querySelectorAll(".payout-method-btn").forEach((btn) => {
@@ -762,7 +1125,7 @@
     resetBtn?.addEventListener("click", async () => {
       if (
         !saved?.link &&
-        !inputEl?.value?.trim() &&
+        !readLinkField(fieldHost) &&
         !selectedMethod
       ) {
         clearForm();
@@ -784,7 +1147,7 @@
           showStatus("Payout cleared on this device and removed from Supabase.", "ok");
         } else {
           showStatus(
-            "Payout cleared on this device. Supabase is not connected — owner will not see a team link until you save again.",
+            "Payout cleared on this device. Supabase is not connected · owner will not see a team link until you save again.",
             "warn"
           );
         }
@@ -800,11 +1163,11 @@
         showStatus("Choose a payout method first.", "warn");
         return;
       }
-      const link = inputEl?.value?.trim();
+      const link = readLinkField(fieldHost);
       if (!link) {
         const meta = METHODS.find((m) => m.id === selectedMethod);
         showStatus(meta?.hint || "Enter your payout details.", "warn");
-        inputEl?.focus();
+        linkField?.focus();
         return;
       }
       saveBtn.disabled = true;
@@ -812,7 +1175,7 @@
       try {
         saved = await saveMine(selectedMethod, link);
         markPayoutChecklistDone();
-        showStatus("Saved — your manager can see this when a deal closes.", "ok");
+        showStatus("Saved · your manager can see this when a deal closes.", "ok");
         showSavedPreview(saved);
       } catch (e) {
         console.warn(e);
@@ -821,7 +1184,7 @@
       saveBtn.disabled = false;
     });
 
-    inputEl?.addEventListener("keydown", (e) => {
+    fieldHost?.addEventListener("keydown", (e) => {
       if (e.key === "Enter") {
         e.preventDefault();
         saveBtn?.click();
@@ -837,11 +1200,16 @@
             btn.setAttribute("aria-pressed", btn.dataset.method === saved.method ? "true" : "false");
           });
           if (panelEl) panelEl.hidden = false;
-          if (inputEl) inputEl.value = saved.link || "";
           const meta = METHODS.find((m) => m.id === saved.method);
           if (fieldLabelEl) {
             fieldLabelEl.textContent = meta?.fieldLabel || "Paste your payout link";
           }
+          linkField = mountLinkField(fieldHost, {
+            method: saved.method,
+            value: saved.link || "",
+            inputId: "payout-link-input",
+            placeholder: meta?.placeholder || "",
+          });
           if (hintEl) hintEl.textContent = meta?.hint || "";
           showSavedPreview(saved);
           showStatus("You can update your link anytime.", "ok");
@@ -894,6 +1262,13 @@
     isPlainTextMethod,
     renderMethodButtons,
     renderMethodIcon,
+    renderSavedPayoutRow,
+    payoutLinkHandle,
+    payoutLinkHref,
+    usesPhoneField,
+    mountLinkField,
+    readLinkField,
+    formatPhoneDisplay,
     esc,
     markPayoutChecklistDone,
     unmarkPayoutChecklist,

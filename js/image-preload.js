@@ -84,6 +84,7 @@
 
   function init() {
     if (started) return;
+    if (document.documentElement?.dataset?.loginRedirect === "entry") return;
     started = true;
     preconnectHosts();
     ensureFavicon();

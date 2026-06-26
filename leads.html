@@ -4,21 +4,21 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Lead Finder · Sales Team Dashboard</title>
-  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=Fraunces:opsz,wght@9..144,600;9..144,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css">
 </head>
 <body data-page="leads">
   <div id="shell"></div>
   <div id="page-body" class="leads-page">
-    <h1>Find your next call</h1>
-    <p class="lead leads-lead">Browse businesses with no website — mark called and send interested leads to the Lead Builder.</p>
+    <h1>Lead Finder</h1>
+    <p class="lead leads-lead">Look for businesses without a website here!</p>
 
     <section class="card leads-toolbar">
       <div class="leads-toolbar-head">
         <div class="leads-toolbar-metrics" aria-live="polite">
-          <span class="leads-metric"><strong id="lf-stat-total">—</strong> Leads</span>
+          <span class="leads-metric"><strong id="lf-stat-total">-</strong> Leads</span>
           <span class="leads-metric-sep" aria-hidden="true">·</span>
-          <span class="leads-metric leads-metric-called"><strong id="lf-stat-done">—</strong> You called</span>
+          <span class="leads-metric leads-metric-called"><strong id="lf-stat-done">-</strong> You called</span>
         </div>
         <button type="button" class="lf-refresh-btn" id="lf-refresh" aria-label="Refresh leads from database">
           <span data-icon="repeat-2" data-icon-class="lf-refresh-ico" aria-hidden="true"></span>
@@ -33,10 +33,8 @@
             <select id="lf-workflow-view" class="lf-workflow-select" aria-label="Lead list view">
               <option value="default">Active</option>
               <option value="saved">Quick Save</option>
-              <option value="pinned">Pinned</option>
               <option value="complete">Completed</option>
               <option value="not-interested">Not interested</option>
-              <option value="pending">Pending</option>
               <option value="removed">Removed</option>
             </select>
           </label>
@@ -73,12 +71,53 @@
       </div>
     </section>
 
+    <section class="dash-pending-island-card dash-pending-island leads-page-pending" aria-label="Pending businesses">
+      <div
+        class="dash-toggle-card dash-pending-section dash-pending-section--empty dash-pending-loading"
+        id="dash-pending-section"
+        data-dash-toggle="pending"
+      >
+        <button
+          type="button"
+          class="dash-toggle-btn"
+          id="dash-pending-toggle"
+          aria-expanded="false"
+          aria-controls="dash-pending-panel"
+        >
+          <span class="dash-toggle-main">
+            <span class="dash-toggle-icon" aria-hidden="true">⏱</span>
+            <span class="dash-toggle-title">Pending businesses</span>
+          </span>
+          <span class="dash-toggle-meta">
+            <span class="dash-pending-load" id="dash-pending-load" role="status" aria-label="Loading pending businesses">
+              <span class="dash-pending-load-spinner" aria-hidden="true"></span>
+            </span>
+            <span class="dash-toggle-count" id="dash-pending-count">0 pending</span>
+          </span>
+        </button>
+
+        <div class="dash-toggle-panel" id="dash-pending-panel" aria-hidden="true">
+          <div class="dash-toggle-panel-inner">
+            <div class="dash-empty dash-pending-empty" id="dash-pending-empty">
+              <p class="dash-empty-title">No pending leads</p>
+              <p class="dash-empty-desc">Send a lead from <strong>Lead Builder</strong> to add a business here.</p>
+            </div>
+
+            <ul class="dash-pending-list dash-toggle-pending-list" id="dash-pending-list" hidden></ul>
+          </div>
+        </div>
+      </div>
+    </section>
+
     <div class="leads-grid" id="lf-grid" aria-live="polite"></div>
   </div>
 
   <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
   <script src="js/image-preload.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
   <script src="js/icons.js"></script>
   <script src="js/rep-session.js"></script>
   <script src="js/rep-settings-sync.js"></script>
@@ -88,9 +127,12 @@
   <script src="js/layout-fix.js"></script>
   <script src="js/course-modules.js"></script>
   <script src="js/lead-display.js"></script>
+  <script src="js/lead-csv-format.js"></script>
   <script src="js/app.js"></script>
   <script src="js/leads-loader.js"></script>
   <script src="js/lead-sync.js"></script>
+  <script src="js/pending-lead-builder.js"></script>
+  <script src="js/dashboard-pending.js"></script>
   <script src="js/rep-profile-photo.js"></script>
   <script src="js/leads-page.js"></script>
 </body>

@@ -205,7 +205,7 @@
     const name = getName();
     const id = getId();
     if (!name && !id) return;
-    const label = name || id || "—";
+    const label = name || id || "-";
     ["bug-report-rep-name", "feedback-rep-name", "faq-qa-ask-rep"].forEach((elId) => {
       const el = document.getElementById(elId);
       if (el) el.textContent = label;
@@ -245,7 +245,7 @@
   function enforceTrackerIdentity() {
     const session = get();
     if (!session?.id) return;
-    const DEFAULT_GOAL = 2000;
+    const DEFAULT_GOAL = 1000;
     try {
       let data = JSON.parse(loadTrackerRaw() || "{}");
       if (!data || typeof data !== "object") data = {};

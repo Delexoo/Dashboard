@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Step 2 — Set up accounts · Sales Team Dashboard</title>
+  <title>Step 2 · Set up accounts · Sales Team Dashboard</title>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="css/site.css">
 </head>
@@ -12,7 +12,7 @@
   <div id="page-body">
     <div id="step-header-slot"></div>
     <h1>Set up accounts</h1>
-    <p class="lead">Do these <strong>2 setups in order</strong> (~10 min). Check each one off on the <a href="checklist.html">setup checklist</a> as you go.</p>
+    <p class="lead">Do these <strong>2 setups in order</strong> (~10 min). Complete each step in <a href="course-module.html?m=setup-accounts">Setup Accounts</a> as you go.</p>
 
     <div class="setup-steps">
       <article class="setup-step">
@@ -43,10 +43,10 @@
           <div id="payout-methods" class="payout-methods" role="group" aria-label="Payout app"></div>
 
           <div id="payout-input-panel" class="payout-input-panel" hidden>
-            <label class="payout-field-label" id="payout-field-label" for="payout-link-input">Paste your payout link</label>
+            <label class="payout-field-label" id="payout-field-label">Paste your payout link</label>
             <p id="payout-input-hint" class="payout-input-hint muted"></p>
             <div class="payout-input-row">
-              <input type="text" id="payout-link-input" class="payout-link-input" autocomplete="off" spellcheck="false" />
+              <div id="payout-link-field-host" class="payout-link-field-host"></div>
               <button type="button" class="btn" id="payout-save-btn">Save</button>
               <button type="button" class="btn secondary" id="payout-reset-btn">Reset</button>
             </div>
@@ -62,8 +62,11 @@
     <div id="step-footer-slot"></div>
   </div>
   <script src="js/config.js"></script>
+  <script src="js/private-config.js"></script>
+  <script src="js/config-merge.js"></script>
   <script src="js/image-preload.js"></script>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="js/supabase-client.js"></script>
   <script src="js/icons.js"></script>
   <script src="js/rep-session.js"></script>
   <script src="js/rep-settings-sync.js"></script>

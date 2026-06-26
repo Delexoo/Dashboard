@@ -24,8 +24,8 @@
 
   function readTheme() {
     const prefs = readPrefsRaw();
-    const c = prefs?.uiColor;
-    if (["current", "white", "green", "grey", "blue", "purple", "red"].includes(c)) return "light";
+    const c = normalizeUiColor(prefs?.uiColor);
+    if (["cream", "current", "white", "green", "grey", "blue", "purple", "red"].includes(c)) return "light";
     if (c === "black") return "dark";
     const device = localStorage.getItem(DEVICE_KEY);
     if (device === "light" || device === "dark" || device === "system") return device;
@@ -34,12 +34,19 @@
     return "light";
   }
 
+  function normalizeUiColor(c) {
+    if (c === "current") return "cream";
+    return c;
+  }
+
   function readUiColor() {
-    const c = readPrefsRaw()?.uiColor;
-    return ["current", "white", "black", "green", "grey", "blue", "purple", "red"].includes(c) ? c : "current";
+    const c = normalizeUiColor(readPrefsRaw()?.uiColor);
+    return ["cream", "white", "black", "green", "grey", "blue", "purple", "red"].includes(c) ? c : "white";
   }
 
   function readReduceMotion() {
+    const prefs = readPrefsRaw();
+    if (prefs?.reduceMotion === true) return true;
     return !!global.matchMedia?.("(prefers-reduced-motion: reduce)")?.matches;
   }
 
@@ -55,7 +62,7 @@
     }
 
     const uiColor = readUiColor();
-    if (uiColor === "current") html.removeAttribute("data-ui-color");
+    if (uiColor === "cream") html.removeAttribute("data-ui-color");
     else html.setAttribute("data-ui-color", uiColor);
 
     const rm = reduceMotion !== undefined ? reduceMotion : readReduceMotion();
