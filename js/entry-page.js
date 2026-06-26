@@ -85,6 +85,7 @@
     );
     if (needsSupabase) {
       await loadScript("https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2");
+      await loadScript("js/supabase-client.js");
     }
     await loadScript("js/rep-settings-sync.js");
     await loadScript("js/lock.js");
