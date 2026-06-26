@@ -99,6 +99,22 @@
     return String(global.RepSession?.getId?.() || global.RepSession?.get?.()?.id || "").trim();
   }
 
+  function resetAffectsCaller(info, caller) {
+    const id = String(caller || "").trim().toLowerCase();
+    if (!id || info?.action !== "reset") return false;
+    if (info.scope === "all_reps") return true;
+    return String(info.target || "").trim().toLowerCase() === id;
+  }
+
+  function clearCurrentRepLocalPlaytestData() {
+    try {
+      global.RepStorage?.clearSyncedLocalKeys?.();
+      global.RepStorage?.resetForRep?.();
+    } catch (e) {
+      console.warn("Playtest reset: could not clear local rep cache", e);
+    }
+  }
+
   function setStatus(msg, isError) {
     const el = $("owner-playtest-status");
     if (!el) return;
@@ -439,6 +455,9 @@
       }
 
       closeDialog();
+      if (resetAffectsCaller(info, caller)) {
+        clearCurrentRepLocalPlaytestData();
+      }
       setStatus(copy.success, false);
 
       if (global.OwnerSalesConsole?.refresh) {
