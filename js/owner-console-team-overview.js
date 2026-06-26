@@ -49,8 +49,13 @@
     const rows = [
       {
         label: "Total generated",
-        value: "$" + OTS.formatMoney(totals.earned),
+        value: "$" + OTS.formatMoney(totals.generated),
         highlight: true,
+      },
+      {
+        label: "Profit",
+        value: "$" + OTS.formatMoney(totals.profit),
+        sub: "After 40% rep commission",
       },
       { label: "Team sales", value: OTS.saleCountLabel(totals.sales) },
       { label: "Hours on platform", value: OTS.formatLifetimeHours(totals.activeMs) },

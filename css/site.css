@@ -22432,7 +22432,7 @@ html[data-theme="dark"] .owner-console-view-banner:hover {
 
 .dashboard-redesign.owner-console-page .owner-console-team-totals {
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 8px;
   margin: 0 0 12px;
   padding: 0;

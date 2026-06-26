@@ -4,6 +4,13 @@
 (function (global) {
   const META_KEY = "lpc_rep_session_meta_v1";
   const TRACKER_KEYS = ["lpc_sales_tracker_v2", "lpc_sales_tracker_v1"];
+  const COMMISSION_RATE = 0.4;
+  const SALE_TIERS_BY_COMMISSION = {
+    200: 500,
+    280: 700,
+    400: 1000,
+    600: 1500,
+  };
 
   let members = [];
 
@@ -13,6 +20,8 @@
       name: "",
       sales: 0,
       earned: 0,
+      generated: 0,
+      profit: 0,
       activeMs: 0,
       goal: 1000,
       lastOnlineAt: "",
@@ -75,6 +84,17 @@
     return null;
   }
 
+  function saleAmountFromDeal(deal) {
+    if (!deal) return 0;
+    const stored = Number(deal.saleAmount ?? deal.downAmount);
+    if (stored > 0) return stored;
+
+    const commission = Number(deal.commission) || 0;
+    if (!commission) return 0;
+
+    return SALE_TIERS_BY_COMMISSION[commission] || Math.round(commission / COMMISSION_RATE);
+  }
+
   function formatLastOnline(iso) {
     if (!iso) return { label: "No activity yet", online: false };
     const then = new Date(iso);
@@ -108,6 +128,8 @@
     const deals = Array.isArray(tracker?.deals) ? tracker.deals : [];
     member.sales = deals.length;
     member.earned = deals.reduce((sum, d) => sum + (Number(d.commission) || 0), 0);
+    member.generated = deals.reduce((sum, d) => sum + saleAmountFromDeal(d), 0);
+    member.profit = Math.max(0, member.generated - member.earned);
     member.goal = Math.max(1, Number(tracker?.goal) || 1000);
 
     const last = formatLastOnline(member.lastOnlineAt);
@@ -159,6 +181,8 @@
     const totals = {
       goal: 0,
       earned: 0,
+      generated: 0,
+      profit: 0,
       sales: 0,
       activeMs: 0,
       contributors: members.length,
@@ -168,6 +192,8 @@
     members.forEach((member) => {
       totals.goal += member.goal || 0;
       totals.earned += member.earned || 0;
+      totals.generated += member.generated || 0;
+      totals.profit += member.profit || 0;
       totals.sales += member.sales || 0;
       totals.activeMs += member.activeMs || 0;
       if (member.online) totals.onlineCount += 1;
