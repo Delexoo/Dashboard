@@ -69,6 +69,7 @@
   ];
 
   let busy = false;
+  let pendingAction = "reset";
 
   function $(id) {
     return document.getElementById(id);
@@ -252,7 +253,30 @@
     return ids.filter(Boolean);
   }
 
-  function buildSummary() {
+  function actionCopy(action) {
+    if (action === "seed") {
+      return {
+        title: "Confirm playtest data",
+        categories: "Add sample tracker deals, submitted leads, team workflow, payout method, feedback, bug, and FAQ data.",
+        note: "Existing playtest rows are replaced. PIN accounts and the Lead Finder business list are never changed.",
+        status: "Adding playtest data…",
+        success: "Playtest data added.",
+        submit: "Add data",
+        danger: false,
+      };
+    }
+    return {
+      title: "Confirm playtest reset",
+      categories: null,
+      note: "PIN accounts and the Lead Finder business list are never deleted.",
+      status: "Resetting playtest data…",
+      success: "Playtest data reset complete.",
+      submit: "Reset data",
+      danger: true,
+    };
+  }
+
+  function buildSummary(action) {
     const scope = document.querySelector('input[name="owner-playtest-scope"]:checked')?.value || "all_reps";
     const target = String($("owner-playtest-rep")?.value || "").trim();
     const datasets = selectedDatasets();
@@ -265,24 +289,34 @@
     const datasetLabels = datasets
       .map((id) => datasetById(id)?.label || id)
       .filter(Boolean);
-    return { scope, target, datasets, scopeLabel, datasetLabels };
+    return { scope, target, datasets, scopeLabel, datasetLabels, action };
   }
 
-  function openDialog() {
+  function openDialog(action) {
     const dialog = $("owner-playtest-dialog");
+    const title = $("owner-playtest-dialog-title");
     const summary = $("owner-playtest-summary");
     const pinInput = $("owner-playtest-pin");
+    const submit = $("owner-playtest-submit");
     const err = $("owner-playtest-error");
     if (!dialog || !summary) return;
 
-    const info = buildSummary();
+    pendingAction = action === "seed" ? "seed" : "reset";
+    const copy = actionCopy(pendingAction);
+    const info = buildSummary(pendingAction);
     if (info.scope === "one_rep" && !info.target) {
-      setStatus("Choose a rep for a single-rep reset.", true);
+      setStatus("Choose a rep for this playtest action.", true);
       return;
     }
-    if (!info.datasets.length) {
+    if (pendingAction === "reset" && !info.datasets.length) {
       setStatus("Select at least one data category to reset.", true);
       return;
+    }
+
+    if (title) title.textContent = copy.title;
+    if (submit) {
+      submit.textContent = copy.submit;
+      submit.classList.toggle("owner-console-dialog-btn--danger", copy.danger);
     }
 
     summary.innerHTML =
@@ -295,10 +329,12 @@
       '<div class="owner-console-detail-row">' +
       "<dt>Categories</dt>" +
       "<dd>" +
-      esc(info.datasetLabels.join(" · ")) +
+      esc(copy.categories || info.datasetLabels.join(" · ")) +
       "</dd>" +
       "</div>" +
-      '<p class="owner-console-dialog-credit owner-playtest-summary-note">PIN accounts and the Lead Finder business list are never deleted.</p>';
+      '<p class="owner-console-dialog-credit owner-playtest-summary-note">' +
+      esc(copy.note) +
+      "</p>";
 
     if (pinInput) {
       pinInput.value = "";
@@ -339,7 +375,7 @@
     }
   }
 
-  async function submitReset() {
+  async function submitPlaytestAction() {
     if (busy) return;
     const sb = getClient();
     const submitBtn = $("owner-playtest-submit");
@@ -360,7 +396,7 @@
       return;
     }
 
-    const info = buildSummary();
+    const info = buildSummary(pendingAction);
     const pin = String(pinInput?.value || "").trim();
     if (!pin) {
       if (err) {
@@ -373,16 +409,21 @@
 
     busy = true;
     if (submitBtn) submitBtn.disabled = true;
-    setStatus("Resetting playtest data…");
+    const copy = actionCopy(pendingAction);
+    setStatus(copy.status);
 
     try {
-      const { data, error } = await sb.rpc("reset_playtest_data", {
+      const args = {
         p_caller_rep_id: caller,
         p_pin: pin,
         p_scope: info.scope,
         p_target_rep_id: info.scope === "one_rep" ? info.target : null,
-        p_datasets: info.datasets,
-      });
+      };
+      const rpcName = pendingAction === "seed" ? "seed_playtest_data" : "reset_playtest_data";
+      const { data, error } =
+        pendingAction === "seed"
+          ? await sb.rpc(rpcName, args)
+          : await sb.rpc(rpcName, { ...args, p_datasets: info.datasets });
 
       if (error) throw error;
 
@@ -398,7 +439,7 @@
       }
 
       closeDialog();
-      setStatus("Playtest data reset complete.", false);
+      setStatus(copy.success, false);
 
       if (global.OwnerSalesConsole?.refresh) {
         await global.OwnerSalesConsole.refresh();
@@ -421,14 +462,15 @@
   }
 
   function bindEvents() {
-    $("owner-playtest-open")?.addEventListener("click", openDialog);
+    $("owner-playtest-open")?.addEventListener("click", () => openDialog("reset"));
+    $("owner-playtest-seed-open")?.addEventListener("click", () => openDialog("seed"));
     $("owner-playtest-cancel")?.addEventListener("click", (e) => {
       e.preventDefault();
       closeDialog();
     });
     $("owner-playtest-form")?.addEventListener("submit", (e) => {
       e.preventDefault();
-      void submitReset();
+      void submitPlaytestAction();
     });
     $("owner-playtest-dialog")?.addEventListener("click", (e) => {
       if (e.target === $("owner-playtest-dialog")) closeDialog();

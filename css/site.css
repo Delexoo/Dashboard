@@ -23804,11 +23804,24 @@ html[data-theme="dark"] .dashboard-redesign.owner-console-page .owner-console-fi
   gap: 8px;
 }
 
-.dashboard-redesign.owner-console-page .owner-playtest-reset-btn {
+.dashboard-redesign.owner-console-page .owner-playtest-reset-btn,
+.dashboard-redesign.owner-console-page .owner-playtest-seed-btn {
   min-height: 34px;
   padding-inline: 14px;
   font-size: 12px;
   font-weight: 650;
+}
+
+.dashboard-redesign.owner-console-page .owner-playtest-seed-btn {
+  border-color: color-mix(in srgb, #047857 24%, var(--border));
+  color: #047857;
+}
+
+.dashboard-redesign.owner-console-page .owner-playtest-seed-btn:hover,
+.dashboard-redesign.owner-console-page .owner-playtest-seed-btn:focus-visible {
+  background: color-mix(in srgb, #047857 8%, var(--surface));
+  border-color: color-mix(in srgb, #047857 42%, var(--border));
+  color: #047857;
 }
 
 .dashboard-redesign.owner-console-page .owner-playtest-status {
