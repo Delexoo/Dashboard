@@ -3,7 +3,44 @@
  * without loading Supabase, image preloads, or the lock UI.
  */
 (function (global) {
+  const PWA_MANIFEST_URL = "/manifest.json";
+  const PWA_THEME_COLOR = "#0f172a";
   const PROGRESS_KEY = "lpc_sales_onboarding_progress_v1";
+
+  function ensurePwaMetadata() {
+    if (!global.document.head) return;
+
+    if (!global.document.querySelector('link[rel="manifest"]')) {
+      const manifest = global.document.createElement("link");
+      manifest.rel = "manifest";
+      manifest.href = PWA_MANIFEST_URL;
+      global.document.head.appendChild(manifest);
+    }
+
+    if (!global.document.querySelector('meta[name="theme-color"]')) {
+      const theme = global.document.createElement("meta");
+      theme.name = "theme-color";
+      theme.content = PWA_THEME_COLOR;
+      global.document.head.appendChild(theme);
+    }
+  }
+
+  function canRegisterServiceWorker() {
+    const host = global.location.hostname;
+    return (
+      "serviceWorker" in global.navigator &&
+      (global.location.protocol === "https:" ||
+        host === "localhost" ||
+        host === "127.0.0.1")
+    );
+  }
+
+  function registerPwaServiceWorker() {
+    if (!canRegisterServiceWorker()) return;
+    global.navigator.serviceWorker.register("/sw.js").catch((error) => {
+      console.warn("Service worker registration failed", error);
+    });
+  }
 
   function isEntryPage() {
     return global.document?.documentElement?.dataset?.loginRedirect === "entry";
@@ -94,6 +131,13 @@
 
   function boot() {
     if (!isEntryPage()) return;
+
+    ensurePwaMetadata();
+    if (global.document.readyState === "loading") {
+      global.addEventListener("load", registerPwaServiceWorker, { once: true });
+    } else {
+      registerPwaServiceWorker();
+    }
 
     if (isSignedIn() && redirectToLanding()) return;
 

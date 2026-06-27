@@ -1,5 +1,50 @@
 (function () {
   const global = window;
+  const PWA_MANIFEST_URL = "/manifest.json";
+  const PWA_THEME_COLOR = "#0f172a";
+
+  function ensurePwaMetadata() {
+    if (!document.head) return;
+
+    if (!document.querySelector('link[rel="manifest"]')) {
+      const manifest = document.createElement("link");
+      manifest.rel = "manifest";
+      manifest.href = PWA_MANIFEST_URL;
+      document.head.appendChild(manifest);
+    }
+
+    if (!document.querySelector('meta[name="theme-color"]')) {
+      const theme = document.createElement("meta");
+      theme.name = "theme-color";
+      theme.content = PWA_THEME_COLOR;
+      document.head.appendChild(theme);
+    }
+  }
+
+  function canRegisterServiceWorker() {
+    const host = window.location.hostname;
+    return (
+      "serviceWorker" in navigator &&
+      (window.location.protocol === "https:" ||
+        host === "localhost" ||
+        host === "127.0.0.1")
+    );
+  }
+
+  function registerPwaServiceWorker() {
+    if (!canRegisterServiceWorker()) return;
+    navigator.serviceWorker.register("/sw.js").catch((error) => {
+      console.warn("Service worker registration failed", error);
+    });
+  }
+
+  ensurePwaMetadata();
+  if (document.readyState === "loading") {
+    window.addEventListener("load", registerPwaServiceWorker, { once: true });
+  } else {
+    registerPwaServiceWorker();
+  }
+
   if (!window.SiteOwner) {
     function isSiteOwner() {
       const id = String(
