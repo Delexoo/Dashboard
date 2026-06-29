@@ -46,20 +46,74 @@ function fieldLine(label, value) {
   return `<b>${escapeHtml(label)}:</b> ${escapeHtml(v)}`;
 }
 
+function formatTimestamp(value) {
+  const v = String(value ?? "").trim();
+  if (!v) return "";
+  const d = new Date(v);
+  if (Number.isNaN(d.getTime())) return v;
+  return d.toLocaleString("en-US", {
+    timeZone: "America/Los_Angeles",
+    dateStyle: "medium",
+    timeStyle: "short",
+  });
+}
+
+function humanizeKey(key) {
+  return String(key)
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+// Lead Builder form fields, in the exact order they appear on template.html.
+const LEAD_BUILDER_FIELDS = [
+  ["business_name", "Business Name"],
+  ["price", "Price"],
+  ["google_maps", "Google Maps"],
+  ["phone", "Phone"],
+  ["preference", "Preference"],
+  ["owner_name", "Owner Name"],
+];
+
+// Fields shown in their own sections (or intentionally hidden) so the
+// "Other details" catch-all doesn't repeat them.
+const HANDLED_KEYS = new Set([
+  ...LEAD_BUILDER_FIELDS.map(([k]) => k),
+  "id",
+  "rep_id",
+  "rep_name",
+  "lead_id",
+  "created_at",
+  "sale_status",
+]);
+
 function formatLeadMessage(record) {
   const r = record || {};
-  const lines = [
-    "🟢 <b>New lead submitted</b>",
-    "",
-    fieldLine("Business", r.business_name),
+  const lines = ["🟢 <b>New Lead Submitted</b>", ""];
+
+  // 1) The lead, formatted exactly like the Lead Builder form.
+  for (const [key, label] of LEAD_BUILDER_FIELDS) {
+    const line = fieldLine(label, r[key]);
+    if (line) lines.push(line);
+  }
+
+  // 2) Submission metadata.
+  const meta = [
     fieldLine("Submitted by", r.rep_name || r.rep_id),
-    fieldLine("Price", r.price),
-    fieldLine("Owner", r.owner_name),
-    fieldLine("Phone", r.phone),
-    fieldLine("Preference", r.preference),
-    fieldLine("Google Maps", r.google_maps),
     fieldLine("Lead ID", r.lead_id),
+    fieldLine("Submitted", formatTimestamp(r.created_at)),
+    r.sale_status && r.sale_status !== "submitted"
+      ? fieldLine("Sale status", r.sale_status)
+      : null,
   ].filter(Boolean);
+  if (meta.length) lines.push("", "—", ...meta);
+
+  // 3) Catch-all: any other non-empty field, just in case.
+  const extras = Object.keys(r)
+    .filter((k) => !HANDLED_KEYS.has(k) && String(r[k] ?? "").trim() !== "")
+    .map((k) => fieldLine(humanizeKey(k), r[k]))
+    .filter(Boolean);
+  if (extras.length) lines.push("", "<b>Other details</b>", ...extras);
+
   return lines.join("\n");
 }
 
@@ -151,6 +205,10 @@ app.get("/get-chat-id", async (req, res) => {
   }
 });
 
-app.listen(PORT, () => {
-  console.log(`Lead Alert Bot listening on port ${PORT}`);
-});
+if (require.main === module) {
+  app.listen(PORT, () => {
+    console.log(`Lead Alert Bot listening on port ${PORT}`);
+  });
+}
+
+module.exports = { app, formatLeadMessage, sendTelegram };
