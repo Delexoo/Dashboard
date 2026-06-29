@@ -1001,6 +1001,23 @@
     }
   }
 
+  const NI_FIELD_ICONS = {
+    called:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    phone:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+    category:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4"/></svg>',
+    address:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+    rating:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"/></svg>',
+    id:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>',
+    reason:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/></svg>',
+  };
+
   function renderNotInterested() {
     const list = $("owner-ni-list");
     const empty = $("owner-ni-empty");
@@ -1039,69 +1056,141 @@
         const website = String(row.website || "").trim();
         const websiteEsc = esc(website);
         const ratingPlain = formatNiRatingPlain(row);
-        const dot = '<span class="dash-pending-dot" aria-hidden="true">·</span>';
-
-        const primaryBits = [];
-        if (rep) {
-          primaryBits.push('<span class="owner-console-lead-rep">' + esc(rep) + "</span>");
-        }
-        if (when) {
-          primaryBits.push(
-            '<time class="dash-pending-time" datetime="' + esc(whenIso) + '">' + when + "</time>"
+        const niRows = [];
+        const niRow = (label, valueHtml, icon) => {
+          if (!valueHtml) return;
+          niRows.push(
+            '<div class="owner-console-ni-row">' +
+            '<dt class="owner-console-ni-row-label">' +
+            (icon
+              ? '<span class="owner-console-ni-row-ico" aria-hidden="true">' + icon + "</span>"
+              : "") +
+            "<span>" + label + "</span>" +
+            "</dt>" +
+            '<dd class="owner-console-ni-row-value">' + valueHtml + "</dd>" +
+            "</div>"
           );
-        }
-        if (phoneEsc) primaryBits.push("<span>" + phoneEsc + "</span>");
+        };
 
-        const primaryHtml = primaryBits.length
-          ? '<p class="dash-pending-subline owner-console-lead-meta">' + primaryBits.join(dot) + "</p>"
+        const whenVal = when
+          ? '<time datetime="' + esc(whenIso) + '">' + when + "</time>"
+          : "";
+        const phoneVal = phoneEsc
+          ? tel
+            ? '<a class="owner-console-ni-detail-link" href="' + esc(tel) + '">' + phoneEsc + "</a>"
+            : phoneEsc
           : "";
 
-        const detailBits = [];
-        if (category) detailBits.push("<span>" + esc(category) + "</span>");
-        if (address) detailBits.push("<span>" + esc(address) + "</span>");
-        if (ratingPlain) detailBits.push("<span>" + esc(ratingPlain) + "</span>");
-        if (!detailBits.length && leadId) detailBits.push("<span>" + leadId + "</span>");
+        niRow("Called", whenVal, NI_FIELD_ICONS.called);
+        niRow("Phone", phoneVal, NI_FIELD_ICONS.phone);
+        niRow("Category", category ? esc(category) : "", NI_FIELD_ICONS.category);
+        niRow("Address", address ? esc(address) : "", NI_FIELD_ICONS.address);
+        niRow("Rating", ratingPlain ? esc(ratingPlain) : "", NI_FIELD_ICONS.rating);
+        niRow(
+          "Lead ID",
+          leadId ? '<code class="owner-console-ni-id">' + leadId + "</code>" : "",
+          NI_FIELD_ICONS.id
+        );
 
-        const detailHtml = detailBits.length
-          ? '<p class="dash-pending-subline owner-console-lead-meta owner-console-ni-detail">' +
-            detailBits.join(dot) +
-            "</p>"
+        const gridHtml = niRows.length
+          ? '<dl class="owner-console-ni-grid">' + niRows.join("") + "</dl>"
           : "";
+
+        const reason = String(row.not_interested_reason || "").trim();
+        const reasonHtml =
+          '<div class="owner-console-ni-reason-box' +
+          (reason ? "" : " owner-console-ni-reason-box--empty") +
+          '">' +
+          '<span class="owner-console-ni-reason-label">' +
+          '<span class="owner-console-ni-reason-ico" aria-hidden="true">' +
+          NI_FIELD_ICONS.reason +
+          "</span>Reason for not interested</span>" +
+          '<p class="owner-console-ni-reason-text">' +
+          (reason ? esc(reason) : "No comment left.") +
+          "</p>" +
+          "</div>";
+
+        const niAction = (href, attrs, icon, label, aria) =>
+          '<a class="owner-console-ni-action" href="' +
+          href +
+          '"' +
+          attrs +
+          ' aria-label="' +
+          aria +
+          '"><span class="owner-console-ni-action-ico" data-icon="' +
+          icon +
+          '" data-icon-class="owner-console-ni-action-ico-svg" aria-hidden="true"></span>' +
+          '<span class="owner-console-ni-action-label">' +
+          label +
+          "</span></a>";
+
+        const actionButtons =
+          (tel ? niAction(esc(tel), "", "phone", "Call", "Call " + biz) : "") +
+          (mapsUrl && mapsUrl !== "#"
+            ? niAction(
+                mapsEsc,
+                ' target="_blank" rel="noopener noreferrer"',
+                "map-pin",
+                "Maps",
+                "Open in Maps"
+              )
+            : "") +
+          (website
+            ? niAction(
+                websiteEsc,
+                ' target="_blank" rel="noopener noreferrer"',
+                "globe",
+                "Website",
+                "Open website"
+              )
+            : "");
+
+        const actionsHtml = actionButtons
+          ? '<div class="owner-console-ni-actions">' + actionButtons + "</div>"
+          : "";
+
+        const repHtml = rep
+          ? '<span class="owner-console-ni-rep"><span class="owner-console-ni-rep-label">Rep</span>' +
+            esc(rep) +
+            "</span>"
+          : '<span class="owner-console-ni-rep owner-console-ni-rep--empty">Unknown rep</span>';
 
         return (
           '<li class="dash-pending-item owner-console-lead-item owner-console-ni-item" data-lead-id="' +
           leadId +
           '">' +
-          '<div class="dash-pending-item-body">' +
-          '<p class="dash-pending-name">' +
+          '<button type="button" class="owner-console-ni-head" aria-expanded="false">' +
+          '<span class="owner-console-ni-head-main">' +
+          '<span class="dash-pending-name owner-console-ni-name">' +
           biz +
-          "</p>" +
-          primaryHtml +
-          detailHtml +
-          "</div>" +
-          '<div class="dash-pending-item-actions owner-console-ni-actions">' +
-          (tel
-            ? '<a class="dash-pending-icon-btn owner-console-ni-icon-btn" href="' +
-              esc(tel) +
-              '" title="Call" aria-label="Call ' +
-              biz +
-              '"><span data-icon="phone" data-icon-class="dash-pending-ico"></span></a>'
-            : "") +
-          (mapsUrl && mapsUrl !== "#"
-            ? '<a class="dash-pending-icon-btn owner-console-ni-icon-btn" href="' +
-              mapsEsc +
-              '" target="_blank" rel="noopener noreferrer" title="Maps" aria-label="Open in Maps"><span data-icon="map-pin" data-icon-class="dash-pending-ico"></span></a>'
-            : "") +
-          (website
-            ? '<a class="dash-pending-icon-btn owner-console-ni-icon-btn" href="' +
-              websiteEsc +
-              '" target="_blank" rel="noopener noreferrer" title="Website" aria-label="Open website"><span data-icon="globe" data-icon-class="dash-pending-ico"></span></a>'
-            : "") +
+          "</span>" +
+          repHtml +
+          "</span>" +
+          '<span class="owner-console-ni-chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>' +
+          "</button>" +
+          '<div class="owner-console-ni-details" hidden>' +
+          gridHtml +
+          reasonHtml +
+          actionsHtml +
           "</div>" +
           "</li>"
         );
       })
       .join("");
+
+    if (!list.dataset.niToggleBound) {
+      list.dataset.niToggleBound = "1";
+      list.addEventListener("click", (e) => {
+        const head = e.target.closest(".owner-console-ni-head");
+        if (!head || !list.contains(head)) return;
+        const item = head.closest(".owner-console-ni-item");
+        if (!item) return;
+        const details = item.querySelector(".owner-console-ni-details");
+        const open = item.classList.toggle("is-open");
+        head.setAttribute("aria-expanded", open ? "true" : "false");
+        if (details) details.hidden = !open;
+      });
+    }
 
     if (global.SiteIcons) global.SiteIcons.initIcons(list);
   }
@@ -1117,7 +1206,7 @@
     }
 
     const fullSelect =
-      "lead_id, business_name, phone, google_maps, category, address, called_by, called_by_id, called_at, workflow, updated_at";
+      "lead_id, business_name, phone, google_maps, category, address, not_interested_reason, called_by, called_by_id, called_at, workflow, updated_at";
     const basicSelect =
       "lead_id, business_name, called_by, called_by_id, called_at, workflow, updated_at";
 
@@ -1140,7 +1229,7 @@
       ({ data, error } = await queryNotInterested(fullSelect));
       if (
         error &&
-        /phone|google_maps|category|address|column.*does not exist/i.test(String(error.message || error))
+        /phone|google_maps|category|address|not_interested_reason|column.*does not exist/i.test(String(error.message || error))
       ) {
         ({ data, error } = await queryNotInterested(basicSelect));
       }

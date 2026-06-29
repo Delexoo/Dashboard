@@ -548,11 +548,11 @@
     if (step.id === "telegram-optional") {
       return (
         `<div class="survey-step" data-step="${esc(step.id)}">` +
-        `<h2 class="survey-question">Join the team business chat? <span class="survey-optional-tag">Optional</span></h2>` +
-        `<p class="survey-sub">Telegram is for team updates and questions. <strong>Leads are sent through Lead Builder on the website</strong> · you do not need Telegram to submit interested businesses.</p>` +
+        `<h2 class="survey-question">Join the team business chat <span class="survey-optional-tag survey-optional-tag--rec">Recommended</span></h2>` +
+        `<p class="survey-sub">We strongly recommend joining — it's where the team shares updates, tips, and quick answers. <strong>Leads are still sent through Lead Builder on the website</strong>, so it's not required, but you'll get a lot more out of it.</p>` +
         `<div class="survey-choices" role="group" aria-label="Join Telegram chat">` +
         `<button type="button" class="survey-choice-btn" data-telegram-opt="yes">Yes, I'd like to join</button>` +
-        `<button type="button" class="survey-choice-btn secondary" data-telegram-opt="no">No thanks · skip for now</button>` +
+        `<button type="button" class="survey-choice-btn secondary" data-telegram-opt="no">Maybe later</button>` +
         `</div>` +
         `</div>`
       );
@@ -683,14 +683,14 @@
 
         `<div class="survey-step" data-step="${esc(step.id)}">` +
 
-        `<h2 class="survey-question">Join the team business chat <span class="survey-optional-tag">Optional</span></h2>` +
+        `<h2 class="survey-question">Join the team business chat <span class="survey-optional-tag survey-optional-tag--rec">Recommended</span></h2>` +
 
-        `<p class="survey-sub">Open the link, join the group if you want team updates, then tap below · or skip for now.</p>` +
+        `<p class="survey-sub">Open the link and join the group — it's the best way to stay in the loop with the team. You can still skip for now if you'd rather, then tap below.</p>` +
         `<div class="survey-action-block">${telegramTeamLink()}</div>` +
         `<div class="survey-choices survey-choices--join">` +
         `<button type="button" class="survey-choice-btn secondary" data-telegram-skip>Skip for now</button>` +
         `<button type="button" class="survey-choice-btn survey-proceed-btn" data-join-advance>` +
-        `<span class="survey-proceed-label">Joined · continue</span>` +
+        `<span class="survey-proceed-label">Next</span>` +
         `<span class="survey-proceed-arrow" aria-hidden="true">→</span>` +
         `</button></div></div>`
       );

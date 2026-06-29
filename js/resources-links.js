@@ -60,7 +60,7 @@
         ["business", "The Business"],
         ["setup-accounts", "Setup Accounts"],
         ["dashboard", "Platform Tour"],
-        ["everyday-tasks", "Everyday Tasks"],
+        ["everyday-tasks", "Sales Tasks"],
       ].forEach(([id, title], i) => {
         rows.push(internalRow(title, "course-module.html?m=" + id, "Module " + (i + 1)));
       });
@@ -170,7 +170,7 @@
           internalRow("Terms of service", "terms.html"),
           internalRow("accounts.html", "accounts.html", "→ setup.html"),
           internalRow("earnings.html", "earnings.html", "→ FAQ How you get paid"),
-          internalRow("everyday-tasks.html", "everyday-tasks.html", "→ Course Everyday Tasks"),
+          internalRow("everyday-tasks.html", "everyday-tasks.html", "→ Course Sales Tasks"),
           internalRow("workflow.html", "workflow.html", "→ Course Platform Tour"),
           internalRow("Sign in", "index.html", "PIN gate"),
         ],

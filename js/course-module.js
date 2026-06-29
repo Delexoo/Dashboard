@@ -51,7 +51,7 @@
     { label: "Website Agency", hrefKey: "telegramTeam", external: true, phrase: true },
     { label: "Team Telegram", hrefKey: "telegramTeam", external: true, phrase: true },
     { label: "Setup Accounts", href: "course-module.html?m=setup-accounts", phrase: true },
-    { label: "Everyday Tasks", href: "course-module.html?m=everyday-tasks", phrase: true },
+    { label: "Sales Tasks", href: "course-module.html?m=everyday-tasks", phrase: true },
     { label: "Platform Tour", href: "course-module.html?m=dashboard", phrase: true },
     { label: "Lead Finder", href: "leads.html", phrase: true },
     { label: "Lead Builder", href: "template.html", phrase: true },
@@ -284,11 +284,11 @@
 
   function everydayTasksPanelBlock() {
     return (
-      '<aside class="course-module-aside course-module-aside--survey" id="course-module-aside" aria-label="Everyday Tasks steps">' +
+      '<aside class="course-module-aside course-module-aside--survey" id="course-module-aside" aria-label="Sales Tasks steps">' +
       '<div class="course-side-panel course-side-panel--survey course-side-panel--everyday" id="course-side-panel">' +
       '<div class="course-everyday-embed" id="course-everyday-embed">' +
       '<p class="course-everyday-embed-title">Daily loop</p>' +
-      '<p class="course-everyday-embed-lead muted">Six steps for each workday.</p>' +
+      '<p class="course-everyday-embed-lead muted">Five steps for each workday.</p>' +
       '<div class="course-everyday-steps" id="course-everyday-table-wrap">' +
       '<ol class="everyday-tasks-list course-everyday-list" id="course-everyday-tasks-body"></ol>' +
       "</div>" +

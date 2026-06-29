@@ -390,6 +390,7 @@
       if (extra.googleMaps) row.google_maps = extra.googleMaps;
       if (extra.category) row.category = extra.category;
       if (extra.address) row.address = extra.address;
+      if (extra.reason) row.not_interested_reason = extra.reason;
     }
     let { error } = await client.from("lead_status").upsert(row, { onConflict: "lead_id" });
     if (
@@ -410,12 +411,13 @@
     }
     if (
       error &&
-      /phone|google_maps|category|address|column.*does not exist/i.test(String(error.message || error))
+      /phone|google_maps|category|address|not_interested_reason|column.*does not exist/i.test(String(error.message || error))
     ) {
       delete row.phone;
       delete row.google_maps;
       delete row.category;
       delete row.address;
+      delete row.not_interested_reason;
       ({ error } = await client.from("lead_status").upsert(row, { onConflict: "lead_id" }));
     }
     if (error) throw error;
@@ -680,6 +682,30 @@
     return map;
   }
 
+  /** Re-read + re-emit the latest status in whichever mode is active (team or local). */
+  async function refresh() {
+    if (canUseTeam() && client) {
+      return refreshTeam();
+    }
+    const map = {};
+    Object.entries(loadLocal()).forEach(([id, entry]) => {
+      const n = normalizeEntry(entry);
+      if (
+        n.workflow === "complete" ||
+        n.workflow === "pending" ||
+        n.workflow === "building" ||
+        n.workflow === "not-interested"
+      )
+        map[id] = n;
+    });
+    emitUpdate(mergePersonalOverlay(map), {
+      mode: "local",
+      source: "refresh",
+      force: true,
+    });
+    return map;
+  }
+
   function isConfigured() {
     return canUseTeam();
   }
@@ -700,6 +726,7 @@
       googleMaps: String(d.googleMaps || d.google_maps || "").trim(),
       category: String(d.category || "").trim(),
       address: String(d.address || "").trim(),
+      reason: String(d.reason || d.not_interested_reason || "").trim(),
     };
   }
 
@@ -730,6 +757,7 @@
       p_google_maps: extra.googleMaps || null,
       p_category: extra.category || null,
       p_address: extra.address || null,
+      p_reason: extra.reason || null,
     });
 
     if (!rpcError) {
@@ -824,6 +852,7 @@
     getMode,
     isConfigured,
     refreshTeam,
+    refresh,
     addUpdateListener,
     savePendingLocalSnapshot,
     clearPendingLocalSnapshot,

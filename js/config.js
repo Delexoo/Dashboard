@@ -59,8 +59,8 @@ window.SITE_CONFIG = {
   email: "fullprofessionalwebsites@outlook.com",
   phone: "(401) 300-0957",
   packages: [
-    { upfront: "$500", monthly: "$5/mo", commission: "$200" },
-    { upfront: "$700", monthly: "$20/mo", commission: "$280" },
+    { upfront: "$500", monthly: "$10/mo", commission: "$200" },
+    { upfront: "$700", monthly: "$10/mo", commission: "$280" },
     { upfront: "$1,000", monthly: "$10/mo", commission: "$400" },
     { upfront: "$1,500", monthly: "$10/mo", commission: "$600" }
   ],

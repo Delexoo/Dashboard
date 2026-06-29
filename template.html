@@ -37,6 +37,9 @@
         <div class="site-leave-dialog-panel tpl-action-dialog-panel" id="tpl-action-dialog-panel">
           <h2 class="site-leave-dialog-title" id="tpl-action-dialog-title"></h2>
           <p class="site-leave-dialog-text" id="tpl-action-dialog-text"></p>
+          <div class="tpl-action-dialog-field" id="tpl-action-dialog-field" hidden>
+            <textarea id="tpl-action-dialog-input" class="tpl-action-dialog-input" rows="3" placeholder="Type the reason here…"></textarea>
+          </div>
           <div class="site-leave-dialog-actions" id="tpl-action-dialog-actions"></div>
         </div>
       </dialog>
@@ -54,12 +57,21 @@
         <div class="tpl-row tpl-field">
           <label class="tpl-label">Price</label>
           <div class="tpl-row-body">
-            <div class="tpl-row-fields tpl-row-fields--pills">
-              <button type="button" class="pill" id="btn-p500" onclick="setTplPrice('$500')">$500</button>
-              <button type="button" class="pill" id="btn-p700" onclick="setTplPrice('$700')">$700</button>
-              <button type="button" class="pill" id="btn-p1000" onclick="setTplPrice('$1,000')">$1,000</button>
-              <button type="button" class="pill" id="btn-p1500" onclick="setTplPrice('$1,500')">$1,500</button>
+            <div class="tpl-row-fields tpl-row-fields--pills tpl-row-fields--price">
+              <button type="button" class="pill tpl-price-pill" id="btn-p500" onclick="setTplPrice('$500')">
+                <span class="tpl-price-amount">$500</span>
+              </button>
+              <button type="button" class="pill tpl-price-pill" id="btn-p700" onclick="setTplPrice('$700')">
+                <span class="tpl-price-amount">$700</span>
+              </button>
+              <button type="button" class="pill tpl-price-pill" id="btn-p1000" onclick="setTplPrice('$1,000')">
+                <span class="tpl-price-amount">$1,000</span>
+              </button>
+              <button type="button" class="pill tpl-price-pill" id="btn-p1500" onclick="setTplPrice('$1,500')">
+                <span class="tpl-price-amount">$1,500</span>
+              </button>
             </div>
+            <div class="tpl-price-details" id="tpl-price-details" hidden></div>
           </div>
         </div>
 
@@ -168,15 +180,15 @@
             <li class="tpl-help-step">
               <div class="tpl-help-step-copy">
                 <strong>Price</strong>
-                <span>You choose the price · use what you quoted on the call. Build Lead may suggest a tier from review count; change it anytime.</span>
+                <span>You choose the price · use what you quoted on the call. Build Lead may suggest a tier from review count; change it anytime. Each tier includes a $10/mo maintenance fee: Basic $500 +$10/mo · Standard $700 +$10/mo · Deluxe $1,000 +$10/mo · Premium $1,500 +$10/mo.</span>
               </div>
               <div class="tpl-help-demo" aria-hidden="true">
                 <span class="tpl-label">Price</span>
                 <span class="tpl-help-demo-fields">
-                  <span class="pill">$500</span>
-                  <span class="pill">$700</span>
-                  <span class="pill">$1,000</span>
-                  <span class="pill">$1,500</span>
+                  <span class="pill tpl-price-pill"><span class="tpl-price-amount">$500</span></span>
+                  <span class="pill tpl-price-pill"><span class="tpl-price-amount">$700</span></span>
+                  <span class="pill tpl-price-pill"><span class="tpl-price-amount">$1,000</span></span>
+                  <span class="pill tpl-price-pill"><span class="tpl-price-amount">$1,500</span></span>
                 </span>
               </div>
             </li>

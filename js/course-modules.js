@@ -335,9 +335,9 @@
     {
       id: "everyday-tasks",
       num: 6,
-      title: "Everyday Tasks",
+      title: "Sales Tasks",
       summary:
-        "What you do every workday to close deals. Watch the demo, then follow the six steps on the right each day.",
+        "What you do every workday to close deals. Watch the demo, then follow the five steps on the right each day.",
       duration: "~5 min",
       progressKey: "module_everyday_tasks",
       alsoProgress: ["everyday_tasks", "daily", "workflow"],

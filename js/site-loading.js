@@ -21,6 +21,8 @@
   function isPageReady() {
     if (document.readyState === "loading") return false;
     if (!hasAppShell()) return true;
+    // The agreement gate is an interactive overlay, not a loading state.
+    if (document.getElementById("site-agreement")) return true;
     if (isLockPending()) return !!document.getElementById("site-lock");
     return document.body?.dataset?.appBooted === "1";
   }

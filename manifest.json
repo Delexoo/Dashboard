@@ -5,6 +5,10 @@
   "start_url": "./",
   "scope": "./",
   "display": "standalone",
+  "orientation": "any",
+  "lang": "en",
+  "dir": "ltr",
+  "categories": ["business", "productivity"],
   "background_color": "#f4f6f9",
   "theme_color": "#0f172a",
   "icons": [

@@ -25,25 +25,25 @@
       id: "cashapp",
       label: "Cash App",
       short: "$",
-      placeholder: "cash.app/$yourname",
-      hint: "Paste your Cash App link or $cashtag URL",
-      fieldLabel: "Paste your payout link",
+      placeholder: "$cashtag",
+      hint: "Type your $cashtag, or paste your Cash App link",
+      fieldLabel: "Enter your Cash App username or link",
     },
     {
       id: "venmo",
       label: "Venmo",
       short: "V",
-      placeholder: "venmo.com/u/yourname",
-      hint: "Paste your Venmo profile link",
-      fieldLabel: "Paste your payout link",
+      placeholder: "@username",
+      hint: "Type your @username, or paste your Venmo link",
+      fieldLabel: "Enter your Venmo username or link",
     },
     {
       id: "paypal",
       label: "PayPal",
       short: "P",
-      placeholder: "paypal.me/yourname",
-      hint: "Paste your PayPal.me link",
-      fieldLabel: "Paste your payout link",
+      placeholder: "@username",
+      hint: "Type your PayPal.me username, or paste your link",
+      fieldLabel: "Enter your PayPal username or link",
     },
     {
       id: "zelle",
@@ -815,7 +815,7 @@
     }
     if (method === "paypal") {
       if (t.includes("paypal.")) return "https://" + t.replace(/^https?:\/\//i, "");
-      return "https://paypal.me/" + t.replace(/^\/+/, "");
+      return "https://paypal.me/" + t.replace(/^@/, "").replace(/^\/+/, "");
     }
     if (method === "stripe") {
       if (/stripe\.com/i.test(t)) {

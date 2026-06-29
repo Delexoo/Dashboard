@@ -26,18 +26,45 @@
   };
   const WEBSITE_FILTERS = ["web", "noweb", "all"];
   const REVIEWS_FILTERS = ["all", "1", "2", "3", "4", "5"];
+  // Ordered most-specific first: getBasicCategory() returns the FIRST match,
+  // so narrow industries must appear before broad catch-alls.
   const BASIC_CATEGORY_GROUPS = [
-    { label: "Kids", pattern: /child|daycare|day care|preschool|school|tutor|academy/i },
-    { label: "Health", pattern: /dental|dentist|doctor|clinic|medical|chiropr|therapy|wellness|care/i },
-    { label: "Home", pattern: /home|roof|plumb|electric|hvac|landscap|lawn|clean|paint|floor|repair|contract/i },
-    { label: "Auto", pattern: /auto|car|truck|tire|mechanic|detail|body shop|collision/i },
-    { label: "Food", pattern: /restaurant|cafe|coffee|bakery|food|pizza|bar|grill|deli/i },
-    { label: "Pets", pattern: /pet|dog|cat|vet|veterinary|groom/i },
-    { label: "Beauty", pattern: /salon|spa|barber|nail|beauty|hair|massage/i },
+    { label: "Childcare", pattern: /daycare|day care|child ?care|preschool|babysit|\bnanny\b/i },
+    { label: "Education", pattern: /tutor|teacher|test prep|learning center|driving school|music lesson|\bacademy\b|education/i },
+    { label: "Dental", pattern: /dental|dentist|orthodont|endodont|periodont/i },
+    { label: "Medical", pattern: /chiropr|doctor|physician|clinic|medical|urgent care|optometr|optician|physical therapy|med spa|dermatolog|pediatric|hospital|surgeon|podiat/i },
+    { label: "Beauty", pattern: /salon|barber|\bnail\b|\bhair\b|beauty|\blash|\bbrow\b|makeup|esthetic|waxing|tanning|massage|\bspa\b/i },
+    { label: "Pets", pattern: /\bpet\b|\bdog\b|\bcat\b|\bvet\b|veterin|groom|kennel|\banimal\b|aquarium/i },
+    { label: "Fitness", pattern: /\bgym\b|fitness|yoga|pilates|crossfit|martial art|karate|taekwondo|\bjiu\b|dance studio|personal train|trainer|workout/i },
+    { label: "Food", pattern: /restaurant|cafe|coffee|bakery|\bfood\b|pizza|\bbar\b|grill|\bdeli\b|diner|eatery|catering|caterer|brewery|juice|smoothie|taqueria/i },
+    { label: "Auto", pattern: /\bauto\b|\bcar\b|truck|\btire\b|mechanic|detailing|body shop|collision|towing|\btow\b|windshield|oil change|transmission|\btint\b|smog|muffler|\bbrake|\bboat\b|\brv\b|motorcycle|bicycle|bike shop/i },
+    { label: "Plumbing", pattern: /plumb|\bdrain\b|sewer|septic|water heater/i },
+    { label: "Electrical", pattern: /electric|solar/i },
+    { label: "HVAC", pattern: /hvac|heating|air condition|furnace|\bcooling\b/i },
+    { label: "Roofing", pattern: /\broof|gutter/i },
+    { label: "Landscaping", pattern: /landscap|\blawn\b|\bgarden|\btree\b|irrigation|sprinkler|pest control|exterminat|mosquito|\bsod\b/i },
+    { label: "Pool", pattern: /\bpool\b|hot tub/i },
+    { label: "Painting", pattern: /paint/i },
+    { label: "Cleaning", pattern: /clean|janitor|\bmaid\b|housekeep|pressure wash|power wash/i },
+    { label: "Flooring", pattern: /\bfloor|carpet|\btile\b|hardwood|laminate/i },
+    { label: "Tech", pattern: /computer|laptop|tech support|\bit services?\b|phone repair|cell phone|electronics|web design|web develop|software|app develop/i },
+    { label: "Marketing", pattern: /marketing|advertis|\bseo\b|branding|graphic design|design agency|\bprint\b|sign shop|signage/i },
+    { label: "Security", pattern: /security|\balarm\b|surveillance|\bcctv\b|locksmith/i },
+    { label: "Moving", pattern: /moving|\bmover|relocation|storage|junk removal|hauling/i },
+    { label: "Construction", pattern: /remodel|renovat|construct|contractor|\bbuilder|concrete|masonry|stucco|drywall|dry wall|\bdeck\b|\bfence|cabinet|kitchen|bathroom|countertop|excavat|demolition|paving|asphalt|siding|insulation|installer|installation|framing|foundation/i },
+    { label: "Home Repair", pattern: /handyman|\brepair\b|restoration|water damage|\bmold\b|chimney|fireplace|garage door|appliance|inspector|inspection|\bfix\b/i },
+    { label: "Real Estate", pattern: /real estate|realtor|\brealty\b|mortgage|\bbroker|property management|home stag|\bstager\b|interior design|architect/i },
+    { label: "Finance & Legal", pattern: /insurance|\btax\b|account|bookkeep|attorney|lawyer|\blegal\b|\bnotary\b|financial|\bcpa\b|payroll/i },
+    { label: "Events", pattern: /photograph|videograph|wedding|\bevent\b|\bvenue\b|party rental|equipment rental|\brental\b|florist|flower|\bdj\b/i },
+    { label: "Senior Care", pattern: /senior|assisted living|home health|home care|caregiver|hospice|\belder/i },
   ];
   /** @type {Set<string>} */
   let priorityCategories = new Set();
   let reviewsFilter = "all";
+  /** Free-text search across name, category, address (city/state/ZIP), and phone. */
+  let searchQuery = "";
+  /** @type {string[]} */
+  let searchTokens = [];
   /** @type {{ setWorkflow: (id: string, workflow: string, name?: string) => Promise<void> } | null} */
   let syncApi = null;
   let syncInitPromise = null;
@@ -154,6 +181,43 @@
     return Number.isFinite(n) && n >= 0 ? Math.round(n) : 0;
   }
 
+  function leadSearchHaystack(lead) {
+    return [
+      lead.name,
+      lead.category,
+      lead.categoryGroup,
+      lead.titleLine,
+      lead.address,
+      lead.phone,
+      lead.hours,
+      lead["W4Efsd 2"],
+      lead["W4Efsd 3"],
+      lead["W4Efsd 5"],
+    ]
+      .map((v) => String(v || ""))
+      .join(" ")
+      .toLowerCase();
+  }
+
+  function setSearchQuery(value) {
+    const q = String(value || "").trim().toLowerCase();
+    if (q === searchQuery) return false;
+    searchQuery = q;
+    searchTokens = q ? q.split(/\s+/).filter(Boolean) : [];
+    return true;
+  }
+
+  function matchesSearchQuery(lead) {
+    if (!searchTokens.length) return true;
+    const hay = leadSearchHaystack(lead);
+    const digits = hay.replace(/\D/g, "");
+    return searchTokens.every((tok) => {
+      if (hay.includes(tok)) return true;
+      const tokDigits = tok.replace(/\D/g, "");
+      return tokDigits.length >= 3 && digits.includes(tokDigits);
+    });
+  }
+
   function matchesReviewsFilter(lead, filter) {
     if (filter === "all") return true;
     const count = getReviewCount(lead);
@@ -201,6 +265,7 @@
         matchesLeadListFilters(lead, f.websiteFilter, f.reviewsFilter)
       );
     }
+    if (searchTokens.length) leads = leads.filter(matchesSearchQuery);
     if (includeCategoryFilter) leads = sortLeadsDisplayOrder(leads);
     const valid = leads.filter(isLeadFormatValid);
     const invalid = leads.filter((lead) => !isLeadFormatValid(lead));
@@ -273,6 +338,8 @@
       getWebsiteFilter() +
       "|" +
       getReviewsFilter() +
+      "|" +
+      searchQuery +
       "|" +
       Array.from(priorityCategories).sort().join(",")
     );
@@ -2200,6 +2267,23 @@
       }
     });
 
+    const onSearchChange = (value) => {
+      const changed = setSearchQuery(value);
+      const clearBtn = $("lf-search-clear");
+      if (clearBtn) clearBtn.hidden = !searchQuery;
+      if (changed) applyFilters();
+    };
+    $("lf-search")?.addEventListener("input", (e) => onSearchChange(e.target.value));
+    $("lf-search")?.addEventListener("search", (e) => onSearchChange(e.target.value));
+    $("lf-search-clear")?.addEventListener("click", () => {
+      const input = $("lf-search");
+      if (input) {
+        input.value = "";
+        input.focus();
+      }
+      onSearchChange("");
+    });
+
     $("lf-refresh")?.addEventListener("click", () => {
       refreshLeads();
     });
@@ -2229,6 +2313,23 @@
       reloadPersonalMarks();
       window.LeadSync?.refreshTeam?.().catch(() => {});
       if (leadsPageReady) applyFilters();
+    });
+
+    // Restored from the back/forward (bfcache) after building + sending a lead:
+    // the in-memory status map is stale, so re-pull the latest workflow status
+    // (Pending / Building) and re-render so sent leads drop out of the list.
+    window.addEventListener("pageshow", (e) => {
+      if (!e.persisted) return;
+      if (document.body.dataset.page !== "leads") return;
+      reloadPersonalMarks();
+      const done = () => {
+        if (leadsPageReady) applyFilters();
+      };
+      if (window.LeadSync?.refresh) {
+        window.LeadSync.refresh().then(done).catch(done);
+      } else {
+        done();
+      }
     });
 
     setMetricsLoading(true);

@@ -10,6 +10,7 @@
   })();
 
   const STORAGE_KEY = "lpc_site_unlock";
+  const AGREEMENT_KEY = "lpc_agreement_accepted_v1";
   const LOCKOUT_KEY = "lpc_lockout_v1";
   const USERS_URL = "users.txt";
   const REPS_URL = "data/reps.json";
@@ -503,7 +504,126 @@
     if (!input.disabled) input.focus();
   }
 
-  function onLockReady() {
+  function hasAcceptedAgreement() {
+    try {
+      return localStorage.getItem(AGREEMENT_KEY) === "1";
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function setAcceptedAgreement() {
+    try {
+      localStorage.setItem(AGREEMENT_KEY, "1");
+    } catch (e) {
+      /* storage unavailable · gate falls back to per-load only */
+    }
+  }
+
+  // One-time gate: the user must open the Privacy Policy and Terms of Service,
+  // then check the box, before the PIN lock (or the app) becomes reachable.
+  function ensureAgreementOverlay(onAccept) {
+    if (document.getElementById("site-agreement")) return;
+
+    const c = window.SITE_CONFIG || {};
+    const logoUrl = String(c.brandLogoUrl || c.telegramTeamAvatar || "").trim();
+    const companyName = String(c.companyName || "Dashboard").trim();
+    const safeLogo = logoUrl.replace(/"/g, "&quot;");
+    const safeName = companyName.replace(/"/g, "&quot;");
+
+    const ICON_SHIELD =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3z"/><path d="M9.2 12.2l2 2 3.6-3.8"/></svg>';
+    const ICON_DONE =
+      '<svg class="site-agreement-ico-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>';
+    const ICON_EXT =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M18 13v6a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h6"/><polyline points="15 3 21 3 21 9"/><line x1="10" y1="14" x2="21" y2="3"/></svg>';
+
+    const logoMarkup = logoUrl
+      ? '<img class="site-agreement-logo" src="' +
+        safeLogo +
+        '" alt="' +
+        safeName +
+        '" width="60" height="60" decoding="async">'
+      : '<div class="site-agreement-logo site-agreement-logo--fallback">' +
+        ICON_SHIELD +
+        "</div>";
+
+    function docBtn(key, href, label) {
+      return (
+        '<a class="site-agreement-doc-btn" id="site-agreement-' +
+        key +
+        '" href="' +
+        href +
+        '" target="_blank" rel="noopener noreferrer">' +
+        '<span class="site-agreement-doc-main">' +
+        '<span class="site-agreement-doc-label">' +
+        label +
+        "</span>" +
+        '<span class="site-agreement-doc-ext" aria-hidden="true">' +
+        ICON_EXT +
+        "</span>" +
+        "</span>" +
+        '<span class="site-agreement-doc-state" aria-hidden="true">' +
+        ICON_DONE +
+        "</span>" +
+        "</a>"
+      );
+    }
+
+    const root = document.createElement("div");
+    root.id = "site-agreement";
+    root.setAttribute("role", "dialog");
+    root.setAttribute("aria-modal", "true");
+    root.setAttribute("aria-label", "Review and accept the agreement");
+    root.style.colorScheme = "light";
+    root.innerHTML =
+      '<div class="site-agreement-card">' +
+      logoMarkup +
+      '<h1 class="site-agreement-title">Before you continue</h1>' +
+      '<p class="site-agreement-text">Please review and accept our policies to continue.</p>' +
+      '<div class="site-agreement-docs">' +
+      docBtn("privacy", "privacy.html", "Privacy Policy") +
+      docBtn("terms", "terms.html", "Terms of Service") +
+      "</div>" +
+      '<label class="site-agreement-agree is-enabled" id="site-agreement-agree">' +
+      '<input type="checkbox" class="site-agreement-check" id="site-agreement-check">' +
+      '<span class="site-agreement-agree-text">I have read and agree to the <strong>Privacy Policy</strong> and <strong>Terms of Service</strong>.</span>' +
+      "</label>" +
+      '<p class="site-agreement-hint" id="site-agreement-hint">Check the box to agree and continue.</p>' +
+      "</div>";
+
+    document.body.appendChild(root);
+
+    const privacyBtn = root.querySelector("#site-agreement-privacy");
+    const termsBtn = root.querySelector("#site-agreement-terms");
+    const check = root.querySelector("#site-agreement-check");
+    const agreeLabel = root.querySelector("#site-agreement-agree");
+    const hint = root.querySelector("#site-agreement-hint");
+
+    const read = { privacy: false, terms: false };
+
+    function refreshCheckboxState() {
+      // Checkbox is always enabled; opening the documents is optional.
+    }
+
+    function markRead(which, btn) {
+      read[which] = true;
+      btn.classList.add("is-read");
+    }
+
+    privacyBtn.addEventListener("click", () => markRead("privacy", privacyBtn));
+    termsBtn.addEventListener("click", () => markRead("terms", termsBtn));
+
+    check.addEventListener("change", () => {
+      if (check.disabled || !check.checked) return;
+      setAcceptedAgreement();
+      root.classList.add("site-agreement-out");
+      setTimeout(() => root.remove(), 240);
+      if (typeof onAccept === "function") onAccept();
+    });
+  }
+
+  function proceedLockReady() {
     if (isPublicPage()) return;
 
     const repId =
@@ -528,6 +648,19 @@
     if (!window.appLaunchStarted && document.getElementById("shell")) {
       window.dispatchEvent(new Event("site-unlocked"));
     }
+  }
+
+  function onLockReady() {
+    if (isPublicPage()) return;
+
+    // The agreement must be accepted once before the lock screen is reachable.
+    if (!hasAcceptedAgreement()) {
+      applyLockedUi();
+      ensureAgreementOverlay(proceedLockReady);
+      return;
+    }
+
+    proceedLockReady();
   }
 
   async function resumeAuthenticatedSession() {

@@ -4,6 +4,30 @@
   const PWA_MANIFEST_URL = new URL("manifest.json", PWA_BASE_URL).href;
   const PWA_SW_URL = new URL("sw.js", PWA_BASE_URL).href;
   const PWA_THEME_COLOR = "#0f172a";
+  const PWA_ICON_192 = new URL("icon-192.png", PWA_BASE_URL).href;
+  const PWA_ICON_512 = new URL("icon-512.png", PWA_BASE_URL).href;
+  const PWA_APP_TITLE =
+    (window.SITE_CONFIG && window.SITE_CONFIG.companyName) || "Dashboard";
+
+  function pwaAddMeta(name, content) {
+    if (document.querySelector('meta[name="' + name + '"]')) return;
+    const m = document.createElement("meta");
+    m.name = name;
+    m.content = content;
+    document.head.appendChild(m);
+  }
+
+  function pwaAddAppleIcon(sizes, href) {
+    const sel = sizes
+      ? 'link[rel="apple-touch-icon"][sizes="' + sizes + '"]'
+      : 'link[rel="apple-touch-icon"]:not([sizes])';
+    if (document.querySelector(sel)) return;
+    const l = document.createElement("link");
+    l.rel = "apple-touch-icon";
+    if (sizes) l.setAttribute("sizes", sizes);
+    l.href = href;
+    document.head.appendChild(l);
+  }
 
   function ensurePwaMetadata() {
     if (!document.head) return;
@@ -21,6 +45,89 @@
       theme.content = PWA_THEME_COLOR;
       document.head.appendChild(theme);
     }
+
+    // Installable as a full-screen app on iOS and Android.
+    pwaAddMeta("mobile-web-app-capable", "yes");
+    pwaAddMeta("apple-mobile-web-app-capable", "yes");
+    pwaAddMeta("apple-mobile-web-app-status-bar-style", "default");
+    pwaAddMeta("apple-mobile-web-app-title", PWA_APP_TITLE);
+    pwaAddMeta("application-name", PWA_APP_TITLE);
+
+    // iOS home-screen icons (Safari ignores the manifest icons).
+    pwaAddAppleIcon("", PWA_ICON_192);
+    pwaAddAppleIcon("120x120", PWA_ICON_192);
+    pwaAddAppleIcon("152x152", PWA_ICON_192);
+    pwaAddAppleIcon("167x167", PWA_ICON_192);
+    pwaAddAppleIcon("180x180", PWA_ICON_192);
+
+    // Windows tile.
+    pwaAddMeta("msapplication-TileColor", PWA_THEME_COLOR);
+    pwaAddMeta("msapplication-TileImage", PWA_ICON_192);
+  }
+
+  const IOS_HINT_KEY = "lpc_ios_install_hint_dismissed_v1";
+
+  function isIosDevice() {
+    const ua = navigator.userAgent.toLowerCase();
+    const iOS = /iphone|ipad|ipod/.test(ua);
+    const iPadOS = navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1;
+    return iOS || iPadOS;
+  }
+
+  function isStandaloneDisplay() {
+    return (
+      window.matchMedia?.("(display-mode: standalone)")?.matches ||
+      window.navigator.standalone === true
+    );
+  }
+
+  function maybeShowIosInstallHint() {
+    if (!isIosDevice() || isStandaloneDisplay()) return;
+    // Only Safari can "Add to Home Screen"; skip Chrome/Firefox/in-app browsers on iOS.
+    const ua = navigator.userAgent;
+    const isSafari = /Safari/.test(ua) && !/(CriOS|FxiOS|EdgiOS|GSA|FBAN|FBAV|Instagram|Line)/.test(ua);
+    if (!isSafari) return;
+    try {
+      if (localStorage.getItem(IOS_HINT_KEY) === "1") return;
+    } catch (e) {
+      /* ignore */
+    }
+    if (!document.body || document.getElementById("ios-install-banner")) return;
+
+    const shareIco =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 16V3"/><path d="M8 7l4-4 4 4"/><path d="M5 12v7a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2v-7"/></svg>';
+
+    const banner = document.createElement("div");
+    banner.id = "ios-install-banner";
+    banner.className = "ios-install-banner";
+    banner.setAttribute("role", "dialog");
+    banner.setAttribute("aria-label", "Install " + PWA_APP_TITLE);
+    banner.innerHTML =
+      '<img class="ios-install-banner-icon" src="' +
+      PWA_ICON_192 +
+      '" alt="" width="40" height="40">' +
+      '<div class="ios-install-banner-text">' +
+      "<strong>Install " +
+      PWA_APP_TITLE +
+      "</strong>" +
+      '<span>Tap <span class="ios-install-banner-share">' +
+      shareIco +
+      "</span> then <em>Add to Home Screen</em></span>" +
+      "</div>" +
+      '<button type="button" class="ios-install-banner-close" aria-label="Dismiss">&times;</button>';
+
+    document.body.appendChild(banner);
+    requestAnimationFrame(() => banner.classList.add("is-visible"));
+
+    banner.querySelector(".ios-install-banner-close")?.addEventListener("click", () => {
+      banner.classList.remove("is-visible");
+      try {
+        localStorage.setItem(IOS_HINT_KEY, "1");
+      } catch (e) {
+        /* ignore */
+      }
+      window.setTimeout(() => banner.remove(), 240);
+    });
   }
 
   function canRegisterServiceWorker() {
@@ -43,8 +150,10 @@
   ensurePwaMetadata();
   if (document.readyState === "loading") {
     window.addEventListener("load", registerPwaServiceWorker, { once: true });
+    document.addEventListener("DOMContentLoaded", maybeShowIosInstallHint, { once: true });
   } else {
     registerPwaServiceWorker();
+    maybeShowIosInstallHint();
   }
 
   if (!window.SiteOwner) {
@@ -79,7 +188,7 @@
 
   const NAV_GROUP_PAGES = {
     course: ["course-module", "setup"],
-    tools: ["leads", "template", "scripts"],
+    tools: ["leads", "template", "scripts", "handouts"],
     help: ["faq", "feedback", "bug-bounty", "settings", "resources", "about", "privacy", "terms", "help-guide"],
   };
 
@@ -331,7 +440,9 @@
           ? "file-plus"
           : p.id === "scripts"
             ? "phone"
-            : "message-square";
+            : p.id === "handouts"
+              ? "file-text"
+              : "message-square";
       return `<li><a class="${cls}" href="${p.href}"><span class="nav-link-text">${ico(ic, "ico-nav")}${p.label}</span></a></li>`;
     }).join("");
   }
@@ -403,6 +514,7 @@
     { id: "leads", href: "leads.html", label: "Lead Finder" },
     { id: "template", href: "template.html", label: "Lead Builder" },
     { id: "scripts", href: "scripts.html", label: "Call Scripts" },
+    { id: "handouts", href: "handouts.html", label: "Handouts" },
     { id: "telegram", label: "Telegram", external: true, hrefKey: "telegramTeam" },
   ];
 
@@ -801,11 +913,157 @@
     }
   }
 
+  let saleSelectRefs = null;
+  const SALE_SELECT_CHEVRON =
+    '<svg class="dash-select-chev" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="6 9 12 15 18 9"/></svg>';
+
+  function updateSaleAmountTrigger() {
+    if (!saleSelectRefs) return;
+    const { trigger, menu, select } = saleSelectRefs;
+    const labelEl = trigger.querySelector(".dash-select-label");
+    if (!labelEl) return;
+    const val = select.value;
+    const selectedOpt = Array.from(select.options).find((o) => o.value === val);
+    const isPlaceholder = !val || (selectedOpt && selectedOpt.disabled);
+    labelEl.textContent = selectedOpt ? selectedOpt.textContent : "Select amount";
+    trigger.classList.toggle("is-placeholder", !!isPlaceholder);
+    menu.querySelectorAll(".dash-select-option").forEach((o) => {
+      o.classList.toggle("is-active", o.dataset.value === val && !!val);
+      o.setAttribute("aria-selected", o.dataset.value === val && !!val ? "true" : "false");
+    });
+    const field = select.closest(".dash-income-field");
+    if (field) field.classList.toggle("dash-income-field--custom", val === "custom");
+  }
+
+  function enhanceSaleAmountDropdown() {
+    const select = document.getElementById("saleAmountSelect");
+    if (!select || select.dataset.enhanced === "1") return;
+    select.dataset.enhanced = "1";
+
+    const wrap = document.createElement("div");
+    wrap.className = "dash-select";
+
+    const trigger = document.createElement("button");
+    trigger.type = "button";
+    trigger.className = "dash-select-trigger";
+    trigger.setAttribute("aria-haspopup", "listbox");
+    trigger.setAttribute("aria-expanded", "false");
+    trigger.innerHTML = '<span class="dash-select-label"></span>' + SALE_SELECT_CHEVRON;
+
+    const menu = document.createElement("div");
+    menu.className = "dash-select-menu";
+    menu.setAttribute("role", "listbox");
+
+    Array.from(select.options).forEach((opt) => {
+      if (opt.disabled) return;
+      const item = document.createElement("button");
+      item.type = "button";
+      item.className = "dash-select-option";
+      item.setAttribute("role", "option");
+      item.dataset.value = opt.value;
+      item.textContent = opt.textContent;
+      menu.appendChild(item);
+    });
+
+    select.parentNode.insertBefore(wrap, select);
+    wrap.appendChild(trigger);
+    wrap.appendChild(menu);
+    wrap.appendChild(select);
+    select.classList.add("dash-select-native");
+
+    function setOpen(open) {
+      wrap.classList.toggle("is-open", open);
+      trigger.setAttribute("aria-expanded", open ? "true" : "false");
+      if (open) document.addEventListener("click", onDocClick, true);
+      else document.removeEventListener("click", onDocClick, true);
+    }
+    function onDocClick(e) {
+      if (!wrap.contains(e.target)) setOpen(false);
+    }
+
+    trigger.addEventListener("click", () => setOpen(!wrap.classList.contains("is-open")));
+    trigger.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") setOpen(false);
+    });
+    menu.addEventListener("click", (e) => {
+      const opt = e.target.closest(".dash-select-option");
+      if (!opt) return;
+      select.value = opt.dataset.value;
+      select.dispatchEvent(new Event("change", { bubbles: true }));
+      setOpen(false);
+      focusNoScroll(trigger);
+    });
+
+    saleSelectRefs = { wrap, trigger, menu, select };
+    updateSaleAmountTrigger();
+  }
+
+  function applySaleAmountSelection(opts) {
+    opts = opts || {};
+    const select = document.getElementById("saleAmountSelect");
+    const customWrap = document.getElementById("saleAmountCustomWrap");
+    const input = document.getElementById("saleAmount");
+    if (!select || !input) return;
+    if (select.value === "custom") {
+      if (customWrap) customWrap.hidden = false;
+      if (opts.clearCustom) input.value = "";
+      if (opts.focus) focusNoScroll(input);
+    } else {
+      if (customWrap) customWrap.hidden = true;
+      input.value = select.value || "";
+    }
+    updateSaleAmountTrigger();
+  }
+
+  function setupSaleAmountSelect() {
+    const select = document.getElementById("saleAmountSelect");
+    const input = document.getElementById("saleAmount");
+    if (!select || !input || select.dataset.bound === "1") return;
+    select.dataset.bound = "1";
+    enhanceSaleAmountDropdown();
+    select.addEventListener("change", () => {
+      applySaleAmountSelection({ focus: true, clearCustom: true });
+    });
+    applySaleAmountSelection();
+  }
+
+  function syncSaleAmountSelectFromInput() {
+    const select = document.getElementById("saleAmountSelect");
+    const customWrap = document.getElementById("saleAmountCustomWrap");
+    const input = document.getElementById("saleAmount");
+    if (!select || !input) return;
+    const num = parseInt(String(input.value).replace(/[^0-9.]/g, ""), 10);
+    const val = Number.isFinite(num) && num > 0 ? String(num) : "";
+    if (!val) {
+      select.value = "";
+      if (customWrap) customWrap.hidden = true;
+      updateSaleAmountTrigger();
+      return;
+    }
+    const isPreset = Array.from(select.options).some(
+      (o) => o.value === val && o.value !== "custom"
+    );
+    select.value = isPreset ? val : "custom";
+    if (customWrap) customWrap.hidden = select.value !== "custom";
+    updateSaleAmountTrigger();
+  }
+
+  function resetSaleAmountControls() {
+    const select = document.getElementById("saleAmountSelect");
+    const customWrap = document.getElementById("saleAmountCustomWrap");
+    const input = document.getElementById("saleAmount");
+    if (select) select.value = "";
+    if (customWrap) customWrap.hidden = true;
+    if (input) input.value = "";
+    updateSaleAmountTrigger();
+  }
+
   function focusDashboardIncomeForm(opts) {
     opts = opts || {};
     const section =
       document.getElementById("dash-sales-log-section") ||
       document.querySelector(".dash-sales-log-section");
+    const select = document.getElementById("saleAmountSelect");
     const priceEl = document.getElementById("saleAmount");
     const businessEl = document.getElementById("businessName");
     if (businessEl) businessEl.value = String(opts.businessName || "").trim();
@@ -816,12 +1074,15 @@
         priceEl.value = "";
       }
     }
+    syncSaleAmountSelectFromInput();
 
     if (opts.scroll !== false) {
       section?.scrollIntoView({ behavior: "smooth", block: "nearest" });
     }
+    const customVisible = select && select.value === "custom";
+    const amountFocusTarget = !select || customVisible ? priceEl : select;
     focusNoScroll(
-      opts.focusAmount === false && opts.businessName ? businessEl : priceEl
+      opts.focusAmount === false && opts.businessName ? businessEl : amountFocusTarget
     );
   }
 
@@ -1332,15 +1593,8 @@
       taskFlow: ["Send lead", "Manager gets the details"],
       detail:
         "Click Send lead when every field is filled · the business moves to Pending businesses and your manager gets the details.",
+      sendLeadTag: true,
       resource: { href: "template.html", label: "Lead Builder" },
-    },
-    {
-      step: 6,
-      task: "Mark the business as complete",
-      detail:
-        "In Lead Finder, tag the business Complete (team sees it). Use Pending if you need to call back. Quick Save is only for you. Then start again at step 2.",
-      completeTag: true,
-      resource: { href: "leads.html", label: "Lead Finder" },
     },
   ];
 
@@ -1360,12 +1614,23 @@
     );
   }
 
+  function everydayTaskSendLeadTag() {
+    return (
+      '<span class="lf-action-btn lf-action-builder everyday-tasks-builder-tag everyday-tasks-send-tag" title="Send lead button in the Lead Builder">' +
+      '<span data-icon="send" data-icon-class="lf-action-ico everyday-tasks-builder-tag-ico" aria-hidden="true"></span>' +
+      '<span class="everyday-tasks-builder-tag-text">Send Lead</span></span>'
+    );
+  }
+
   function everydayTaskToolCell(row, embed) {
     if (embed) {
+      if (row.buildLeadTag) return everydayTaskBuildLeadTag();
+      if (row.sendLeadTag) return everydayTaskSendLeadTag();
       return row.resource ? everydayTaskOpenButton(row.resource, true) : "";
     }
     if (row.completeTag) return everydayTaskCompleteTag();
     if (row.buildLeadTag) return everydayTaskBuildLeadTag();
+    if (row.sendLeadTag) return everydayTaskSendLeadTag();
     return everydayTaskOpenButton(row.resource);
   }
 
@@ -1825,7 +2090,7 @@
         },
         {
           id: "module_everyday_tasks",
-          label: "Everyday Tasks",
+          label: "Sales Tasks",
           link: { href: "course-module.html?m=everyday-tasks", label: "Open module" },
         },
       ],
@@ -2154,9 +2419,121 @@
       if (averageEl) averageEl.textContent = "$" + formatMoney(closes ? earned / closes : 0);
       const pctBadge = document.getElementById("completionPercent");
       const isFirstRingRender = goalRingPctShown === null;
-      if (pctBadge && isFirstRingRender) pctBadge.textContent = pctRound + "%";
 
-      applyGoalRingProgress(pct, { instant: isFirstRingRender });
+      if (isFirstRingRender) {
+        // On first visit/refresh, start the ring empty and animate it up to the
+        // rep's actual progress so it sweeps from 0% to current on load.
+        applyGoalRingProgress(0, { instant: true });
+        if (pctBadge) pctBadge.textContent = "0%";
+        applyGoalRingProgress(pct);
+      } else {
+        applyGoalRingProgress(pct);
+      }
+    }
+
+    function gatherStatsExport() {
+      const deals = (data.deals || [])
+        .slice()
+        .sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      const earned = calcEarnedFromDeals(deals);
+      const closes = deals.length;
+      const goal = normalizeGoal(data.goal);
+      const pct = goal ? Math.round(Math.min(100, (earned / goal) * 100)) : 0;
+      const remaining = Math.max(goal - earned, 0);
+      const repName =
+        window.RepSession?.getName?.() || data.name || "Rep";
+      return { deals, earned, closes, goal, pct, remaining, repName };
+    }
+
+    function statsSummaryText() {
+      const s = gatherStatsExport();
+      return [
+        s.repName + " \u2014 sales summary",
+        "Goal: $" + formatMoney(s.goal),
+        "Commission earned: $" + formatMoney(s.earned),
+        "Sales: " + s.closes,
+        "Progress: " + s.pct + "%",
+        "Remaining to goal: $" + formatMoney(s.remaining),
+      ].join("\n");
+    }
+
+    function downloadStatsCsv() {
+      const s = gatherStatsExport();
+      const q = (v) =>
+        '"' + String(v == null ? "" : v).replace(/"/g, '""') + '"';
+      const lines = [];
+      lines.push(q(s.repName + " \u2014 sales summary"));
+      lines.push(q("Goal") + "," + q("$" + formatMoney(s.goal)));
+      lines.push(q("Commission earned") + "," + q("$" + formatMoney(s.earned)));
+      lines.push(q("Sales") + "," + q(s.closes));
+      lines.push(q("Progress") + "," + q(s.pct + "%"));
+      lines.push(q("Remaining to goal") + "," + q("$" + formatMoney(s.remaining)));
+      lines.push("");
+      lines.push(
+        [q("#"), q("Business"), q("Sale amount"), q("Commission"), q("Date")].join(",")
+      );
+      s.deals.forEach((d, i) => {
+        lines.push(
+          [
+            q(i + 1),
+            q(d.businessName || "Sale"),
+            q("$" + formatMoney(saleAmountFromDeal(d))),
+            q("$" + formatMoney(Number(d.commission) || 0)),
+            q(formatDealDateTime(d.createdAt) || ""),
+          ].join(",")
+        );
+      });
+      const blob = new Blob([lines.join("\r\n")], {
+        type: "text/csv;charset=utf-8;",
+      });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      const stamp = new Date().toISOString().slice(0, 10);
+      const slug =
+        String(s.repName).toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "") ||
+        "rep";
+      a.href = url;
+      a.download = "sales-stats-" + slug + "-" + stamp + ".csv";
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      window.setTimeout(() => URL.revokeObjectURL(url), 1000);
+      window.SiteLoading?.showToast?.("Stats downloaded", { kind: "success" });
+    }
+
+    function copyStatsSummary() {
+      const text = statsSummaryText();
+      const ok = () =>
+        window.SiteLoading?.showToast?.("Summary copied", { kind: "success" });
+      const fail = () =>
+        window.SiteLoading?.showToast?.("Couldn\u2019t copy summary", { kind: "error" });
+      if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).then(ok).catch(fail);
+      } else {
+        fail();
+      }
+    }
+
+    function emailStatsSummary() {
+      const s = gatherStatsExport();
+      const subject = encodeURIComponent(s.repName + " \u2014 sales summary");
+      const body = encodeURIComponent(statsSummaryText());
+      window.location.href = "mailto:?subject=" + subject + "&body=" + body;
+    }
+
+    function initTrackerUtilities() {
+      const tools = document.getElementById("dash-tracker-tools");
+      if (!tools || tools.dataset.bound === "1") return;
+      tools.dataset.bound = "1";
+      tools
+        .querySelector("#dash-tool-download")
+        ?.addEventListener("click", downloadStatsCsv);
+      tools
+        .querySelector("#dash-tool-copy")
+        ?.addEventListener("click", copyStatsSummary);
+      tools
+        .querySelector("#dash-tool-email")
+        ?.addEventListener("click", emailStatsSummary);
     }
 
     function initGoalEditor() {
@@ -2178,7 +2555,6 @@
           input.value = String(normalizeGoal(data.goal));
           return;
         }
-        if (v === data.goal) return;
         data.goal = v;
         saveTracker(data);
         renderAll();
@@ -2439,16 +2815,24 @@
       return Number.isFinite(n) ? Math.round(n) : 0;
     }
 
+    setupSaleAmountSelect();
+
     if (form && form.dataset.trackerSubmitBound !== "1") {
       form.dataset.trackerSubmitBound = "1";
       form.addEventListener("submit", (e) => {
         e.preventDefault();
+        const selectEl = document.getElementById("saleAmountSelect");
         const priceEl = document.getElementById("saleAmount");
         const businessEl = document.getElementById("businessName");
+        if (selectEl && !selectEl.value) {
+          alert("Select a sale amount.");
+          focusNoScroll(selectEl);
+          return;
+        }
         const saleAmount = parseSaleAmount(priceEl?.value);
         if (saleAmount <= 0) {
           alert("Enter a price greater than $0.");
-          focusNoScroll(priceEl);
+          focusNoScroll(selectEl && selectEl.value === "custom" ? priceEl : selectEl);
           return;
         }
 
@@ -2467,6 +2851,7 @@
         const earnedAfter = calcEarnedFromDeals(data.deals);
         saveTracker(data);
         form.reset();
+        resetSaleAmountControls();
         renderAll();
         maybeCelebrateGoalFromSale(earnedBefore, earnedAfter);
         const salesList = document.getElementById("salesList");
@@ -2487,6 +2872,7 @@
       saveTracker(data);
     }
     initGoalEditor();
+    initTrackerUtilities();
     initIncomeActions();
     bindSalesListActions();
     window.dashboardRenderDealsList = renderDealsList;
@@ -3252,10 +3638,112 @@
     }
   }
 
+  // Each price is a package tier · higher tiers include everything below plus more.
+  const TPL_PACKAGE_DETAILS = {
+    $500: {
+      tier: "Basic package",
+      monthly: "$10/mo",
+      items: [
+        "1-page professional website",
+        "Mobile-responsive design",
+        "Contact form & online booking",
+        "Click-to-call & map directions",
+        "Infinite redesigns",
+      ],
+    },
+    $700: {
+      tier: "Standard package",
+      monthly: "$10/mo",
+      items: [
+        "Unlimited pages",
+        "Mobile-responsive on phones & tablets",
+        "Contact form & booking + photo gallery",
+        "Basic SEO setup",
+        "Infinite redesigns",
+      ],
+    },
+    "$1,000": {
+      tier: "Deluxe package",
+      monthly: "$10/mo",
+      items: [
+        "Unlimited pages",
+        "Run ads & ad campaigns",
+        "Optimized mobile-responsive design",
+        "Advanced forms & online booking system",
+        "Google Business Profile setup",
+        "On-page SEO + social links",
+        "Infinite redesigns",
+      ],
+    },
+    "$1,500": {
+      tier: "Premium package",
+      monthly: "$10/mo",
+      items: [
+        "Unlimited pages + priority build",
+        "Ads + ongoing ad management",
+        "Pixel-perfect mobile-responsive design",
+        "Full booking system, forms & reviews section",
+        "Advanced SEO optimization",
+        "Google Business Profile setup",
+        "Priority support & monthly updates",
+        "Infinite redesigns + priority turnaround",
+      ],
+    },
+  };
+
+  function tplPriceDetailsInner(pkg) {
+    const subHtml = pkg.monthly
+      ? '<p class="tpl-price-detail-sub">+ ' +
+        pkg.monthly +
+        " hosting &amp; maintenance</p>"
+      : "";
+    return (
+      '<p class="tpl-price-detail-head">' +
+      pkg.tier +
+      "</p>" +
+      '<p class="tpl-price-detail-label">What\u2019s included</p>' +
+      '<ul class="tpl-price-detail-list">' +
+      pkg.items
+        .map((t) => '<li class="tpl-price-detail-item">' + t + "</li>")
+        .join("") +
+      "</ul>" +
+      subHtml
+    );
+  }
+
+  // Details now show as a hover tooltip on each price pill, so the
+  // inline panel below the pills stays hidden.
+  function renderTplPriceDetails() {
+    const box = document.getElementById("tpl-price-details");
+    if (!box) return;
+    box.hidden = true;
+    box.innerHTML = "";
+  }
+
+  function buildTplPriceTooltips() {
+    const map = {
+      "btn-p500": "$500",
+      "btn-p700": "$700",
+      "btn-p1000": "$1,000",
+      "btn-p1500": "$1,500",
+    };
+    Object.entries(map).forEach(([id, price]) => {
+      const btn = document.getElementById(id);
+      const pkg = TPL_PACKAGE_DETAILS[price];
+      if (!btn || !pkg || btn.querySelector(".tpl-price-tip")) return;
+      const tip = document.createElement("span");
+      tip.className = "tpl-price-tip";
+      tip.setAttribute("role", "tooltip");
+      tip.innerHTML = tplPriceDetailsInner(pkg);
+      btn.appendChild(tip);
+    });
+  }
+
   function clearTplPrice(skipSave, skipProgress) {
     tplPrice = "";
     tplPriceButtonIds().forEach((id) => document.getElementById(id)?.classList.remove("active"));
     document.getElementById("btn-p500")?.closest(".tpl-field")?.classList.remove("is-invalid");
+    renderTplPriceDetails("");
     if (!skipSave) persistTemplateBuilder();
     if (!skipProgress) tickTplSendProgress();
   }
@@ -3266,6 +3754,7 @@
     tplPriceButtonIds().forEach((id) => document.getElementById(id)?.classList.remove("active"));
     document.getElementById(map[price] || "btn-p500")?.classList.add("active");
     document.getElementById("btn-p500")?.closest(".tpl-field")?.classList.remove("is-invalid");
+    renderTplPriceDetails(price);
     if (!skipSave) persistTemplateBuilder();
     if (!skipProgress) tickTplSendProgress();
   }
@@ -3382,7 +3871,7 @@
     }
     const resolve = tplActionDialogResolver;
     tplActionDialogResolver = null;
-    if (resolve) resolve(!!result);
+    if (resolve) resolve(result === undefined ? false : result);
   }
 
   function openTplActionDialog(options) {
@@ -3401,6 +3890,9 @@
     const confirmLabel = String(options.confirmLabel || "").trim();
     const cancelLabel = String(options.cancelLabel || "").trim();
     const isConfirm = !!(confirmLabel && cancelLabel);
+
+    const field = document.getElementById("tpl-action-dialog-field");
+    if (field) field.hidden = true;
 
     titleEl.textContent = String(options.title || "").trim();
     textEl.textContent = String(options.text || "").trim();
@@ -3446,6 +3938,65 @@
 
   function showTplActionConfirm(options) {
     return openTplActionDialog(options || {});
+  }
+
+  function showTplNotInterestedReason() {
+    ensureTplActionDialogBound();
+    const dialog = document.getElementById("tpl-action-dialog");
+    const panel = document.getElementById("tpl-action-dialog-panel");
+    const titleEl = document.getElementById("tpl-action-dialog-title");
+    const textEl = document.getElementById("tpl-action-dialog-text");
+    const field = document.getElementById("tpl-action-dialog-field");
+    const input = document.getElementById("tpl-action-dialog-input");
+    const actionsEl = document.getElementById("tpl-action-dialog-actions");
+    if (!dialog || !panel || !titleEl || !textEl || !field || !input || !actionsEl) {
+      return Promise.resolve({ action: "cancel", reason: "" });
+    }
+
+    panel.classList.remove(
+      "tpl-action-dialog-panel--success",
+      "tpl-action-dialog-panel--error"
+    );
+    titleEl.textContent = "Business not interested?";
+    textEl.textContent = "Why is the business not interested?";
+    field.hidden = false;
+    input.value = "";
+
+    actionsEl.innerHTML = "";
+    const cancelBtn = document.createElement("button");
+    cancelBtn.type = "button";
+    cancelBtn.className = "btn secondary";
+    cancelBtn.textContent = "Cancel";
+    cancelBtn.addEventListener("click", () => closeTplActionDialog({ action: "cancel", reason: "" }));
+
+    const skipBtn = document.createElement("button");
+    skipBtn.type = "button";
+    skipBtn.className = "btn secondary";
+    skipBtn.textContent = "Skip";
+    skipBtn.addEventListener("click", () => closeTplActionDialog({ action: "submit", reason: "" }));
+
+    const submitBtn = document.createElement("button");
+    submitBtn.type = "button";
+    submitBtn.className = "btn";
+    submitBtn.textContent = "Submit";
+    submitBtn.addEventListener("click", () =>
+      closeTplActionDialog({ action: "submit", reason: String(input.value || "").trim() })
+    );
+
+    actionsEl.append(cancelBtn, skipBtn, submitBtn);
+
+    return new Promise((resolve) => {
+      tplActionDialogResolver = (result) => {
+        if (result && typeof result === "object" && result.action) {
+          resolve(result);
+        } else {
+          resolve({ action: "cancel", reason: "" });
+        }
+      };
+      if (typeof dialog.showModal === "function") dialog.showModal();
+      else dialog.setAttribute("open", "");
+      requestAnimationFrame(() => input.focus());
+    });
   }
 
   function showTplToast(message, options) {
@@ -3555,7 +4106,7 @@
         : "Remove this business from the Active list in Lead Finder";
   }
 
-  function tplNotInterestedDetails() {
+  function tplNotInterestedDetails(reason) {
     const leadId = getTplLinkedLeadId();
     let category = "";
     let address = "";
@@ -3570,6 +4121,7 @@
       googleMaps: tplInputValue("tpl-maps"),
       category,
       address,
+      reason: String(reason || "").trim(),
     };
   }
 
@@ -3599,17 +4151,9 @@
       return;
     }
 
-    const confirmed = await showTplActionConfirm({
-      title: "Business not interested?",
-      text:
-        'Mark "' +
-        businessName +
-        '" as not interested? They will be removed from the Active list in Lead Finder.',
-      confirmLabel: "Mark not interested",
-      cancelLabel: "Keep editing",
-      kind: "danger",
-    });
-    if (!confirmed) return;
+    const promptResult = await showTplNotInterestedReason();
+    if (!promptResult || promptResult.action !== "submit") return;
+    const reason = String(promptResult.reason || "").trim();
 
     setTplActionBtnBusy(btn, true, "Saving…");
 
@@ -3625,17 +4169,12 @@
         if (!window.LeadSync?.markNotInterested) {
           throw new Error("Lead sync unavailable");
         }
-        await window.LeadSync.markNotInterested(leadId, businessName, tplNotInterestedDetails());
+        await window.LeadSync.markNotInterested(leadId, businessName, tplNotInterestedDetails(reason));
         await window.LeadSync.refreshTeam?.().catch(() => null);
       }, "Saving…");
 
       clearTpl({ keepFeedback: true });
       showTplToast("Marked not interested · removed from Lead Finder.", { kind: "success" });
-      if (global.SiteOwner?.isSiteOwner?.()) {
-        global.setTimeout(() => {
-          global.location.href = "sales-console.html#not-interested";
-        }, 850);
-      }
     } catch (e) {
       console.warn(e);
       showTplToast(
@@ -4054,9 +4593,35 @@
     screen.hidden = true;
   }
 
-  function showTplLeadSuccessScreen() {
+  const TPL_RESULT_CONTENT = {
+    sent: {
+      title: "Lead sent",
+      message:
+        "Management has been notified! We'll build the website and notify you when your commission is ready.",
+      button: "Go back",
+      offline: false,
+    },
+    offline: {
+      title: "Couldn\u2019t connect",
+      message:
+        "Your lead wasn\u2019t sent \u2014 it looks like your internet connection is down. Check your connection and try again. Your details are still saved in the form.",
+      button: "Back to form",
+      offline: true,
+    },
+  };
+
+  function showTplLeadSuccessScreen(kind) {
     const screen = document.getElementById("tpl-sent-screen");
     if (!screen) return;
+    const content = TPL_RESULT_CONTENT[kind] || TPL_RESULT_CONTENT.sent;
+
+    const titleEl = screen.querySelector(".tpl-sent-screen-title");
+    const leadEl = screen.querySelector(".tpl-sent-screen-lead");
+    const leaveBtn = screen.querySelector(".tpl-sent-screen-leave");
+    if (titleEl) titleEl.textContent = content.title;
+    if (leadEl) leadEl.textContent = content.message;
+    if (leaveBtn) leaveBtn.textContent = content.button;
+    screen.classList.toggle("tpl-sent-screen--offline", !!content.offline);
 
     screen.hidden = false;
     screen.classList.remove("is-visible");
@@ -4064,7 +4629,6 @@
     screen.classList.add("is-visible");
     document.documentElement.classList.add("tpl-sent-screen-open");
 
-    const leaveBtn = screen.querySelector(".tpl-sent-screen-leave");
     if (leaveBtn && !leaveBtn.dataset.bound) {
       leaveBtn.dataset.bound = "1";
       leaveBtn.addEventListener("click", () => {
@@ -4073,8 +4637,30 @@
     }
   }
 
+  function isTplConnectivityError(err) {
+    if (typeof navigator !== "undefined" && navigator.onLine === false) return true;
+    const msg = String(
+      (err && (err.message || err.details)) ||
+        (err && err.cause && err.cause.message) ||
+        err ||
+        ""
+    ).toLowerCase();
+    return (
+      msg.includes("failed to fetch") ||
+      msg.includes("networkerror") ||
+      msg.includes("network error") ||
+      msg.includes("load failed") ||
+      msg.includes("connection") ||
+      msg.includes("timeout") ||
+      msg.includes("offline") ||
+      msg.includes("err_internet") ||
+      msg.includes("err_network") ||
+      msg.includes("err_connection")
+    );
+  }
+
   function showTplSentTag() {
-    showTplLeadSuccessScreen();
+    showTplLeadSuccessScreen("sent");
   }
 
   function setTplSendBtnLabel(sendBtn, text) {
@@ -4142,6 +4728,11 @@
           id: leadId,
           name: businessName || "Business",
         });
+        try {
+          sessionStorage.setItem("lpc_lf_force_team_refresh_v1", String(Date.now()));
+        } catch (storageErr) {
+          /* ignore */
+        }
       }
       persistTemplateBuilder();
       clearTplValidation();
@@ -4154,10 +4745,16 @@
       }
     } catch (err) {
       console.warn(err);
-      showTplValidationMsg(tplErrorMessage(err));
+      const offline = isTplConnectivityError(err);
+      if (offline) {
+        // Connection problem · keep the form data so the rep can retry.
+        showTplLeadSuccessScreen("offline");
+      } else {
+        showTplValidationMsg(tplErrorMessage(err));
+      }
       if (sendBtn) {
         preserveScroll(() => {
-          setTplSendBtnLabel(sendBtn, "Send failed");
+          setTplSendBtnLabel(sendBtn, offline ? "No connection" : "Send failed");
         });
         setTimeout(() => {
           preserveScroll(() => {
@@ -4338,6 +4935,7 @@
     tplSendProgressHandled = false;
     initTplInfo();
     initTplHelpGuide();
+    buildTplPriceTooltips();
     bindTemplateBuilderAutosave();
     applyTemplateBuilder();
     initLeadPickFromFinder();

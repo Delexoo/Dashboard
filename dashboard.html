@@ -50,6 +50,21 @@
                 </div>
               </div>
             </div>
+
+            <div class="dash-tracker-tools" id="dash-tracker-tools" aria-label="Stats tools">
+              <button type="button" class="dash-tool-btn" id="dash-tool-download">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+                <span>Download stats</span>
+              </button>
+              <button type="button" class="dash-tool-btn" id="dash-tool-copy">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>
+                <span>Copy summary</span>
+              </button>
+              <button type="button" class="dash-tool-btn" id="dash-tool-email">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-10 6L2 7"/></svg>
+                <span>Email stats</span>
+              </button>
+            </div>
           </div>
         </section>
 
@@ -61,9 +76,17 @@
                 <div class="dash-income-form-grid">
                   <label class="dash-income-field">
                     <span class="dash-income-field-label">Sale amount</span>
-                    <span class="dash-income-amount-wrap">
+                    <select id="saleAmountSelect" class="dash-income-amount-select" aria-label="Sale amount">
+                      <option value="" disabled selected>Select amount</option>
+                      <option value="500">$500</option>
+                      <option value="700">$700</option>
+                      <option value="1000">$1,000</option>
+                      <option value="1500">$1,500</option>
+                      <option value="custom">Custom amount…</option>
+                    </select>
+                    <span class="dash-income-amount-wrap" id="saleAmountCustomWrap" hidden>
                       <span class="dash-income-currency" aria-hidden="true">$</span>
-                      <input id="saleAmount" type="number" min="1" step="0.01" placeholder="1250" inputmode="decimal" required>
+                      <input id="saleAmount" type="number" min="1" step="0.01" placeholder="1250" inputmode="decimal">
                     </span>
                   </label>
 
