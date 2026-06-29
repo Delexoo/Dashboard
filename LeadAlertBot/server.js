@@ -88,7 +88,7 @@ const HANDLED_KEYS = new Set([
 
 function formatLeadMessage(record) {
   const r = record || {};
-  const lines = ["🟢 <b>New Lead Submitted</b>", ""];
+  const lines = ["<b>New Lead Submitted</b>", ""];
 
   // 1) The lead, formatted exactly like the Lead Builder form.
   for (const [key, label] of LEAD_BUILDER_FIELDS) {
