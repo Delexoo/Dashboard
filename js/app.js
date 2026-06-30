@@ -973,7 +973,22 @@
       item.className = "dash-select-option";
       item.setAttribute("role", "option");
       item.dataset.value = opt.value;
-      item.textContent = opt.textContent;
+      const n = parseInt(opt.value, 10);
+      const comm =
+        Number.isFinite(n) && n > 0
+          ? COMMISSION_PRESET[n] || Math.round(n * COMMISSION_RATE)
+          : 0;
+      if (comm > 0) {
+        item.innerHTML =
+          '<span class="dash-select-option-price">' +
+          escHtml(opt.textContent) +
+          "</span>" +
+          '<span class="dash-select-option-comm">($' +
+          formatMoney(comm) +
+          " comm.)</span>";
+      } else {
+        item.textContent = opt.textContent;
+      }
       menu.appendChild(item);
     });
 

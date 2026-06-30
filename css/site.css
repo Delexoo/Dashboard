@@ -1097,6 +1097,8 @@ html.site-lock-active body[data-legal-page="1"] #main-content {
   border: 2px solid #cbd5e1;
   border-radius: 6px;
   background: #ffffff;
+  accent-color: #2563eb;
+  color: #ffffff;
   display: grid;
   place-content: center;
   cursor: not-allowed;
@@ -1111,8 +1113,10 @@ html.site-lock-active body[data-legal-page="1"] #main-content {
   width: 6px;
   height: 11px;
   margin-top: -2px;
-  border: solid #ffffff;
-  border-width: 0 2px 2px 0;
+  border-style: solid !important;
+  border-color: #ffffff !important;
+  border-width: 0 2px 2px 0 !important;
+  background: transparent !important;
   transform: rotate(45deg) scale(0);
   transition: transform 0.22s cubic-bezier(0.3, 1.5, 0.5, 1);
 }
@@ -22806,6 +22810,20 @@ html[data-theme="dark"] .dashboard-redesign .dash-select-menu {
   border-radius: 9px;
   cursor: pointer;
   transition: background 0.12s ease, color 0.12s ease;
+}
+
+.dashboard-redesign .dash-select-option-price {
+  flex: 0 0 auto;
+}
+.dashboard-redesign .dash-select-option-comm {
+  margin-left: auto;
+  font-size: 11.5px;
+  font-weight: 500;
+  color: var(--muted);
+  white-space: nowrap;
+}
+.dashboard-redesign .dash-select-option.is-active .dash-select-option-comm {
+  color: var(--muted);
 }
 
 .dashboard-redesign .dash-select-option:hover {

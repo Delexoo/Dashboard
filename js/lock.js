@@ -557,7 +557,7 @@
     const ICON_SHIELD =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3z"/><path d="M9.2 12.2l2 2 3.6-3.8"/></svg>';
     const ICON_VERIFIED =
-      '<img class="site-agreement-verified-img" src="https://github.com/Delexoo/Dashboard/blob/main/doc/Verified.png?raw=true" alt="Verified" width="24" height="24" decoding="async">';
+      '<img class="site-agreement-verified-img" src="https://media4.giphy.com/media/xmOMPI63SsyZyKz2Tx/giphy.gif" alt="Verified" width="24" height="24" decoding="async">';
     const ICON_LOCK =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
     const ICON_DONE =
