@@ -11,6 +11,7 @@
 
   const STORAGE_KEY = "lpc_site_unlock";
   const AGREEMENT_KEY = "lpc_agreement_accepted_v1";
+  const AGREEMENT_READ_KEY = "lpc_agreement_read_v1";
   const LOCKOUT_KEY = "lpc_lockout_v1";
   const USERS_URL = "users.txt";
   const REPS_URL = "data/reps.json";
@@ -520,6 +521,28 @@
     }
   }
 
+  // Remembers which policy docs the user has opened so progress survives
+  // navigating to a doc page and back to the agreement screen.
+  function loadAgreementRead() {
+    try {
+      const r = JSON.parse(localStorage.getItem(AGREEMENT_READ_KEY) || "{}");
+      return { privacy: !!r.privacy, terms: !!r.terms };
+    } catch (e) {
+      return { privacy: false, terms: false };
+    }
+  }
+
+  function saveAgreementRead(read) {
+    try {
+      localStorage.setItem(
+        AGREEMENT_READ_KEY,
+        JSON.stringify({ privacy: !!read.privacy, terms: !!read.terms })
+      );
+    } catch (e) {
+      /* storage unavailable */
+    }
+  }
+
   // One-time gate: the user must open the Privacy Policy and Terms of Service,
   // then check the box, before the PIN lock (or the app) becomes reachable.
   function ensureAgreementOverlay(onAccept) {
@@ -533,6 +556,10 @@
 
     const ICON_SHIELD =
       '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 3l7 3v5c0 4.5-3 7.6-7 9-4-1.4-7-4.5-7-9V6l7-3z"/><path d="M9.2 12.2l2 2 3.6-3.8"/></svg>';
+    const ICON_VERIFIED =
+      '<img class="site-agreement-verified-img" src="https://github.com/Delexoo/Dashboard/blob/main/doc/Verified.png?raw=true" alt="Verified" width="24" height="24" decoding="async">';
+    const ICON_LOCK =
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><rect x="4" y="11" width="16" height="9" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>';
     const ICON_DONE =
       '<svg class="site-agreement-ico-done" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M20 6L9 17l-5-5"/></svg>';
     const ICON_EXT =
@@ -578,7 +605,19 @@
     root.style.colorScheme = "light";
     root.innerHTML =
       '<div class="site-agreement-card">' +
+      '<div class="site-agreement-brand">' +
       logoMarkup +
+      '<span class="site-agreement-verified" aria-label="Verified business" title="Verified business">' +
+      ICON_VERIFIED +
+      "</span>" +
+      "</div>" +
+      '<div class="site-agreement-company">' +
+      safeName +
+      "</div>" +
+      '<div class="site-agreement-trust">' +
+      ICON_LOCK +
+      "<span>Secure agreement</span>" +
+      "</div>" +
       '<h1 class="site-agreement-title">Before you continue</h1>' +
       '<p class="site-agreement-text">Please review and accept our policies to continue.</p>' +
       '<div class="site-agreement-docs">' +
@@ -600,7 +639,7 @@
     const agreeLabel = root.querySelector("#site-agreement-agree");
     const hint = root.querySelector("#site-agreement-hint");
 
-    const read = { privacy: false, terms: false };
+    const read = loadAgreementRead();
 
     function refreshCheckboxState() {
       // Checkbox is always enabled; opening the documents is optional.
@@ -609,17 +648,30 @@
     function markRead(which, btn) {
       read[which] = true;
       btn.classList.add("is-read");
+      saveAgreementRead(read);
     }
+
+    // Restore read progress if the user opened a doc and came back.
+    if (read.privacy) privacyBtn.classList.add("is-read");
+    if (read.terms) termsBtn.classList.add("is-read");
 
     privacyBtn.addEventListener("click", () => markRead("privacy", privacyBtn));
     termsBtn.addEventListener("click", () => markRead("terms", termsBtn));
 
     check.addEventListener("change", () => {
       if (check.disabled || !check.checked) return;
+      // Lock the control so the check animation can finish, then continue.
+      check.disabled = true;
+      agreeLabel.classList.add("is-confirming");
+      if (hint) hint.textContent = "Verified — continuing…";
       setAcceptedAgreement();
-      root.classList.add("site-agreement-out");
-      setTimeout(() => root.remove(), 240);
-      if (typeof onAccept === "function") onAccept();
+      const reduce = window.SiteTheme?.isReduceMotion?.();
+      const delay = reduce ? 150 : 720;
+      setTimeout(() => {
+        root.classList.add("site-agreement-out");
+        setTimeout(() => root.remove(), 240);
+        if (typeof onAccept === "function") onAccept();
+      }, delay);
     });
   }
 

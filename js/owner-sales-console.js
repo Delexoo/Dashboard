@@ -779,6 +779,40 @@
     /* No-op */
   }
 
+  const SENT_FIELD_ICONS = {
+    owner:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+    phone:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72c.13.96.36 1.9.7 2.81a2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45c.91.34 1.85.57 2.81.7A2 2 0 0 1 22 16.92z"/></svg>',
+    price:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="1" x2="12" y2="23"/><path d="M17 5H9.5a3.5 3.5 0 0 0 0 7h5a3.5 3.5 0 0 1 0 7H6"/></svg>',
+    preference:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.59 13.41 13.42 20.6a2 2 0 0 1-2.83 0L2 12V2h10l8.59 8.59a2 2 0 0 1 0 2.82z"/><circle cx="7" cy="7" r="1.4"/></svg>',
+    maps:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 10c0 6-9 12-9 12s-9-6-9-12a9 9 0 0 1 18 0z"/><circle cx="12" cy="10" r="3"/></svg>',
+    sent:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 2"/></svg>',
+    id:
+      '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="4" y1="9" x2="20" y2="9"/><line x1="4" y1="15" x2="20" y2="15"/><line x1="10" y1="3" x2="8" y2="21"/><line x1="16" y1="3" x2="14" y2="21"/></svg>',
+  };
+
+  function formatSentDate(iso) {
+    if (!iso) return "";
+    const d = new Date(iso);
+    if (Number.isNaN(d.getTime())) return "";
+    try {
+      return d.toLocaleString(undefined, {
+        month: "short",
+        day: "numeric",
+        year: "numeric",
+        hour: "numeric",
+        minute: "2-digit",
+      });
+    } catch (e) {
+      return d.toLocaleString();
+    }
+  }
+
   function renderInbox() {
     const list = $("owner-lead-list");
     const empty = $("owner-inbox-empty");
@@ -817,6 +851,73 @@
         const repName = esc(row.rep_name || row.rep_id || "Rep");
         const biz = esc(row.business_name || "Business");
         const id = esc(row.id);
+
+        // Collapsed view shows only the essentials; full details live in the
+        // expandable panel below (opened by clicking the lead).
+        const sentRows = [];
+        const sentRow = (label, valueHtml, icon) => {
+          if (!valueHtml) return;
+          sentRows.push(
+            '<div class="owner-console-ni-row">' +
+            '<dt class="owner-console-ni-row-label">' +
+            (icon
+              ? '<span class="owner-console-ni-row-ico" aria-hidden="true">' + icon + "</span>"
+              : "") +
+            "<span>" + label + "</span>" +
+            "</dt>" +
+            '<dd class="owner-console-ni-row-value">' + valueHtml + "</dd>" +
+            "</div>"
+          );
+        };
+
+        const ownerName = String(row.owner_name || "").trim();
+        const preference = String(row.preference || "").trim();
+        const mapsUrl = String(row.google_maps || "").trim();
+        const leadId = String(row.lead_id || "").trim();
+        const tel = telHrefFromPhone(row.phone);
+        const phoneVal = phone
+          ? tel
+            ? '<a class="owner-console-ni-detail-link" href="' + esc(tel) + '">' + phone + "</a>"
+            : phone
+          : "";
+        const mapsVal =
+          mapsUrl && mapsUrl !== "#"
+            ? '<a class="owner-console-ni-detail-link" href="' +
+              esc(mapsUrl) +
+              '" target="_blank" rel="noopener noreferrer">Open in Maps</a>'
+            : "";
+        const sentVal = row.created_at
+          ? '<time datetime="' + esc(row.created_at) + '">' + esc(formatSentDate(row.created_at)) + "</time>"
+          : "";
+
+        sentRow("Owner", ownerName ? esc(ownerName) : "", SENT_FIELD_ICONS.owner);
+        sentRow("Phone", phoneVal, SENT_FIELD_ICONS.phone);
+        sentRow("Package", row.price ? esc(row.price) : "", SENT_FIELD_ICONS.price);
+        sentRow("Preference", preference ? esc(preference) : "", SENT_FIELD_ICONS.preference);
+        sentRow("Google Maps", mapsVal, SENT_FIELD_ICONS.maps);
+        sentRow("Sent", sentVal, SENT_FIELD_ICONS.sent);
+        sentRow(
+          "Lead ID",
+          leadId ? '<code class="owner-console-ni-id">' + esc(leadId) + "</code>" : "",
+          SENT_FIELD_ICONS.id
+        );
+
+        if (status === "confirmed") {
+          const sale = Number(row.sale_amount) || 0;
+          const comm = Number(row.commission_amount) || 0;
+          if (sale || comm) {
+            sentRow("Sale", "$" + formatMoney(sale), SENT_FIELD_ICONS.price);
+            sentRow("Commission", "$" + formatMoney(comm), SENT_FIELD_ICONS.price);
+          }
+        }
+
+        const detailsHtml = sentRows.length
+          ? '<div class="owner-console-sent-details owner-console-ni-details" hidden>' +
+            '<dl class="owner-console-ni-grid">' +
+            sentRows.join("") +
+            "</dl>" +
+            "</div>"
+          : "";
 
         let actions = "";
         if (isPending) {
@@ -863,42 +964,43 @@
         }
 
         return (
-          '<li class="dash-pending-item owner-console-lead-item" data-lead-id="' +
+          '<li class="dash-pending-item owner-console-lead-item owner-console-sent-item" data-lead-id="' +
           id +
           '">' +
-          '<div class="dash-pending-item-body">' +
-          '<div class="dash-pending-item-head owner-console-lead-head">' +
-          '<p class="dash-pending-name">' +
+          '<div class="owner-console-sent-row">' +
+          '<button type="button" class="owner-console-sent-head" aria-expanded="false"' +
+          (detailsHtml ? "" : " disabled") +
+          ">" +
+          '<span class="owner-console-sent-head-main">' +
+          '<span class="owner-console-sent-head-top">' +
+          '<span class="dash-pending-name">' +
           biz +
-          "</p>" +
+          "</span>" +
           '<span class="owner-console-status ' +
           statusClass(status) +
           '">' +
           esc(statusLabel(status)) +
           "</span>" +
-          "</div>" +
-          '<p class="dash-pending-subline owner-console-lead-meta">' +
+          "</span>" +
+          '<span class="owner-console-sent-sub">' +
           '<span class="owner-console-lead-rep">' +
           repName +
           "</span>" +
-          '<span class="dash-pending-dot" aria-hidden="true">·</span>' +
-          '<span class="dash-pending-price">' +
-          price +
-          "</span>" +
-          (phone
-            ? '<span class="dash-pending-dot" aria-hidden="true">·</span><span>' +
-              phone +
-              "</span>"
-            : "") +
           '<span class="dash-pending-dot" aria-hidden="true">·</span>' +
           '<time class="dash-pending-time" datetime="' +
           esc(row.created_at || "") +
           '">' +
           esc(when) +
           "</time>" +
-          "</p>" +
-          "</div>" +
+          "</span>" +
+          "</span>" +
+          (detailsHtml
+            ? '<span class="owner-console-sent-chevron" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 9l6 6 6-6"/></svg></span>'
+            : "") +
+          "</button>" +
           actions +
+          "</div>" +
+          detailsHtml +
           "</li>"
         );
       })
@@ -2202,6 +2304,17 @@
     bindInboxSearch();
 
     $("owner-lead-list")?.addEventListener("click", (e) => {
+      const sentHead = e.target.closest(".owner-console-sent-head");
+      if (sentHead) {
+        const item = sentHead.closest(".owner-console-sent-item");
+        if (item) {
+          const details = item.querySelector(".owner-console-sent-details");
+          const open = item.classList.toggle("is-open");
+          sentHead.setAttribute("aria-expanded", open ? "true" : "false");
+          if (details) details.hidden = !open;
+        }
+        return;
+      }
       const confirmBtn = e.target.closest("[data-confirm]");
       if (confirmBtn) {
         const id = confirmBtn.getAttribute("data-confirm");

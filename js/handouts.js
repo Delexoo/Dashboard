@@ -433,6 +433,10 @@
       '<ul class="handout-check-list">' +
       items +
       "</ul>" +
+      '<p class="handout-pick-note">' +
+      '<span class="handout-pick-note-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>' +
+      "<span>Totally optional \u2014 you don\u2019t have to use this. It\u2019s just here if you want it. You can simply call businesses as you build your leads.</span>" +
+      "</p>" +
       "</section>"
     );
   }
@@ -506,6 +510,10 @@
       '<ul class="handout-pick-list">' +
       rows +
       "</ul>" +
+      '<p class="handout-pick-note">' +
+      '<span class="handout-pick-note-ico" aria-hidden="true"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><path d="M12 16v-4"/><path d="M12 8h.01"/></svg></span>' +
+      "<span>Don\u2019t stress over picking the perfect tier \u2014 when you hit <strong>Build Lead</strong> it auto-selects a package based on the business size. You can always downgrade later, so nothing is ever locked in.</span>" +
+      "</p>" +
       "</section>"
     );
   }
@@ -586,11 +594,7 @@
 
     const row = (icon, label, value, href) => {
       if (!value) return "";
-      const val = href
-        ? '<a class="handout-contact-val" href="' + esc(href) + '" target="_blank" rel="noopener noreferrer">' + esc(value) + "</a>"
-        : '<span class="handout-contact-val">' + esc(value) + "</span>";
-      return (
-        '<li class="handout-contact-row">' +
+      const inner =
         '<span class="handout-contact-ico" aria-hidden="true">' +
         icon +
         "</span>" +
@@ -598,9 +602,28 @@
         '<span class="handout-contact-label">' +
         esc(label) +
         "</span>" +
-        val +
+        '<span class="handout-contact-val">' +
+        esc(value) +
         "</span>" +
-        "</li>"
+        "</span>";
+      if (href) {
+        const newTab = /^https?:/i.test(href)
+          ? ' target="_blank" rel="noopener noreferrer"'
+          : "";
+        return (
+          '<li><a class="handout-contact-btn" href="' +
+          esc(href) +
+          '"' +
+          newTab +
+          ">" +
+          inner +
+          "</a></li>"
+        );
+      }
+      return (
+        '<li><span class="handout-contact-btn handout-contact-btn--static">' +
+        inner +
+        "</span></li>"
       );
     };
 
@@ -634,60 +657,6 @@
       '<ul class="handout-contact-list">' +
       rows +
       "</ul>" +
-      "</section>"
-    );
-  }
-
-  function callLogCard() {
-    const stats = ["Calls made", "Answered", "Demos sent", "Closes"]
-      .map(
-        (s) =>
-          '<div class="handout-log-stat">' +
-          '<span class="handout-log-stat-num"></span>' +
-          '<span class="handout-log-stat-label">' +
-          esc(s) +
-          "</span>" +
-          "</div>"
-      )
-      .join("");
-
-    let rows = "";
-    for (let i = 1; i <= 12; i += 1) {
-      rows +=
-        "<tr>" +
-        '<td class="handout-log-num">' +
-        i +
-        "</td>" +
-        "<td></td><td></td>" +
-        '<td class="handout-log-result"></td>' +
-        "</tr>";
-    }
-
-    return (
-      '<section class="card handout-card" data-handout="calllog">' +
-      '<header class="handout-card-head">' +
-      '<div class="handout-card-titles">' +
-      '<h2 class="handout-card-title">Daily call log</h2>' +
-      '<p class="handout-card-sub">Print one each day to track your calls and stay on pace for your goal.</p>' +
-      "</div>" +
-      printBtn("calllog") +
-      "</header>" +
-      '<div class="handout-log-meta">' +
-      '<span class="handout-log-field">Date <span class="handout-log-line"></span></span>' +
-      '<span class="handout-log-field">Daily goal <span class="handout-log-line"></span></span>' +
-      "</div>" +
-      '<div class="handout-log-stats">' +
-      stats +
-      "</div>" +
-      '<table class="handout-log-table">' +
-      "<thead><tr>" +
-      '<th class="handout-log-num">#</th>' +
-      "<th>Business</th><th>Phone</th><th>Result</th>" +
-      "</tr></thead>" +
-      "<tbody>" +
-      rows +
-      "</tbody>" +
-      "</table>" +
       "</section>"
     );
   }
@@ -919,7 +888,6 @@
       pricingCard() +
       commissionCard() +
       dosDontsCard() +
-      callLogCard() +
       contactCard() +
       callScriptsCard() +
       helpGuideCard() +

@@ -839,9 +839,16 @@
     return repName ? "Logged in as " + repName : "Sales operations";
   }
 
+  function brandSubHtml() {
+    const repName = window.RepSession?.getName?.() || "";
+    return repName
+      ? "Logged in as <strong>" + escHtml(repName) + "</strong>"
+      : "Sales operations";
+  }
+
   function updateBrandSub() {
     const el = document.querySelector(".brand-sub");
-    if (el) el.textContent = brandSubText();
+    if (el) el.innerHTML = brandSubHtml();
   }
 
   function newDealId() {
@@ -925,7 +932,12 @@
     const val = select.value;
     const selectedOpt = Array.from(select.options).find((o) => o.value === val);
     const isPlaceholder = !val || (selectedOpt && selectedOpt.disabled);
-    labelEl.textContent = selectedOpt ? selectedOpt.textContent : "Select amount";
+    labelEl.textContent =
+      val === "custom"
+        ? "Custom"
+        : selectedOpt
+          ? selectedOpt.textContent
+          : "Select amount";
     trigger.classList.toggle("is-placeholder", !!isPlaceholder);
     menu.querySelectorAll(".dash-select-option").forEach((o) => {
       o.classList.toggle("is-active", o.dataset.value === val && !!val);
@@ -1465,7 +1477,7 @@
         `<div class="sidebar-panel">` +
         `<a class="brand" href="dashboard.html" aria-label="Go to Dashboard">` +
         `${brandMarkHtml()}` +
-        `<span class="brand-text"><strong>${brandName}</strong><span class="brand-sub">${escHtml(brandSubText())}</span></span>` +
+        `<span class="brand-text"><strong>${brandName}</strong><span class="brand-sub">${brandSubHtml()}</span></span>` +
         `</a>` +
         `<div class="nav-group nav-group-home" data-nav-group="overview"><ul class="nav-list nav-list-standalone">${renderOverviewNav(activeId)}</ul></div>` +
         navGroup("course", "Course", "book-open", renderCourseNav(activeId, progress)) +
@@ -2514,11 +2526,62 @@
       }
     }
 
-    function emailStatsSummary() {
-      const s = gatherStatsExport();
-      const subject = encodeURIComponent(s.repName + " \u2014 sales summary");
-      const body = encodeURIComponent(statsSummaryText());
-      window.location.href = "mailto:?subject=" + subject + "&body=" + body;
+    function inviteShareConfig() {
+      const c = window.SITE_CONFIG || {};
+      const url = String(c.contributorsShareUrl || "").trim();
+      return {
+        url,
+        title: String(c.contributorsShareTitle || "Remote sales opportunity").trim(),
+        text: String(c.contributorsShareText || "I'm inviting you to apply:").trim(),
+      };
+    }
+
+    function inviteMessage(share) {
+      const body = String(share.text || "").trim();
+      const url = String(share.url || "").trim();
+      if (!body) return url;
+      if (!url || body.includes(url)) return body;
+      return body + "\n\n" + url;
+    }
+
+    async function inviteTeammate() {
+      const share = inviteShareConfig();
+      const message = inviteMessage(share);
+      if (!message) {
+        window.SiteLoading?.showToast?.("Invite link isn\u2019t set up yet", {
+          kind: "error",
+        });
+        return;
+      }
+      if (typeof navigator.share === "function") {
+        const attempts = [
+          { title: share.title, text: message },
+          { title: share.title, text: share.text, url: share.url },
+          { url: share.url },
+        ];
+        for (let i = 0; i < attempts.length; i++) {
+          const payload = attempts[i];
+          if (navigator.canShare && !navigator.canShare(payload)) continue;
+          try {
+            await navigator.share(payload);
+            return;
+          } catch (e) {
+            if (e && e.name === "AbortError") return;
+          }
+        }
+      }
+      if (navigator.clipboard?.writeText) {
+        try {
+          await navigator.clipboard.writeText(message);
+          window.SiteLoading?.showToast?.("Invite copied \u2014 share it!", {
+            kind: "success",
+          });
+          return;
+        } catch (e) {
+          /* fall through to opening the link */
+        }
+      }
+      if (share.url) window.open(share.url, "_blank", "noopener,noreferrer");
     }
 
     function initTrackerUtilities() {
@@ -2532,8 +2595,8 @@
         .querySelector("#dash-tool-copy")
         ?.addEventListener("click", copyStatsSummary);
       tools
-        .querySelector("#dash-tool-email")
-        ?.addEventListener("click", emailStatsSummary);
+        .querySelector("#dash-tool-invite")
+        ?.addEventListener("click", inviteTeammate);
     }
 
     function initGoalEditor() {
@@ -4319,7 +4382,7 @@
       filled,
       total: TPL_PROGRESS_STEPS,
       ratio,
-      percent: Math.round(ratio * 100),
+      percent: Math.floor(ratio * 100),
       ready: filled === TPL_PROGRESS_STEPS,
     };
   }
@@ -4361,7 +4424,8 @@
     const sending = sendBtn.dataset.tplSending === "1";
     const clamped = Math.min(1, Math.max(0, Number(ratio) || 0));
     const showReady = ready && !sending && clamped >= 0.999;
-    const displayPct = Math.round(clamped * 100);
+    // Floor so partial steps never overstate progress (e.g. 4/6 reads 66%, not 67%).
+    const displayPct = Math.floor(clamped * 100);
 
     wrap.style.setProperty("--tpl-progress", String(clamped));
     wrap.setAttribute("aria-valuenow", String(displayPct));
@@ -5613,7 +5677,7 @@
     window.RepSession?.applyToTracker?.(true);
     if (document.body.dataset.appBooted === "1") {
       const sub = document.querySelector(".brand-sub");
-      if (sub) sub.textContent = brandSubText();
+      if (sub) sub.innerHTML = brandSubHtml();
     }
   });
   window.addEventListener("rep-settings-ready", () => {

@@ -346,7 +346,7 @@
       '<div class="payout-phone-row">' +
       '<select id="' +
       esc(selectId) +
-      '" class="payout-phone-country" aria-label="Country code">' +
+      '" class="payout-phone-country" data-modern="off" aria-label="Country code">' +
       renderPhoneCountriesSelect(countryId) +
       "</select>" +
       '<input type="tel" id="' +
